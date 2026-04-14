@@ -11,6 +11,16 @@ class EpisodeType(str, Enum):
     LEARNING = "learning"
 
 
+class EntityType(str, Enum):
+    PERSON = "person"
+    PROJECT = "project"
+    FILE = "file"
+    CONCEPT = "concept"
+    DECISION = "decision"
+    PREFERENCE = "preference"
+    TOOL = "tool"
+
+
 class Episode(BaseModel):
     uuid: str
     content: str
@@ -19,14 +29,7 @@ class Episode(BaseModel):
     created_at: datetime
     valid_at: Optional[datetime] = None
     invalid_at: Optional[datetime] = None
-
-
-class EntityType(str, Enum):
-    PERSON = "person"
-    PROJECT = "project"
-    FILE = "file"
-    CONCEPT = "concept"
-    DECISION = "decision"
+    group_id: Optional[str] = None
 
 
 class Entity(BaseModel):
@@ -35,6 +38,8 @@ class Entity(BaseModel):
     summary: str
     entity_type: EntityType
     created_at: datetime
+    valid_at: Optional[datetime] = None
+    invalid_at: Optional[datetime] = None
 
 
 class Fact(BaseModel):
@@ -47,6 +52,8 @@ class Fact(BaseModel):
     created_at: datetime
     valid_at: Optional[datetime] = None
     invalid_at: Optional[datetime] = None
+    superseded_by: Optional[str] = None
+    score: float = 1.0
 
 
 class MemoryQueryResult(BaseModel):
@@ -54,3 +61,30 @@ class MemoryQueryResult(BaseModel):
     entities: List[Entity]
     facts: List[Fact]
     relevance_scores: List[float]
+
+
+class Project(BaseModel):
+    name: str
+    language: Optional[str] = None
+    framework: Optional[str] = None
+    path: Optional[str] = None
+
+
+class File(BaseModel):
+    path: str
+    purpose: Optional[str] = None
+    language: Optional[str] = None
+
+
+class Preference(BaseModel):
+    category: str
+    value: str
+    valid_from: Optional[datetime] = None
+    valid_until: Optional[datetime] = None
+
+
+class Decision(BaseModel):
+    description: str
+    reason: Optional[str] = None
+    outcome: Optional[str] = None
+    made_at: datetime
