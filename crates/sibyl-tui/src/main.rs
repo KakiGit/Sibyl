@@ -5,24 +5,25 @@ mod theme;
 mod widgets;
 
 use std::io;
-use std::sync::Arc;
 use std::time::Duration;
 
 use crossterm::{
-    event::{self, Event, KeyCode, KeyEvent, KeyModifiers},
+    event::{self, Event, KeyCode, KeyEvent},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use ratatui::{
     backend::CrosstermBackend,
-    layout::{Constraint, Direction, Layout, Rect},
+    layout::{Constraint, Direction, Layout},
     Frame, Terminal,
 };
-use sibyl_core::Orchestrator;
 use sibyl_ipc::client::IpcClient;
 use sibyl_ipc::{Method, Request};
 
-use app::{AppMode, AppStatus, ChatState, InputState, Message, MessageRole, MemoryPanelState, StatusBarState};
+use app::{
+    AppMode, AppStatus, ChatState, InputState, MemoryPanelState, Message, MessageRole,
+    StatusBarState,
+};
 use input::{handle_chat_key, handle_global_key, handle_memory_key, Command, InputComposer};
 use render::{
     render_chat, render_command_input, render_input, render_memory_panel, render_status_bar,
@@ -109,7 +110,12 @@ impl App {
         let result = handle_chat_key(key);
         match result {
             input::HandleResult::ScrollDown(n) => {
-                let total: usize = self.chat.messages.iter().map(|m| m.content.lines().count()).sum();
+                let total: usize = self
+                    .chat
+                    .messages
+                    .iter()
+                    .map(|m| m.content.lines().count())
+                    .sum();
                 let visible = 20;
                 self.chat.scroll_down(n, total, visible);
             }
@@ -203,10 +209,13 @@ impl App {
             }
         }
 
-        let assistant_msg = Message::new(MessageRole::Assistant, "Processing your request...".to_string())
-            .with_memories(self.memory.results.clone());
+        let assistant_msg = Message::new(
+            MessageRole::Assistant,
+            "Processing your request...".to_string(),
+        )
+        .with_memories(self.memory.results.clone());
         self.chat.add_message(assistant_msg);
-        
+
         self.status = AppStatus::Idle;
         self.spinner.stop();
     }
@@ -229,14 +238,23 @@ impl App {
                         self.status = AppStatus::Processing;
                         let rt = tokio::runtime::Runtime::new().unwrap();
                         let ipc_client = IpcClient::new("/tmp/sibyl-ipc.sock");
-                        let request = Request::new(Method::MemoryQuery, serde_json::json!({ "query": query }));
-                        
+                        let request = Request::new(
+                            Method::MemoryQuery,
+                            serde_json::json!({ "query": query }),
+                        );
+
                         if let Ok(response) = rt.block_on(ipc_client.send(request)) {
                             if let Some(result) = response.result {
-                                if let Some(episodes) = result.get("episodes").and_then(|e| e.as_array()) {
+                                if let Some(episodes) =
+                                    result.get("episodes").and_then(|e| e.as_array())
+                                {
                                     self.memory.results = episodes
                                         .iter()
-                                        .filter_map(|e| e.get("content").and_then(|c| c.as_str()).map(String::from))
+                                        .filter_map(|e| {
+                                            e.get("content")
+                                                .and_then(|c| c.as_str())
+                                                .map(String::from)
+                                        })
                                         .collect();
                                     self.status_bar.memory_count = self.memory.results.len();
                                     self.memory.visible = true;
@@ -312,7 +330,13 @@ fn ui(f: &mut Frame, app: &App) {
         input_state.buffer = app.composer.buffer().to_string();
         input_state.cursor_position = app.composer.cursor();
         let focused = app.mode == AppMode::Chat;
-        render_input(f, &input_state, main_chunks[2], focused, app.status == AppStatus::Processing);
+        render_input(
+            f,
+            &input_state,
+            main_chunks[2],
+            focused,
+            app.status == AppStatus::Processing,
+        );
     }
 
     if app.memory.visible {
@@ -324,7 +348,10 @@ fn ui(f: &mut Frame, app: &App) {
     }
 }
 
-fn run_app<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<()> {
+fn run_app<B: ratatui::backend::Backend>(
+    terminal: &mut Terminal<B>,
+    mut app: App,
+) -> io::Result<()> {
     loop {
         terminal.draw(|f| ui(f, &app))?;
 

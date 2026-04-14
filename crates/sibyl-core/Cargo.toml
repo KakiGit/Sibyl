@@ -11,9 +11,12 @@ sibyl-plugin = { path = "../sibyl-plugin" }
 tokio.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+serde_yaml = "0.9"
 thiserror.workspace = true
 anyhow.workspace = true
 tracing.workspace = true
 async-trait.workspace = true
 uuid.workspace = true
 chrono.workspace = true
+futures.workspace = true
+directories = "5"

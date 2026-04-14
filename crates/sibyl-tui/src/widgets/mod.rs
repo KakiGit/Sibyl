@@ -1,8 +1,8 @@
 mod completion;
+mod help;
 pub mod scrollbar;
 pub mod spinner;
-mod help;
 
 pub use completion::*;
-pub use spinner::*;
 pub use help::*;
+pub use spinner::*;
