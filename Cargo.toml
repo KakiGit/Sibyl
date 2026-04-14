@@ -1,0 +1,35 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/sibyl-tui",
+    "crates/sibyl-core",
+    "crates/sibyl-harness",
+    "crates/sibyl-opencode",
+    "crates/sibyl-ipc",
+    "crates/sibyl-plugin",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+authors = ["Sibyl Contributors"]
+repository = "https://github.com/anomalyco/sibyl"
+
+[workspace.dependencies]
+tokio = { version = "1.40", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "1.0"
+anyhow = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+ratatui = "0.28"
+crossterm = { version = "0.28", features = ["event-stream"] }
+
+reqwest = { version = "0.12", features = ["json", "stream"] }
+tokio-tungstenite = "0.24"
+futures = "0.3"
+
+async-trait = "0.1"

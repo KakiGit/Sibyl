@@ -1,0 +1,13 @@
+/target/
+/Cargo.lock
+*.pyc
+__pycache__/
+*.egg-info/
+.eggs/
+*.egg
+dist/
+build/
+.env
+.venv/
+venv/
+*.log
