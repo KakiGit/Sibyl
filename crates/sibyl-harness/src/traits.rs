@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use crate::{Result, SessionInfo, Message};
+use crate::{Result, SessionInfo, Message, HarnessCapabilities};
 
 #[async_trait]
 pub trait Harness: Send + Sync {

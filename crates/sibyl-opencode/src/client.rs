@@ -1,4 +1,4 @@
-use crate::{Result, Harness, SessionInfo, Message, HarnessCapabilities};
+use sibyl_harness::{Harness, SessionInfo, Message, HarnessCapabilities, Result, Error};
 use async_trait::async_trait;
 use reqwest::Client;
 use std::path::Path;
@@ -39,11 +39,11 @@ impl Harness for OpenCodeClient {
             .json(&serde_json::json!({ "project_path": project_path }))
             .send()
             .await
-            .map_err(|e| crate::Error::RequestFailed(e.to_string()))?;
+            .map_err(|e| Error::RequestFailed(e.to_string()))?;
         
         response.json::<SessionInfo>()
             .await
-            .map_err(|e| crate::Error::InvalidResponse(e.to_string()))
+            .map_err(|e| Error::InvalidResponse(e.to_string()))
     }
 
     async fn send_message(&self, session_id: &str, message: &Message) -> Result<String> {
@@ -53,11 +53,11 @@ impl Harness for OpenCodeClient {
             .json(message)
             .send()
             .await
-            .map_err(|e| crate::Error::RequestFailed(e.to_string()))?;
+            .map_err(|e| Error::RequestFailed(e.to_string()))?;
         
         let body = response.text()
             .await
-            .map_err(|e| crate::Error::InvalidResponse(e.to_string()))?;
+            .map_err(|e| Error::InvalidResponse(e.to_string()))?;
         
         Ok(body)
     }
@@ -68,11 +68,11 @@ impl Harness for OpenCodeClient {
             .get(&url)
             .send()
             .await
-            .map_err(|e| crate::Error::RequestFailed(e.to_string()))?;
+            .map_err(|e| Error::RequestFailed(e.to_string()))?;
         
         response.json::<Vec<Message>>()
             .await
-            .map_err(|e| crate::Error::InvalidResponse(e.to_string()))
+            .map_err(|e| Error::InvalidResponse(e.to_string()))
     }
 
     async fn close_session(&self, session_id: &str) -> Result<()> {
@@ -81,7 +81,7 @@ impl Harness for OpenCodeClient {
             .delete(&url)
             .send()
             .await
-            .map_err(|e| crate::Error::RequestFailed(e.to_string()))?;
+            .map_err(|e| Error::RequestFailed(e.to_string()))?;
         
         Ok(())
     }

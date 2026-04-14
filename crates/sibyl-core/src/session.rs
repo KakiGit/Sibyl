@@ -30,7 +30,7 @@ pub enum SessionState {
     Closed,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Session {
     pub id: SessionId,
     pub state: Arc<RwLock<SessionState>>,
