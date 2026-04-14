@@ -1,0 +1,28 @@
+{% if entities %}
+## Known Entities
+{% for entity in entities %}
+{% if entity.summary %}
+- **{{ entity.name }}** ({{ entity.entity_type }}): {{ entity.summary }}
+{% else %}
+- **{{ entity.name }}** ({{ entity.entity_type }})
+{% endif %}
+{% endfor %}
+{% endif %}
+
+{% if facts %}
+## Current Facts
+{% for fact in facts %}
+{% if fact.invalid_at %}
+- [SUPERSEDED] {{ fact.fact }} (invalidated: {{ fact.invalid_at.strftime('%Y-%m-%d') }})
+{% else %}
+- {{ fact.fact }}{% if fact.valid_at %} (since {{ fact.valid_at.strftime('%Y-%m-%d') }}){% endif %}
+{% endif %}
+{% endfor %}
+{% endif %}
+
+{% if episodes %}
+## Recent Episodes
+{% for episode in episodes %}
+- [{{ episode.episode_type.value }}] {{ episode.created_at.strftime('%Y-%m-%d') }}: {{ episode.content[:150] }}{% if episode.content|length > 150 %}...{% endif %}
+{% endfor %}
+{% endif %}

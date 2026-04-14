@@ -1,7 +1,8 @@
 import asyncio
 import logging
 from sibyl_memory import MemorySystem
-from sibyl_prompt import PromptBuilder
+from sibyl_prompt import TemplatePromptBuilder
+from sibyl_relevance import CachedRelevanceEvaluator
 from sibyl_ipc_server import IpcServer, MemoryHandler, PromptHandler
 
 logging.basicConfig(level=logging.INFO)
@@ -12,12 +13,16 @@ async def main():
     memory = MemorySystem()
     await memory.initialize()
 
-    prompt_builder = PromptBuilder()
+    prompt_builder = TemplatePromptBuilder()
+    relevance_evaluator = CachedRelevanceEvaluator(
+        llm_client=memory.client._llm_client,
+        cache_ttl=300,
+    )
 
     server = IpcServer()
 
     memory_handler = MemoryHandler(memory)
-    prompt_handler = PromptHandler(prompt_builder)
+    prompt_handler = PromptHandler(prompt_builder, relevance_evaluator)
 
     server.register("memory.query", memory_handler.handle_query)
     server.register("memory.add_episode", memory_handler.handle_add_episode)

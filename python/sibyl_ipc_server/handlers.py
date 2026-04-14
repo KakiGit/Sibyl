@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List
 import logging
 
 logger = logging.getLogger(__name__)
@@ -14,8 +14,11 @@ class MemoryHandler:
         """Handle memory.query method."""
         query = params.get("query", "")
         num_results = params.get("num_results", 10)
+        session_id = params.get("session_id")
 
-        result = await self.memory_system.query(query, num_results)
+        result = await self.memory_system.query(
+            query, num_results, session_id=session_id
+        )
 
         return {
             "episodes": [e.model_dump() for e in result.episodes],
@@ -29,11 +32,13 @@ class MemoryHandler:
         name = params.get("name", "")
         content = params.get("content", "")
         source_description = params.get("source_description", "user conversation")
+        session_id = params.get("session_id")
 
         episode = await self.memory_system.add_episode(
             name=name,
             content=content,
             source_description=source_description,
+            session_id=session_id,
         )
 
         return {"status": "ok", "episode_id": episode.uuid}
@@ -42,8 +47,11 @@ class MemoryHandler:
         """Handle memory.get_context method."""
         query = params.get("query", "")
         max_tokens = params.get("max_tokens", 4000)
+        session_id = params.get("session_id")
 
-        context = await self.memory_system.get_context(query, max_tokens)
+        context = await self.memory_system.get_context(
+            query, max_tokens, session_id=session_id
+        )
 
         return {"context": context}
 
@@ -51,12 +59,13 @@ class MemoryHandler:
 class PromptHandler:
     """Handler for prompt-related IPC methods."""
 
-    def __init__(self, prompt_builder):
+    def __init__(self, prompt_builder, relevance_evaluator=None):
         self.prompt_builder = prompt_builder
+        self.relevance_evaluator = relevance_evaluator
 
     async def handle_build(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """Handle prompt.build method."""
-        from sibyl_prompt import PromptContext
+        from sibyl_prompt import PromptContext, TemplatePromptBuilder
 
         context = PromptContext(
             project_path=params.get("project_path", ""),
@@ -67,19 +76,49 @@ class PromptHandler:
         )
 
         max_tokens = params.get("max_tokens", 8000)
-        prompt = await self.prompt_builder.build(context, max_tokens=max_tokens)
+        user_query = params.get("user_query", "")
+        harness_name = params.get("harness_name", "opencode")
+        tools = params.get("tools", [])
+
+        if isinstance(self.prompt_builder, TemplatePromptBuilder):
+            memories_dict = params.get("memories", {})
+            prompt = await self.prompt_builder.build_system_prompt(
+                context=context,
+                memories=memories_dict,
+                tools=tools,
+                user_query=user_query,
+                harness_name=harness_name,
+                max_tokens=max_tokens,
+            )
+        else:
+            prompt = await self.prompt_builder.build(context, max_tokens=max_tokens)
 
         return {"prompt": prompt}
 
     async def handle_relevance_evaluate(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """Handle relevance.evaluate method."""
-        from sibyl_prompt import RelevanceEvaluator
+        from sibyl_relevance import CachedRelevanceEvaluator
 
         query = params.get("query", "")
-        memories = params.get("memories", [])
-        threshold = params.get("threshold", 0.3)
+        facts = params.get("facts", [])
+        threshold = params.get("threshold", 0.7)
 
-        evaluator = RelevanceEvaluator()
-        results = evaluator.evaluate(query, memories, threshold)
+        evaluator = self.relevance_evaluator or CachedRelevanceEvaluator()
+        results = await evaluator.evaluate_batch(query, facts, threshold=threshold)
 
-        return {"results": [{"memory": m, "score": s} for m, s in results]}
+        return {
+            "results": [{"fact": self._fact_to_dict(f), "score": s} for f, s in results]
+        }
+
+    def _fact_to_dict(self, fact) -> Dict[str, Any]:
+        """Convert fact to dictionary."""
+        if hasattr(fact, "model_dump"):
+            return fact.model_dump()
+        if hasattr(fact, "fact"):
+            return {
+                "uuid": getattr(fact, "uuid", ""),
+                "fact": fact.fact,
+                "source_node_uuid": getattr(fact, "source_node_uuid", ""),
+                "target_node_uuid": getattr(fact, "target_node_uuid", ""),
+            }
+        return {"content": str(fact)}

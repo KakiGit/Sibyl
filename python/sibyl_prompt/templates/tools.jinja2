@@ -1,0 +1,18 @@
+# Available Tools
+
+{% if tools %}
+{% for tool in tools %}
+## {{ tool.name }}
+{{ tool.description }}
+
+{% if tool.parameters %}
+Parameters:
+{% for param in tool.parameters %}
+- `{{ param.name }}` ({{ param.type }}{% if param.required %}, required{% endif %}): {{ param.description }}
+{% endfor %}
+{% endif %}
+
+{% endfor %}
+{% else %}
+No tools currently available.
+{% endif %}
