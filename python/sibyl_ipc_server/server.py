@@ -91,9 +91,11 @@ class IpcServer:
 
     async def _handle_request(self, request: JsonRpcRequest) -> JsonRpcResponse:
         """Handle a JSON-RPC request."""
+        logger.info(f"Received request: {request.method} with params: {request.params}")
         handler = self.handlers.get(request.method)
 
         if handler is None:
+            logger.warning(f"Method not found: {request.method}")
             return JsonRpcResponse(
                 id=request.id,
                 error={
@@ -104,9 +106,10 @@ class IpcServer:
 
         try:
             result = await handler(request.params)
+            logger.info(f"Handler result for {request.method}: {result}")
             return JsonRpcResponse(id=request.id, result=result)
         except Exception as e:
-            logger.error(f"Handler error: {e}")
+            logger.error(f"Handler error for {request.method}: {e}")
             return JsonRpcResponse(
                 id=request.id,
                 error={"code": -32603, "message": str(e)},

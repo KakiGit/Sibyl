@@ -66,8 +66,11 @@ impl PythonIpcManager {
 
         debug!("Spawning Python IPC: {} {:?}", cmd, args);
 
+        let python_dir = std::path::PathBuf::from("/home/kaki/Github/Sibyl/python");
+        
         let child = Command::new(cmd)
             .args(args)
+            .current_dir(&python_dir)
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .spawn()

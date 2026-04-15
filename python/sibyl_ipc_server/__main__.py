@@ -1,6 +1,8 @@
 import asyncio
 import logging
 from sibyl_memory import MemorySystem
+from sibyl_memory.llm.config import LLMConfig
+from sibyl_memory.graphiti_client import GraphitiClient
 from sibyl_prompt import TemplatePromptBuilder
 from sibyl_ipc_server import IpcServer, MemoryHandler, PromptHandler
 
@@ -9,7 +11,14 @@ logger = logging.getLogger(__name__)
 
 
 async def main():
-    memory = MemorySystem()
+    llm_config = LLMConfig(
+        base_url="http://127.0.0.1:11434",
+        model="qwen2.5:7b",
+        timeout=300,
+    )
+
+    client = GraphitiClient(llm_config=llm_config)
+    memory = MemorySystem(client=client)
     await memory.initialize()
 
     prompt_builder = TemplatePromptBuilder()

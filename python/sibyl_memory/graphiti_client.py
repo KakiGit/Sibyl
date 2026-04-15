@@ -142,6 +142,17 @@ class GraphitiClient:
             await self._graphiti.close()
             logger.info("Graphiti connection closed")
 
+    def _sanitize_group_id(self, group_id: Optional[str]) -> Optional[str]:
+        """Sanitize group_id to contain only valid characters."""
+        if group_id is None:
+            return None
+        import re
+
+        sanitized = re.sub(r"[^\w\-]", "_", group_id)
+        if sanitized.startswith("_"):
+            sanitized = "g" + sanitized
+        return sanitized if sanitized else None
+
     async def add_episode(
         self,
         name: str,
@@ -153,12 +164,13 @@ class GraphitiClient:
         """Add a new episode to the knowledge graph."""
         if self._graphiti:
             try:
+                sanitized_group_id = self._sanitize_group_id(group_id)
                 node = await self._graphiti.add_episode(
                     name=name,
                     episode_body=episode_body,
                     source_description=source_description,
                     reference_time=reference_time,
-                    group_id=group_id,
+                    group_id=sanitized_group_id,
                 )
                 return Episode(
                     uuid=node.uuid,
@@ -188,10 +200,11 @@ class GraphitiClient:
         """Search the knowledge graph for relevant memories."""
         if self._graphiti:
             try:
+                sanitized_group_id = self._sanitize_group_id(group_id)
                 results = await self._graphiti.search(
                     query=query,
                     num_results=num_results,
-                    group_id=group_id,
+                    group_id=sanitized_group_id,
                 )
 
                 episodes = []

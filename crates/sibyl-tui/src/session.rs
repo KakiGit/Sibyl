@@ -97,7 +97,8 @@ impl SessionRunner {
         let add_request = Request::new(Method::MemoryAddEpisode, serde_json::json!({
             "name": "conversation",
             "content": prompt,
-            "source_description": "user conversation"
+            "source_description": "user conversation",
+            "session_id": session_id
         }));
         let _ = self.ipc.send(add_request).await;
 
