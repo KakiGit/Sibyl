@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
+    "crates/sibyl-cli",
     "crates/sibyl-tui",
     "crates/sibyl-core",
     "crates/sibyl-harness",
@@ -36,3 +37,4 @@ futures = "0.3"
 async-trait = "0.1"
 uuid = { version = "1.10", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "4.5", features = ["derive"] }

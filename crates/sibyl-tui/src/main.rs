@@ -19,359 +19,14 @@ use ratatui::{
     Terminal, Frame,
 };
 use sibyl_deps::DependencyManager;
-use sibyl_harness::Harness;
-use sibyl_ipc::client::IpcClient;
-use sibyl_ipc::{Method, Request};
-use sibyl_opencode::client::OpenCodeClient;
-use sibyl_opencode::config::OpenCodeConfig;
-use sibyl_opencode::types::UserMessage;
 
-use app::{
-    AppMode, AppStatus, ChatState, InputState, MemoryPanelState, Message, MessageRole,
-    StatusBarState,
-};
-use input::{handle_chat_key, handle_global_key, handle_memory_key, Command, InputComposer};
-use render::{
-    render_chat, render_command_input, render_input, render_memory_panel, render_status_bar,
-};
-use widgets::{render_help_overlay, Spinner, SpinnerState};
-
-struct App {
-    mode: AppMode,
-    status: AppStatus,
-    chat: ChatState,
-    memory: MemoryPanelState,
-    input: InputState,
-    status_bar: StatusBarState,
-    composer: InputComposer,
-    spinner: Spinner,
-    opencode: OpenCodeClient,
-    ipc: IpcClient,
-    session_id: Option<String>,
-    deps: Arc<DependencyManager>,
-}
-
-impl App {
-    fn new(deps: Arc<DependencyManager>) -> Self {
-        let opencode_config = OpenCodeConfig::default();
-        let opencode = OpenCodeClient::new(opencode_config);
-        let ipc = IpcClient::new("/tmp/sibyl-ipc.sock");
-        
-        Self {
-            mode: AppMode::Chat,
-            status: AppStatus::Idle,
-            chat: ChatState::default(),
-            memory: MemoryPanelState::default(),
-            input: InputState::default(),
-            status_bar: StatusBarState::default(),
-            composer: InputComposer::new(),
-            spinner: Spinner::new(),
-            opencode,
-            ipc,
-            session_id: None,
-            deps,
-        }
-    }
-
-    fn handle_key(&mut self, key: KeyEvent) -> bool {
-        if self.mode == AppMode::HelpOverlay {
-            self.mode = AppMode::Chat;
-            return true;
-        }
-
-        let global_result = handle_global_key(key, self.mode);
-        match global_result {
-            input::HandleResult::Quit => return false,
-            input::HandleResult::SwitchMode(mode) => {
-                self.mode = mode;
-                return true;
-            }
-            input::HandleResult::ToggleMemoryPanel => {
-                self.memory.visible = !self.memory.visible;
-                if self.memory.visible {
-                    self.mode = AppMode::MemoryView;
-                } else {
-                    self.mode = AppMode::Chat;
-                }
-                return true;
-            }
-            input::HandleResult::ShowHelp => {
-                self.mode = AppMode::HelpOverlay;
-                return true;
-            }
-            input::HandleResult::HideHelp => {
-                self.mode = AppMode::Chat;
-                return true;
-            }
-            input::HandleResult::ClearChat => {
-                self.chat.clear();
-                return true;
-            }
-            _ => {}
-        }
-
-        match self.mode {
-            AppMode::Chat => self.handle_chat_mode(key),
-            AppMode::MemoryView => self.handle_memory_mode(key),
-            AppMode::CommandPalette => self.handle_command_mode(key),
-            AppMode::HelpOverlay => {}
-        }
-
-        true
-    }
-
-    fn handle_chat_mode(&mut self, key: KeyEvent) {
-        if self.status == AppStatus::Processing {
-            return;
-        }
-
-        let result = handle_chat_key(key);
-        match result {
-            input::HandleResult::ScrollDown(n) => {
-                let total: usize = self
-                    .chat
-                    .messages
-                    .iter()
-                    .map(|m| m.content.lines().count())
-                    .sum();
-                let visible = 20;
-                self.chat.scroll_down(n, total, visible);
-            }
-            input::HandleResult::ScrollUp(n) => {
-                self.chat.scroll_up(n);
-            }
-            input::HandleResult::SubmitInput => {
-                self.submit_input();
-            }
-            input::HandleResult::SwitchMode(mode) => {
-                self.mode = mode;
-            }
-            _ => {
-                if input::should_handle_as_input(key, self.mode) {
-                    self.composer.handle_key(key);
-                }
-            }
-        }
-    }
-
-    fn handle_memory_mode(&mut self, key: KeyEvent) {
-        let result = handle_memory_key(key);
-        match result {
-            input::HandleResult::ScrollDown(n) => {
-                self.memory.scroll_offset = self.memory.scroll_offset.saturating_add(n);
-            }
-            input::HandleResult::ScrollUp(n) => {
-                self.memory.scroll_offset = self.memory.scroll_offset.saturating_sub(n);
-            }
-            input::HandleResult::ToggleMemoryPanel => {
-                self.memory.visible = false;
-                self.mode = AppMode::Chat;
-            }
-            input::HandleResult::SwitchMode(mode) => {
-                self.mode = mode;
-            }
-            _ => {
-                if input::should_handle_as_input(key, self.mode) {
-                    self.composer.handle_key(key);
-                }
-            }
-        }
-    }
-
-    fn handle_command_mode(&mut self, key: KeyEvent) {
-        match key.code {
-            KeyCode::Esc => {
-                self.mode = AppMode::Chat;
-                self.composer.clear();
-            }
-            KeyCode::Enter => {
-                let cmd_text = self.composer.submit();
-                self.execute_command(&cmd_text);
-                self.mode = AppMode::Chat;
-            }
-            _ => {
-                self.composer.handle_key(key);
-            }
-        }
-    }
-
-    fn submit_input(&mut self) {
-        let text = self.composer.submit();
-        if text.is_empty() {
-            return;
-        }
-
-        if text.starts_with('/') {
-            self.execute_command(&text);
-            return;
-        }
-
-        let msg = Message::new(MessageRole::User, text.clone());
-        self.chat.add_message(msg);
-        self.status = AppStatus::Processing;
-        self.spinner.start(SpinnerState::Processing);
-
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        
-        let session_id = self.session_id.clone();
-        let ipc_client = IpcClient::new("/tmp/sibyl-ipc.sock");
-        let opencode_config = OpenCodeConfig::default();
-        let opencode_client = OpenCodeClient::new(opencode_config);
-        
-        let (new_session_id, mem_result, assistant_content) = rt.block_on(async {
-            let sid = match session_id {
-                Some(id) => id,
-                None => {
-                    match opencode_client.create_session(None).await {
-                        Ok(info) => info.id,
-                        Err(_) => return (None, None, None),
-                    }
-                }
-            };
-            
-            let request = Request::new(Method::MemoryQuery, serde_json::json!({ "query": text }));
-            let memories = ipc_client.send(request).await.ok().and_then(|r| r.result);
-            
-            let user_msg = UserMessage::new(&text);
-            let _ = opencode_client.send_user_message(&sid, &user_msg).await;
-            
-            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-            
-            let msgs = opencode_client.get_messages_raw(&sid).await.ok();
-            let content = msgs
-                .and_then(|m| m.last().cloned())
-                .and_then(|m| m.get("content").and_then(|c| c.as_str()).map(String::from));
-            
-            let add_request = Request::new(Method::MemoryAddEpisode, serde_json::json!({
-                "name": "conversation",
-                "content": text.clone(),
-                "source_description": "user conversation"
-            }));
-            let _ = ipc_client.send(add_request).await;
-            
-            (Some(sid), memories, content)
-        });
-
-        if let Some(sid) = new_session_id {
-            self.session_id = Some(sid.clone());
-            self.status_bar.session_id = Some(sid);
-        }
-
-        if let Some(mem_result) = mem_result {
-            if let Some(episodes) = mem_result.get("episodes").and_then(|e| e.as_array()) {
-                self.memory.results = episodes
-                    .iter()
-                    .filter_map(|e| e.get("content").and_then(|c| c.as_str()).map(String::from))
-                    .collect();
-                self.status_bar.memory_count = self.memory.results.len();
-            }
-        }
-
-        let content = assistant_content.unwrap_or_else(|| {
-            if self.session_id.is_some() {
-                "Message sent to OpenCode. Waiting for response..."
-            } else {
-                "OpenCode not available. Memory system connected."
-            }.to_string()
-        });
-        
-        let assistant_msg = Message::new(MessageRole::Assistant, content)
-            .with_memories(self.memory.results.clone());
-        self.chat.add_message(assistant_msg);
-
-        self.status = AppStatus::Idle;
-        self.spinner.stop();
-    }
-
-    fn execute_command(&mut self, text: &str) {
-        if let Some(cmd) = Command::parse(text) {
-            match cmd {
-                Command::Help => {
-                    self.mode = AppMode::HelpOverlay;
-                }
-                Command::Clear => {
-                    self.chat.clear();
-                    self.chat.add_message(Message::new(
-                        MessageRole::System,
-                        "Chat cleared.".to_string(),
-                    ));
-                }
-                Command::MemoryQuery(query) => {
-                    if !query.is_empty() {
-                        self.status = AppStatus::Processing;
-                        let rt = tokio::runtime::Runtime::new().unwrap();
-                        let ipc_client = IpcClient::new("/tmp/sibyl-ipc.sock");
-                        let request = Request::new(
-                            Method::MemoryQuery,
-                            serde_json::json!({ "query": query }),
-                        );
-
-                        if let Ok(response) = rt.block_on(ipc_client.send(request)) {
-                            if let Some(result) = response.result {
-                                if let Some(episodes) =
-                                    result.get("episodes").and_then(|e| e.as_array())
-                                {
-                                    self.memory.results = episodes
-                                        .iter()
-                                        .filter_map(|e| {
-                                            e.get("content")
-                                                .and_then(|c| c.as_str())
-                                                .map(String::from)
-                                        })
-                                        .collect();
-                                    self.status_bar.memory_count = self.memory.results.len();
-                                    self.memory.visible = true;
-                                    self.mode = AppMode::MemoryView;
-                                }
-                            }
-                        }
-                        self.status = AppStatus::Idle;
-                    }
-                }
-                Command::Skill(name) => {
-                    let rt = tokio::runtime::Runtime::new().unwrap();
-                    let opencode_config = OpenCodeConfig::default();
-                    let opencode = OpenCodeClient::new(opencode_config);
-                    
-                    if let Ok(skills) = rt.block_on(opencode.list_skills()) {
-                        if let Some(skill) = skills.iter().find(|s| s.name == name) {
-                            let desc = skill.description.clone().unwrap_or_else(|| "No description".to_string());
-                            self.chat.add_message(Message::new(
-                                MessageRole::System,
-                                format!("Skill '{}' loaded: {}", name, desc),
-                            ));
-                        } else {
-                            self.chat.add_message(Message::new(
-                                MessageRole::System,
-                                format!("Skill '{}' not found", name),
-                            ));
-                        }
-                    } else {
-                        self.chat.add_message(Message::new(
-                            MessageRole::System,
-                            format!("Loading skill: {} (OpenCode not available)", name),
-                        ));
-                    }
-                }
-                Command::SwitchHarness(name) => {
-                    self.chat.add_message(Message::new(
-                        MessageRole::System,
-                        format!("Switching to harness: {} (not yet implemented)", name),
-                    ));
-                }
-                Command::Unknown(s) => {
-                    self.chat.add_message(Message::new(
-                        MessageRole::System,
-                        format!("Unknown command: {}", s),
-                    ));
-                }
-            }
-        }
-    }
-}
+use app::{App, AppMode, AppStatus, ChatState, InputState, MemoryPanelState, Message, MessageRole, StatusBarState};
+use input::{handle_global_key, Command, InputComposer, HandleResult};
+use render::{render_chat, render_command_input, render_input, render_memory_panel, render_status_bar};
+use widgets::{render_help_overlay, Spinner};
 
 fn ui(f: &mut Frame, app: &App) {
-    let chunks = if app.memory.visible {
+    let chunks = if app.memory_visible() {
         Layout::default()
             .direction(Direction::Horizontal)
             .constraints([Constraint::Percentage(70), Constraint::Percentage(30)])
@@ -392,40 +47,33 @@ fn ui(f: &mut Frame, app: &App) {
         ])
         .split(chunks[0]);
 
-    let mode_text = match app.mode {
+    let mode_text = match app.mode() {
         AppMode::Chat => "CHAT",
         AppMode::MemoryView => "MEMORY",
         AppMode::CommandPalette => "COMMAND",
         AppMode::HelpOverlay => "HELP",
     };
-    render_status_bar(f, main_chunks[0], app.status, &app.status_bar, mode_text);
+    render_status_bar(f, main_chunks[0], app.status(), app.status_bar(), mode_text);
 
-    render_chat(f, &app.chat, main_chunks[1]);
+    render_chat(f, app.chat(), main_chunks[1]);
 
-    if app.mode == AppMode::CommandPalette {
-        let mut cmd_input = InputState::default();
-        cmd_input.buffer = app.composer.buffer().to_string();
-        cmd_input.cursor_position = app.composer.cursor();
-        render_command_input(f, &cmd_input, main_chunks[2]);
+    if app.mode() == AppMode::CommandPalette {
+        render_command_input(f, &app.input_state(), main_chunks[2]);
     } else {
-        let mut input_state = InputState::default();
-        input_state.buffer = app.composer.buffer().to_string();
-        input_state.cursor_position = app.composer.cursor();
-        let focused = app.mode == AppMode::Chat;
         render_input(
             f,
-            &input_state,
+            &app.input_state(),
             main_chunks[2],
-            focused,
-            app.status == AppStatus::Processing,
+            app.mode() == AppMode::Chat,
+            app.status() == AppStatus::Processing,
         );
     }
 
-    if app.memory.visible {
-        render_memory_panel(f, &app.memory, chunks[1]);
+    if app.memory_visible() {
+        render_memory_panel(f, app.memory(), chunks[1]);
     }
 
-    if app.mode == AppMode::HelpOverlay {
+    if app.mode() == AppMode::HelpOverlay {
         render_help_overlay(f, f.area());
     }
 }
@@ -438,14 +86,14 @@ fn run_app<B: ratatui::backend::Backend>(
         {
             let rt = tokio::runtime::Runtime::new().unwrap();
             let dep_status = rt.block_on(async {
-                app.deps.get_status_summary().await
+                app.deps().get_status_summary().await
             });
-            app.status_bar.dep_status = dep_status;
+            app.set_dep_status(dep_status);
         }
 
         terminal.draw(|f| ui(f, &app))?;
 
-        app.spinner.tick();
+        app.tick_spinner();
 
         if event::poll(Duration::from_millis(100))? {
             if let Event::Key(key) = event::read()? {

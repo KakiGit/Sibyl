@@ -1,11 +1,11 @@
 [package]
-name = "sibyl-tui"
+name = "sibyl-cli"
 version.workspace = true
 edition.workspace = true
 
-[lib]
-name = "sibyl_tui"
-path = "src/lib.rs"
+[[bin]]
+name = "sibyl"
+path = "src/main.rs"
 
 [dependencies]
 sibyl-core = { path = "../sibyl-core" }
@@ -13,6 +13,7 @@ sibyl-ipc = { path = "../sibyl-ipc" }
 sibyl-opencode = { path = "../sibyl-opencode" }
 sibyl-harness = { path = "../sibyl-harness" }
 sibyl-deps = { path = "../sibyl-deps" }
+sibyl-tui = { path = "../sibyl-tui" }
 
 ratatui.workspace = true
 crossterm.workspace = true
@@ -24,7 +25,4 @@ anyhow.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 chrono.workspace = true
-
-pulldown-cmark = "0.12"
-syntect = "5.2"
-unicode-width = "0.2"
+clap.workspace = true
