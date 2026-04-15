@@ -153,14 +153,18 @@ try:
     class GraphitiOllamaClient(GraphitiLLMClient):
         """Ollama client compatible with graphiti-core LLMClient interface."""
 
-        def __init__(self, config: Optional[LLMConfig] = None):
+        def __init__(self, config: Optional[LLMConfig] = None, cache: bool = False):
             self.config = config or LLMConfig()
             self._client: Optional[httpx.AsyncClient] = None
-            self._tracer = None
+            self.max_tokens = self.config.max_tokens or 16384
+            self.cache_enabled = cache
+            self.cache_dir = None
+            self.tracer = None
+            self.token_tracker = None
 
         def set_tracer(self, tracer):
             """Set tracer for graphiti-core compatibility."""
-            self._tracer = tracer
+            self.tracer = tracer
 
         async def _generate_response(
             self,

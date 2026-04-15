@@ -43,11 +43,15 @@ pub struct RpcError {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub enum Method {
+    #[serde(rename = "memory.query")]
     MemoryQuery,
+    #[serde(rename = "memory.add_episode")]
     MemoryAddEpisode,
+    #[serde(rename = "memory.get_context")]
     MemoryGetContext,
+    #[serde(rename = "prompt.build")]
     PromptBuild,
+    #[serde(rename = "relevance.evaluate")]
     RelevanceEvaluate,
 }
