@@ -50,14 +50,24 @@ pub struct SessionResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserMessage {
     pub role: String,
-    pub content: String,
+    pub parts: Vec<MessagePart>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MessagePart {
+    #[serde(rename = "type")]
+    pub part_type: String,
+    pub text: String,
 }
 
 impl UserMessage {
     pub fn new(content: impl Into<String>) -> Self {
         Self {
             role: "user".to_string(),
-            content: content.into(),
+            parts: vec![MessagePart {
+                part_type: "text".to_string(),
+                text: content.into(),
+            }],
         }
     }
 }

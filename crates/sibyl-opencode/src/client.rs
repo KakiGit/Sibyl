@@ -60,10 +60,13 @@ impl OpenCodeClient {
     }
     
     pub async fn create_session_raw(&self, config: &SessionConfig) -> crate::Result<SessionResponse> {
-        let url = format!("{}/session", self.config.url);
+        let mut url = format!("{}/session", self.config.url);
+        if let Some(dir) = &config.working_directory {
+            url = format!("{}?directory={}", url, urlencoding::encode(dir));
+        }
         let response = self.http
             .post(&url)
-            .json(config)
+            .json(&serde_json::json!({}))
             .send()
             .await
             .map_err(|e| Error::RequestFailed(e.to_string()))?;

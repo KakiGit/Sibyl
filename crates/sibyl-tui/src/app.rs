@@ -462,7 +462,8 @@ impl App {
             let sid = match session_id {
                 Some(id) => id,
                 None => {
-                    match opencode_client.create_session(None).await {
+                    let cwd = std::env::current_dir().ok();
+                    match opencode_client.create_session(cwd.as_deref()).await {
                         Ok(info) => info.id,
                         Err(_) => return (None, None, None),
                     }
@@ -478,9 +479,12 @@ impl App {
             tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
             
             let msgs: Option<Vec<serde_json::Value>> = opencode_client.get_messages_raw(&sid).await.ok();
-            let content: Option<String> = msgs
-                .and_then(|m: Vec<serde_json::Value>| m.last().cloned())
-                .and_then(|m: serde_json::Value| m.get("content").and_then(|c| c.as_str()).map(String::from));
+            let content: Option<String> = msgs.as_ref()
+                .and_then(|m: &Vec<serde_json::Value>| m.last())
+                .and_then(|m: &serde_json::Value| m.get("parts"))
+                .and_then(|p: &serde_json::Value| p.as_array())
+                .and_then(|parts: &Vec<serde_json::Value>| parts.iter().find(|p| p.get("type").and_then(|t| t.as_str()) == Some("text")))
+                .and_then(|p: &serde_json::Value| p.get("text").and_then(|t| t.as_str()).map(String::from));
             
             let add_request = Request::new(Method::MemoryAddEpisode, serde_json::json!({
                 "name": "conversation",

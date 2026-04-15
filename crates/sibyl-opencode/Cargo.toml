@@ -19,3 +19,4 @@ futures.workspace = true
 chrono.workspace = true
 uuid.workspace = true
 humantime-serde = "1.1"
+urlencoding = "2.1"

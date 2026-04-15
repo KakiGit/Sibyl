@@ -47,7 +47,8 @@ impl SessionRunner {
         let session_id = match &self.session_id {
             Some(id) => id.clone(),
             None => {
-                match self.opencode.create_session(None).await {
+                let cwd = std::env::current_dir().ok();
+                match self.opencode.create_session(cwd.as_deref()).await {
                     Ok(info) => {
                         let id = info.id;
                         self.session_id = Some(id.clone());
@@ -84,8 +85,12 @@ impl SessionRunner {
             .map_err(|e| format!("Failed to get messages: {}", e))?;
 
         let content: String = msgs.last()
-            .and_then(|v: &serde_json::Value| v.get("content"))
-            .and_then(|c: &serde_json::Value| c.as_str())
+            .and_then(|v: &serde_json::Value| v.get("parts"))
+            .and_then(|parts: &serde_json::Value| parts.as_array())
+            .and_then(|arr| arr.iter().find(|p| {
+                p.get("type").and_then(|t| t.as_str()) == Some("text")
+            }))
+            .and_then(|p| p.get("text").and_then(|t| t.as_str()))
             .map(String::from)
             .unwrap_or_else(|| "No response received from harness".to_string());
 

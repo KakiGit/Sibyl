@@ -76,7 +76,7 @@ fn default_opencode_mode() -> DepMode {
 }
 
 fn default_opencode_url() -> String {
-    "http://localhost:3000".to_string()
+    "http://127.0.0.1:4096".to_string()
 }
 
 fn default_opencode_spawn_command() -> String {

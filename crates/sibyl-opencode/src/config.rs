@@ -23,7 +23,7 @@ pub struct OpenCodeConfig {
 }
 
 fn default_url() -> String {
-    "http://localhost:3000".to_string()
+    "http://127.0.0.1:4096".to_string()
 }
 
 fn default_model() -> String {
