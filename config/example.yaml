@@ -13,6 +13,25 @@ memory:
 ipc:
   socket_path: /tmp/sibyl-ipc.sock
 
+dependencies:
+  auto_start: true
+  opencode:
+    mode: auto
+    url: http://localhost:3000
+    spawn_command: opencode serve
+    startup_timeout: 10s
+  falkordb:
+    mode: auto
+    port: 6379
+    container_name: sibyl-falkordb
+    docker_image: falkordb/falkordb:latest
+    startup_timeout: 15s
+  python_ipc:
+    mode: auto
+    socket_path: /tmp/sibyl-ipc.sock
+    spawn_command: python -m sibyl_ipc_server
+    startup_timeout: 5s
+
 logging:
   level: info
   file: sibyl.log

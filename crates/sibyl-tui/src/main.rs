@@ -5,6 +5,7 @@ mod theme;
 mod widgets;
 
 use std::io;
+use std::sync::Arc;
 use std::time::Duration;
 
 use crossterm::{
@@ -15,8 +16,9 @@ use crossterm::{
 use ratatui::{
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout},
-    Frame, Terminal,
+    Terminal, Frame,
 };
+use sibyl_deps::DependencyManager;
 use sibyl_harness::Harness;
 use sibyl_ipc::client::IpcClient;
 use sibyl_ipc::{Method, Request};
@@ -46,10 +48,11 @@ struct App {
     opencode: OpenCodeClient,
     ipc: IpcClient,
     session_id: Option<String>,
+    deps: Arc<DependencyManager>,
 }
 
 impl App {
-    fn new() -> Self {
+    fn new(deps: Arc<DependencyManager>) -> Self {
         let opencode_config = OpenCodeConfig::default();
         let opencode = OpenCodeClient::new(opencode_config);
         let ipc = IpcClient::new("/tmp/sibyl-ipc.sock");
@@ -66,6 +69,7 @@ impl App {
             opencode,
             ipc,
             session_id: None,
+            deps,
         }
     }
 
@@ -431,6 +435,14 @@ fn run_app<B: ratatui::backend::Backend>(
     mut app: App,
 ) -> io::Result<()> {
     loop {
+        {
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            let dep_status = rt.block_on(async {
+                app.deps.get_status_summary().await
+            });
+            app.status_bar.dep_status = dep_status;
+        }
+
         terminal.draw(|f| ui(f, &app))?;
 
         app.spinner.tick();
@@ -446,15 +458,35 @@ fn run_app<B: ratatui::backend::Backend>(
 }
 
 fn main() -> anyhow::Result<()> {
+    tracing_subscriber::fmt::init();
+
+    let deps = Arc::new(DependencyManager::with_defaults());
+    
+    tracing::info!("Starting Sibyl - ensuring dependencies are running");
+    
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    rt.block_on(async {
+        if let Err(e) = deps.ensure_all().await {
+            tracing::error!("Failed to start critical dependency: {}", e);
+        }
+    });
+
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen)?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let app = App::new();
+    let app = App::new(deps.clone());
 
     let result = run_app(&mut terminal, app);
+
+    tracing::info!("Shutting down Sibyl");
+    rt.block_on(async {
+        if let Err(e) = deps.shutdown().await {
+            tracing::warn!("Error during shutdown: {}", e);
+        }
+    });
 
     disable_raw_mode()?;
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;

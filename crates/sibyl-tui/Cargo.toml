@@ -12,6 +12,7 @@ sibyl-core = { path = "../sibyl-core" }
 sibyl-ipc = { path = "../sibyl-ipc" }
 sibyl-opencode = { path = "../sibyl-opencode" }
 sibyl-harness = { path = "../sibyl-harness" }
+sibyl-deps = { path = "../sibyl-deps" }
 
 ratatui.workspace = true
 crossterm.workspace = true

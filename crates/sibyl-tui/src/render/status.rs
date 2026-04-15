@@ -42,8 +42,29 @@ pub fn render_status_bar(
 
     let model_info = format!("{} | ", bar_state.model);
 
+    let dep_info = if bar_state.dep_status.contains("ready") || bar_state.dep_status.contains("All")
+    {
+        format!("{} | ", bar_state.dep_status)
+    } else if bar_state.dep_status.contains("Degraded") {
+        format!("{} | ", bar_state.dep_status)
+    } else {
+        format!("{} | ", bar_state.dep_status)
+    };
+
+    let dep_style =
+        if bar_state.dep_status.contains("ready") || bar_state.dep_status.contains("All") {
+            success()
+        } else if bar_state.dep_status.contains("Degraded") {
+            warning()
+        } else if bar_state.dep_status.contains("failed") {
+            error()
+        } else {
+            muted()
+        };
+
     let mut spans = vec![
         Span::styled(&model_info, accent()),
+        Span::styled(&dep_info, dep_style),
         Span::styled(&session_info, muted()),
         Span::styled(&memory_info, memory_highlight()),
         Span::styled(status_text, status_style),

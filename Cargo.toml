@@ -7,6 +7,7 @@ members = [
     "crates/sibyl-opencode",
     "crates/sibyl-ipc",
     "crates/sibyl-plugin",
+    "crates/sibyl-deps",
 ]
 
 [workspace.package]

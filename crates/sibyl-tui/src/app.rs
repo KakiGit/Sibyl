@@ -203,6 +203,7 @@ pub struct StatusBarState {
     pub model: String,
     pub session_id: Option<String>,
     pub memory_count: usize,
+    pub dep_status: String,
 }
 
 impl Default for StatusBarState {
@@ -211,6 +212,7 @@ impl Default for StatusBarState {
             model: "sibyl".to_string(),
             session_id: None,
             memory_count: 0,
+            dep_status: "Checking dependencies...".to_string(),
         }
     }
 }
