@@ -42,14 +42,18 @@ impl HealthChecker {
     }
 
     pub async fn check_tcp_port(&self, port: u16, service: &str) -> Result<()> {
-        let addr = format!("127.0.0.1:{}", port);
+        self.check_tcp_port_on_host("127.0.0.1", port, service).await
+    }
+
+    pub async fn check_tcp_port_on_host(&self, host: &str, port: u16, service: &str) -> Result<()> {
+        let addr = format!("{}:{}", host, port);
         debug!("Checking TCP health for {} at {}", service, addr);
         
         TcpStream::connect(&addr)
             .await
             .map_err(|e| DependencyError::HealthCheckFailed {
                 service: service.to_string(),
-                message: format!("TCP connect failed: {}", e),
+                message: format!("TCP connect failed to {}: {}", addr, e),
             })?;
 
         debug!("{} TCP health check passed", service);
@@ -91,8 +95,18 @@ impl HealthChecker {
         service: &str,
         timeout: Duration,
     ) -> Result<()> {
+        self.wait_for_tcp_on_host("127.0.0.1", port, service, timeout).await
+    }
+
+    pub async fn wait_for_tcp_on_host(
+        &self,
+        host: &str,
+        port: u16,
+        service: &str,
+        timeout: Duration,
+    ) -> Result<()> {
         self.wait_with_retry(
-            || self.check_tcp_port(port, service),
+            || self.check_tcp_port_on_host(host, port, service),
             timeout,
             Duration::from_millis(500),
             service,

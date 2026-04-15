@@ -1,5 +1,6 @@
 use crate::checker::HealthChecker;
 use crate::config::{DepMode, OpenCodeDepConfig};
+use crate::container::ContainerEnvironment;
 use crate::error::{DependencyError, Result};
 use std::process::Stdio;
 use std::sync::Arc;
@@ -11,6 +12,7 @@ pub struct OpenCodeManager {
     config: OpenCodeDepConfig,
     checker: HealthChecker,
     child: Arc<Mutex<Option<Child>>>,
+    container_env: ContainerEnvironment,
 }
 
 impl OpenCodeManager {
@@ -19,34 +21,91 @@ impl OpenCodeManager {
             config,
             checker: HealthChecker::new(),
             child: Arc::new(Mutex::new(None)),
+            container_env: crate::container::detect_container(),
+        }
+    }
+
+    pub fn with_container_env(config: OpenCodeDepConfig, container_env: ContainerEnvironment) -> Self {
+        Self {
+            config,
+            checker: HealthChecker::new(),
+            child: Arc::new(Mutex::new(None)),
+            container_env,
         }
     }
 
     pub async fn ensure_running(&self) -> Result<()> {
-        info!("Checking OpenCode status");
+        info!("Checking OpenCode status (env: {})", self.container_env);
         
-        let health_url = format!("{}/health", self.config.url);
+        let url = self.get_effective_url();
+        let health_url = format!("{}/health", url);
         
         match self.checker.check_http(&health_url, "opencode").await {
             Ok(_) => {
-                info!("OpenCode already running at {}", self.config.url);
+                info!("OpenCode already running at {}", url);
                 Ok(())
             }
             Err(_) => {
-                if self.config.mode == DepMode::Manual {
-                    warn!("OpenCode not running, but mode is manual - skipping start");
-                    return Err(DependencyError::HealthCheckFailed {
-                        service: "opencode".to_string(),
-                        message: "Service not running and auto-start disabled".to_string(),
-                    });
+                match self.config.mode {
+                    DepMode::Manual => {
+                        warn!("OpenCode not running, but mode is manual - skipping start");
+                        Err(DependencyError::HealthCheckFailed {
+                            service: "opencode".to_string(),
+                            message: "Service not running and auto-start disabled".to_string(),
+                        })
+                    },
+                    DepMode::External | DepMode::Attach | DepMode::Container => {
+                        warn!("OpenCode not available at {} (mode: {})", url, self.config.mode);
+                        Err(DependencyError::HealthCheckFailed {
+                            service: "opencode".to_string(),
+                            message: format!(
+                                "Not accessible at {} (mode: {}). \
+                                Ensure OpenCode is running and accessible.",
+                                url, self.config.mode
+                            ),
+                        })
+                    },
+                    DepMode::Spawn | DepMode::Auto => {
+                        if self.container_env.is_containerized() {
+                            warn!("OpenCode not available and running inside container - cannot spawn process");
+                            warn!("Set mode to 'external' or 'attach' and ensure OpenCode is accessible at {}", url);
+                            Err(DependencyError::HealthCheckFailed {
+                                service: "opencode".to_string(),
+                                message: format!(
+                                    "Cannot spawn from {} environment. \
+                                    Set mode to 'external' and ensure OpenCode is accessible at {}",
+                                    self.container_env, url
+                                ),
+                            })
+                        } else {
+                            debug!("OpenCode not running, attempting to start");
+                            self.spawn_process().await?;
+                            self.wait_for_healthy().await?;
+                            info!("OpenCode started successfully");
+                            Ok(())
+                        }
+                    },
                 }
-                
-                debug!("OpenCode not running, attempting to start");
-                self.spawn_process().await?;
-                self.wait_for_healthy().await?;
-                info!("OpenCode started successfully");
-                Ok(())
             }
+        }
+    }
+
+    fn get_effective_url(&self) -> String {
+        match self.config.mode {
+            DepMode::External | DepMode::Container => self.config.url.clone(),
+            DepMode::Auto => {
+                if self.container_env.is_containerized() {
+                    let url = self.config.url.clone();
+                    if url.contains("localhost") {
+                        url.replace("localhost", "host.containers.internal")
+                    } else {
+                        url
+                    }
+                } else {
+                    self.config.url.clone()
+                }
+            },
+            _ => self.config.url.clone(),
         }
     }
 
@@ -80,7 +139,8 @@ impl OpenCodeManager {
     }
 
     async fn wait_for_healthy(&self) -> Result<()> {
-        let health_url = format!("{}/health", self.config.url);
+        let url = self.get_effective_url();
+        let health_url = format!("{}/health", url);
         self.checker
             .wait_for_http(&health_url, "opencode", self.config.startup_timeout)
             .await

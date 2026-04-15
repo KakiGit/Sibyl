@@ -15,17 +15,21 @@ ipc:
 
 dependencies:
   auto_start: true
+  
   opencode:
     mode: auto
     url: http://localhost:3000
     spawn_command: opencode serve
     startup_timeout: 10s
+    
   falkordb:
     mode: auto
+    host: localhost
     port: 6379
     container_name: sibyl-falkordb
     docker_image: falkordb/falkordb:latest
     startup_timeout: 15s
+    
   python_ipc:
     mode: auto
     socket_path: /tmp/sibyl-ipc.sock
@@ -35,3 +39,44 @@ dependencies:
 logging:
   level: info
   file: sibyl.log
+
+# ============================================
+# Mode options for dependencies:
+# ============================================
+# auto:     Detect container environment and adjust behavior automatically
+# attach:   Connect to existing service, never spawn
+# spawn:    Always try to spawn the service (only works on host or Podman)
+# manual:   Never check or start, user manages manually
+# external: Connect to external service (use when sibyl runs in container)
+# container: Connect to another container on same network
+#
+# ============================================
+# Container scenarios:
+# ============================================
+# When sibyl runs inside a container (Docker/Podman):
+#
+# 1. FalkorDB:
+#    - Set mode: external
+#    - Set host: host.containers.internal (Podman) or host.docker.internal (Docker)
+#    - Or use mode: container with host: falkordb-container-name
+#
+# 2. OpenCode:
+#    - Set mode: external or attach
+#    - Set url: http://host.containers.internal:3000 (Podman)
+#    - Or http://host.docker.internal:3000 (Docker)
+#
+# 3. Python IPC:
+#    - Works normally (spawns inside the same container)
+#
+# Example for running sibyl in Podman container:
+# ----------------------------------------------
+# dependencies:
+#   opencode:
+#     mode: external
+#     url: http://host.containers.internal:3000
+#   falkordb:
+#     mode: external
+#     host: host.containers.internal
+#     port: 6379
+#   python_ipc:
+#     mode: auto  # spawns inside container

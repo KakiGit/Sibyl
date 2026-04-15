@@ -1,4 +1,5 @@
 use crate::config::{DependenciesConfig, DepMode};
+use crate::container::{ContainerEnvironment, detect_container};
 use crate::error::{DependencyError, Result};
 use crate::falkordb::FalkorDBManager;
 use crate::opencode::OpenCodeManager;
@@ -48,21 +49,30 @@ pub struct DependencyManager {
     falkordb: Arc<FalkorDBManager>,
     python_ipc: Arc<PythonIpcManager>,
     states: Arc<RwLock<Vec<ServiceState>>>,
+    container_env: ContainerEnvironment,
 }
 
 impl DependencyManager {
     pub fn new(config: DependenciesConfig) -> Self {
+        let container_env = detect_container();
+        info!("Detected container environment: {}", container_env);
+        
         Self {
             config: config.clone(),
-            opencode: Arc::new(OpenCodeManager::new(config.opencode.clone())),
-            falkordb: Arc::new(FalkorDBManager::new(config.falkordb.clone())),
+            opencode: Arc::new(OpenCodeManager::with_container_env(config.opencode.clone(), container_env)),
+            falkordb: Arc::new(FalkorDBManager::with_container_env(config.falkordb.clone(), container_env)),
             python_ipc: Arc::new(PythonIpcManager::new(config.python_ipc.clone())),
             states: Arc::new(RwLock::new(Vec::new())),
+            container_env,
         }
     }
 
     pub fn with_defaults() -> Self {
         Self::new(DependenciesConfig::default())
+    }
+    
+    pub fn container_env(&self) -> ContainerEnvironment {
+        self.container_env
     }
 
     pub async fn ensure_all(&self) -> Result<()> {

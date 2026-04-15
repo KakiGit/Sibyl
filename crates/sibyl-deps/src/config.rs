@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::fmt;
 use std::time::Duration;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -38,6 +39,21 @@ pub enum DepMode {
     Attach,
     Spawn,
     Manual,
+    External,
+    Container,
+}
+
+impl fmt::Display for DepMode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            DepMode::Auto => write!(f, "auto"),
+            DepMode::Attach => write!(f, "attach"),
+            DepMode::Spawn => write!(f, "spawn"),
+            DepMode::Manual => write!(f, "manual"),
+            DepMode::External => write!(f, "external"),
+            DepMode::Container => write!(f, "container"),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -87,6 +103,9 @@ pub struct FalkorDBDepConfig {
     #[serde(default = "default_falkordb_mode")]
     pub mode: DepMode,
 
+    #[serde(default = "default_falkordb_host")]
+    pub host: String,
+
     #[serde(default = "default_falkordb_port")]
     pub port: u16,
 
@@ -98,6 +117,10 @@ pub struct FalkorDBDepConfig {
 
     #[serde(default = "default_falkordb_timeout", with = "humantime_serde")]
     pub startup_timeout: Duration,
+}
+
+fn default_falkordb_host() -> String {
+    "localhost".to_string()
 }
 
 fn default_falkordb_mode() -> DepMode {
@@ -124,6 +147,7 @@ impl Default for FalkorDBDepConfig {
     fn default() -> Self {
         Self {
             mode: DepMode::Auto,
+            host: default_falkordb_host(),
             port: default_falkordb_port(),
             container_name: default_falkordb_container_name(),
             docker_image: default_falkordb_docker_image(),
