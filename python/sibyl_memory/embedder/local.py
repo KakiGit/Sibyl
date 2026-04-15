@@ -1,5 +1,5 @@
 import logging
-from typing import List, Optional
+from typing import List, Optional, Union, Iterable
 
 from .config import EmbedderConfig
 
@@ -49,6 +49,41 @@ class LocalEmbedder:
         )
         return embeddings.tolist()
 
-    @property
-    def dimensions(self) -> int:
-        return self.config.dimensions
+
+try:
+    from graphiti_core.embedder.client import EmbedderClient as GraphitiEmbedderClient
+
+    class GraphitiLocalEmbedder(GraphitiEmbedderClient, LocalEmbedder):
+        """Local embedder compatible with graphiti-core EmbedderClient interface."""
+
+        def create(
+            self,
+            input_data: Union[str, List[str], Iterable[int], Iterable[Iterable[int]]],
+        ) -> List[float]:
+            """Create embedding for input data (graphiti-core interface)."""
+            if isinstance(input_data, str):
+                return self.embed_sync([input_data])[0]
+            elif isinstance(input_data, list) and all(
+                isinstance(x, str) for x in input_data
+            ):
+                return self.embed_sync(input_data)
+            else:
+                raise ValueError(f"Unsupported input type: {type(input_data)}")
+
+except ImportError:
+
+    class GraphitiLocalEmbedder(LocalEmbedder):
+        """Fallback embedder when graphiti-core not installed."""
+
+        def create(
+            self,
+            input_data: Union[str, List[str], Iterable[int], Iterable[Iterable[int]]],
+        ) -> List[float]:
+            if isinstance(input_data, str):
+                return self.embed_sync([input_data])[0]
+            elif isinstance(input_data, list) and all(
+                isinstance(x, str) for x in input_data
+            ):
+                return self.embed_sync(input_data)
+            else:
+                raise ValueError(f"Unsupported input type: {type(input_data)}")

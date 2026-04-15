@@ -2,7 +2,6 @@ import asyncio
 import logging
 from sibyl_memory import MemorySystem
 from sibyl_prompt import TemplatePromptBuilder
-from sibyl_relevance import CachedRelevanceEvaluator
 from sibyl_ipc_server import IpcServer, MemoryHandler, PromptHandler
 
 logging.basicConfig(level=logging.INFO)
@@ -14,10 +13,18 @@ async def main():
     await memory.initialize()
 
     prompt_builder = TemplatePromptBuilder()
-    relevance_evaluator = CachedRelevanceEvaluator(
-        llm_client=memory.client._llm_client,
-        cache_ttl=300,
-    )
+
+    relevance_evaluator = None
+    if memory.client._llm_client:
+        try:
+            from sibyl_relevance import CachedRelevanceEvaluator
+
+            relevance_evaluator = CachedRelevanceEvaluator(
+                llm_client=memory.client._llm_client,
+                cache_ttl=300,
+            )
+        except Exception as e:
+            logger.warning(f"Relevance evaluator initialization failed: {e}")
 
     server = IpcServer()
 

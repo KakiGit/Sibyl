@@ -1,16 +1,82 @@
 """Graphiti client with FalkorDB integration."""
 
-from typing import Optional, List, Tuple, Any
+from typing import Optional, List, Tuple, Any, Union
 from datetime import datetime
 import logging
 
 from .models import Episode, Entity, Fact, MemoryQueryResult, EpisodeType, EntityType
-from .embedder.local import LocalEmbedder
+from .embedder.local import GraphitiLocalEmbedder
 from .embedder.config import EmbedderConfig
-from .llm.ollama import OllamaClient
+from .llm.ollama import GraphitiOllamaClient
 from .llm.config import LLMConfig
 
 logger = logging.getLogger(__name__)
+
+
+try:
+    from graphiti_core.cross_encoder.client import (
+        CrossEncoderClient as GraphitiCrossEncoderClient,
+    )
+
+    class DummyCrossEncoder(GraphitiCrossEncoderClient):
+        """Dummy cross encoder that bypasses OpenAI requirement."""
+
+        def __init__(self):
+            pass
+
+        async def rank(
+            self, query: str, documents: List[Union[str, Tuple[Any, str]]]
+        ) -> List[Tuple[Any, float]]:
+            """Return documents with equal scores (no actual ranking)."""
+            results = []
+            for i, doc in enumerate(documents):
+                if isinstance(doc, tuple):
+                    results.append((doc[0], 1.0 / (i + 1)))
+                else:
+                    results.append((doc, 1.0 / (i + 1)))
+            return results
+
+        def set_tracer(self, tracer):
+            """Set tracer for graphiti-core compatibility."""
+            pass
+
+except ImportError:
+
+    class DummyCrossEncoder:
+        """Fallback cross encoder when graphiti-core not installed."""
+
+        def __init__(self):
+            pass
+
+        async def rank(
+            self, query: str, documents: List[Union[str, Tuple[Any, str]]]
+        ) -> List[Tuple[Any, float]]:
+            results = []
+            for i, doc in enumerate(documents):
+                if isinstance(doc, tuple):
+                    results.append((doc[0], 1.0 / (i + 1)))
+                else:
+                    results.append((doc, 1.0 / (i + 1)))
+            return results
+
+        def set_tracer(self, tracer):
+            pass
+
+    async def rank(
+        self, query: str, documents: List[Union[str, Tuple[Any, str]]]
+    ) -> List[Tuple[Any, float]]:
+        """Return documents with equal scores (no actual ranking)."""
+        results = []
+        for i, doc in enumerate(documents):
+            if isinstance(doc, tuple):
+                results.append((doc[0], 1.0 / (i + 1)))
+            else:
+                results.append((doc, 1.0 / (i + 1)))
+        return results
+
+    def set_tracer(self, tracer):
+        """Set tracer for graphiti-core compatibility."""
+        pass
 
 
 class GraphitiClient:
@@ -40,6 +106,9 @@ class GraphitiClient:
         try:
             from graphiti_core import Graphiti
             from graphiti_core.driver.falkordb_driver import FalkorDriver
+            from graphiti_core.llm_client.client import LLMClient
+            from graphiti_core.embedder.client import EmbedderClient
+            from graphiti_core.cross_encoder.client import CrossEncoderClient
 
             self._driver = FalkorDriver(
                 host=self.host,
@@ -47,13 +116,14 @@ class GraphitiClient:
                 database=self.database,
             )
 
-            self._embedder = LocalEmbedder(self.embedder_config)
-            self._llm_client = OllamaClient(self.llm_config)
+            self._embedder = GraphitiLocalEmbedder(self.embedder_config)
+            self._llm_client = GraphitiOllamaClient(self.llm_config)
 
             self._graphiti = Graphiti(
                 graph_driver=self._driver,
                 embedder=self._embedder,
                 llm_client=self._llm_client,
+                cross_encoder=DummyCrossEncoder(),
             )
 
             await self._graphiti.build_indices_and_constraints()

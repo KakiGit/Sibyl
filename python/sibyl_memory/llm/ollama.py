@@ -1,6 +1,5 @@
 import logging
-from typing import List, Dict, Any, Optional, AsyncGenerator
-
+from typing import List, Dict, Any, Optional, AsyncGenerator, Type
 import httpx
 
 from .config import LLMConfig
@@ -14,6 +13,11 @@ class OllamaClient:
     def __init__(self, config: Optional[LLMConfig] = None):
         self.config = config or LLMConfig()
         self._client: Optional[httpx.AsyncClient] = None
+        self._tracer = None
+
+    def set_tracer(self, tracer):
+        """Set tracer for graphiti-core compatibility."""
+        self._tracer = tracer
 
     async def __aenter__(self):
         self._client = httpx.AsyncClient(timeout=self.config.timeout)
@@ -140,3 +144,89 @@ class OllamaClient:
         except Exception as e:
             logger.debug(f"Ollama not available: {e}")
         return False
+
+
+try:
+    from graphiti_core.llm_client.client import LLMClient as GraphitiLLMClient
+    from graphiti_core.llm_client.config import ModelSize
+
+    class GraphitiOllamaClient(GraphitiLLMClient):
+        """Ollama client compatible with graphiti-core LLMClient interface."""
+
+        def __init__(self, config: Optional[LLMConfig] = None):
+            self.config = config or LLMConfig()
+            self._client: Optional[httpx.AsyncClient] = None
+            self._tracer = None
+
+        def set_tracer(self, tracer):
+            """Set tracer for graphiti-core compatibility."""
+            self._tracer = tracer
+
+        async def _generate_response(
+            self,
+            messages: List[Any],
+            response_model: Optional[Type[Any]] = None,
+            max_tokens: int = 16384,
+            model_size: ModelSize = ModelSize.medium,
+        ) -> Dict[str, Any]:
+            """Generate response compatible with graphiti-core."""
+            url = f"{self.config.base_url}/api/chat"
+
+            formatted_messages = []
+            for msg in messages:
+                if hasattr(msg, "role") and hasattr(msg, "content"):
+                    formatted_messages.append(
+                        {"role": msg.role, "content": msg.content}
+                    )
+                elif isinstance(msg, dict):
+                    formatted_messages.append(msg)
+
+            payload = {
+                "model": self.config.model,
+                "messages": formatted_messages,
+                "stream": False,
+                "options": {
+                    "temperature": self.config.temperature,
+                    "num_predict": max_tokens,
+                },
+            }
+
+            if self._client is None:
+                self._client = httpx.AsyncClient(timeout=self.config.timeout)
+
+            response = await self._client.post(url, json=payload)
+            response.raise_for_status()
+
+            result = response.json()
+            content = result.get("message", {}).get("content", "")
+
+            if response_model:
+                try:
+                    import json
+
+                    parsed = json.loads(content)
+                    return parsed
+                except json.JSONDecodeError:
+                    return {"content": content}
+
+            return {"content": content}
+
+except ImportError:
+
+    class GraphitiOllamaClient:
+        """Fallback Ollama client when graphiti-core not installed."""
+
+        def __init__(self, config: Optional[LLMConfig] = None):
+            self.config = config or LLMConfig()
+
+        def set_tracer(self, tracer):
+            pass
+
+        async def _generate_response(
+            self,
+            messages: List[Any],
+            response_model: Optional[Type[Any]] = None,
+            max_tokens: int = 16384,
+            model_size: str = "medium",
+        ) -> Dict[str, Any]:
+            return {"content": ""}

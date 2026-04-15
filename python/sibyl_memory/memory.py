@@ -20,9 +20,10 @@ class MemorySystem:
     def __init__(
         self,
         client: Optional[GraphitiClient] = None,
-        uri: str = "redis://localhost:6379",
+        host: str = "localhost",
+        port: int = 6379,
     ):
-        self.client = client or GraphitiClient(uri=uri)
+        self.client = client or GraphitiClient(host=host, port=port)
         self.episode_manager: Optional[EpisodeManager] = None
         self.search: Optional[HybridSearch] = None
         self.context_builder: Optional[ContextBuilder] = None

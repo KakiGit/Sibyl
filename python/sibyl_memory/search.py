@@ -1,7 +1,7 @@
 """Hybrid search implementation."""
 
 import logging
-from typing import List, Optional, Tuple
+from typing import Any, List, Optional, Tuple
 from dataclasses import dataclass
 
 from .models import Entity, Fact, Episode, MemoryQueryResult
@@ -151,11 +151,11 @@ class HybridSearch:
 
     def _merge_results(
         self,
-        semantic: List[Tuple, float],
-        keyword: List[Tuple, float],
-        graph: List[Tuple, float],
+        semantic: List[Tuple[Any, float]],
+        keyword: List[Tuple[Any, float]],
+        graph: List[Tuple[Any, float]],
         limit: int,
-    ) -> List[Tuple]:
+    ) -> List[Tuple[Any, float]]:
         """Merge and deduplicate results with weighted scoring."""
         merged = {}
         weights = {"semantic": 0.5, "keyword": 0.3, "graph": 0.2}
