@@ -56,6 +56,7 @@ dependencies:
 - Memory stored after conversation ✓
 - `./target/release/sibyl memory --query "math"` ✓
 - JSON output mode works ✓
+- Dependencies auto-started (Python IPC, FalkorDB) ✓
 
 ## TUI Testing
 - tui-test framework setup in `tui-tests/` directory
