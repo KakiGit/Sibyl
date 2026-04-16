@@ -48,19 +48,14 @@ dependencies:
 - Total IPC runtime (excluding embedder init): ~0.24s
 - Embedder init: ~8s (one-time startup cost)
 
-## Baseline Verification (2026-04-16)
-- Config loaded from ~/.config/sibyl/config.yaml ✓
-- Headless mode: memory query → prompt build → harness response ✓
-- Memory storage after conversation ✓
-- Memory query command works ✓
-- JSON output mode works ✓
-
-## Baseline Re-verified (2026-04-16)
+## Baseline Verified (2026-04-16)
 - `./target/release/sibyl run --prompt "What is 2+2?" --json` ✓
-- Memories retrieved and injected ✓
-- Response from OpenCode harness ✓
+- Config loaded from ~/.config/sibyl/config.yaml ✓
+- Memories retrieved (10 most relevant) and injected ✓
+- Response from OpenCode harness (glm-5 model at localhost:4096) ✓
 - Memory stored after conversation ✓
 - `./target/release/sibyl memory --query "math"` ✓
+- JSON output mode works ✓
 
 ## TUI Testing
 - tui-test framework setup in `tui-tests/` directory
