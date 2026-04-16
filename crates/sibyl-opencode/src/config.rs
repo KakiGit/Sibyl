@@ -27,7 +27,7 @@ fn default_url() -> String {
 }
 
 fn default_model() -> String {
-    "default".to_string()
+    "qwen2.5:0.5b".to_string()
 }
 
 fn default_load_skills() -> bool {

@@ -297,11 +297,28 @@ async def run_tests():
     print("=" * 60, flush=True)
 
 
+async def wait_for_socket(path: str, timeout: int = 30) -> bool:
+    for i in range(timeout):
+        if os.path.exists(path):
+            try:
+                reader, writer = await asyncio.open_unix_connection(path)
+                writer.close()
+                await writer.wait_closed()
+                return True
+            except:
+                pass
+        await asyncio.sleep(1)
+    return False
+
+
 async def main():
     server_task = asyncio.create_task(run_server())
 
     print("Waiting for server startup...", flush=True)
-    await asyncio.sleep(6)
+    if not await wait_for_socket("/tmp/sibyl-ipc.sock", 30):
+        print("Server failed to start!", flush=True)
+        server_task.cancel()
+        return
 
     await run_tests()
 

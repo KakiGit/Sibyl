@@ -184,7 +184,7 @@ fn default_python_ipc_spawn_command() -> String {
 }
 
 fn default_python_ipc_timeout() -> Duration {
-    Duration::from_secs(5)
+    Duration::from_secs(15)
 }
 
 impl Default for PythonIpcDepConfig {
