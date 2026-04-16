@@ -64,11 +64,16 @@ dependencies:
 
 ## TUI Testing
 - tui-test framework setup in `tui-tests/` directory
-- Run: `npm install && npm run test:tui` (requires Node.js 16.6.0-24.X)
-- Tests cover: welcome screen, keybindings, memory panel toggle, command palette
+- Run: `cd tui-tests && npm install && npm run test:tui`
+- Tests cover: welcome screen, keybindings, help overlay, command palette, status bar
 - Package: `@microsoft/tui-test ^0.0.4`
-- **Note**: Node.js 25.X is NOT supported by tui-test. Use Node.js 20.X LTS for testing.
-- TUI verified manually: runs correctly, renders welcome screen, handles input
+- **Note**: Node.js 25.X is NOT supported. Use Node.js 20.X LTS.
+  - Install fnm: `sudo pacman -S fnm` (Arch Linux)
+  - Use Node 20: `eval "$(fnm env --shell bash)" && fnm use 20`
+- Tests verified (2026-04-16): 7/7 passed
+  - welcome screen, keybindings hint, command hints
+  - help overlay toggle, command palette
+  - status bar with model name
 
 ## Architecture
 Hybrid Rust + Python:
