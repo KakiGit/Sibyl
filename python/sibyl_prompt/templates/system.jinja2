@@ -6,9 +6,17 @@ You remember past conversations, decisions, and preferences.
 {% if memories %}
 {% for category, facts in memories.items() %}
 ## {{ category }}
+{% if facts is string %}
+{{ facts }}
+{% else %}
 {% for fact in facts %}
+{% if fact is string %}
+- {{ fact }}
+{% elif fact.content %}
 - {{ fact.content }}{% if fact.valid_at %} (since {{ fact.valid_at }}){% endif %}
+{% endif %}
 {% endfor %}
+{% endif %}
 {% endfor %}
 {% else %}
 No relevant memories found for this query.

@@ -94,13 +94,11 @@ class SimpleMemoryStore:
             session_key = f"session:{session_id}:episodes"
             try:
                 ids = await self.redis.lrange(session_key, 0, -1)
-                episode_ids.extend(
-                    [i.decode() if isinstance(i, bytes) else i for i in ids]
-                )
+                episode_ids = [i.decode() if isinstance(i, bytes) else i for i in ids]
             except Exception:
                 pass
 
-        if len(episode_ids) < 50:
+        if not session_id and len(episode_ids) < 50:
             try:
                 all_ids = await self.redis.lrange("all:episodes", 0, 100)
                 episode_ids.extend(
