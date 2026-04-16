@@ -6,7 +6,10 @@
 ## Running the System
 ```bash
 # Start optimized IPC server (SimpleMemoryStore - recommended)
-cd python && python -m sibyl_ipc_server.__main_optimized__
+cd python && bash start_server.sh
+
+# Or manually:
+cd python && nohup python -u -m sibyl_ipc_server.__main_optimized__ > /tmp/sibyl-server.log 2>&1 & disown
 
 # Run full test suite
 cd python && python run_test_suite.py
@@ -22,18 +25,18 @@ cd python && python test_headless.py
 - OpenCode: `127.0.0.1:4096`
 - FalkorDB/Redis: `localhost:6379`
 
-## Performance Metrics (Headless IPC Test - 2026-04-16 16:12)
+## Performance Metrics (Headless IPC Test - 2026-04-16 16:28)
 - IPC connect: 0.000s
-- Memory add_episode: 0.011s
-- Memory query: 0.011s
-- Memory get_context: 0.011s
-- Prompt build: 0.013s (optimized template with whitespace control)
-- Relevance evaluate: 0.000s (cached, embedding-based)
+- Memory add_episode: 0.013s
+- Memory query: 0.012s
+- Memory get_context: 0.013s
+- Prompt build: 0.157s (cached environment info, optimized language detection)
+- Relevance evaluate: 0.021s (embedding-based, cached)
 - OpenCode session create: 0.006s
-- OpenCode list sessions: 0.017s
-- Total IPC runtime (excluding embedder init): ~0.05s
+- OpenCode list sessions: 0.031s
+- Total IPC runtime (excluding embedder init): ~0.25s
 - Embedder init: ~8s (one-time startup cost)
-- OpenCode send message: ~4-7s (LLM response time, depends on model)
+- OpenCode send message: ~6s (LLM response time, depends on model)
 
 ## Previous Performance Metrics
 - IPC latency: 0.01-0.02s (tested 2026-04-16 12:35)

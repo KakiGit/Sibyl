@@ -9,17 +9,29 @@ from typing import Optional, Dict, Any, List
 from functools import lru_cache
 
 
+_env_cache: Dict[str, Any] = {}
+_env_cache_time: float = 0.0
+_ENV_CACHE_TTL: float = 60.0
+
+
 def get_environment_info() -> Dict[str, Any]:
-    """Gather environment context for prompt."""
-    return {
-        "platform": platform.system(),
-        "working_directory": os.getcwd(),
-        "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-        "home": str(Path.home()),
-        "shell": os.environ.get("SHELL", "unknown"),
-        "editor": os.environ.get("EDITOR", "unknown"),
-        "user": os.environ.get("USER", "unknown"),
-    }
+    """Gather environment context for prompt (cached)."""
+    global _env_cache, _env_cache_time
+    now = datetime.now().timestamp()
+    if now - _env_cache_time > _ENV_CACHE_TTL:
+        _env_cache = {
+            "platform": platform.system(),
+            "working_directory": os.getcwd(),
+            "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+            "home": str(Path.home()),
+            "shell": os.environ.get("SHELL", "unknown"),
+            "editor": os.environ.get("EDITOR", "unknown"),
+            "user": os.environ.get("USER", "unknown"),
+        }
+        _env_cache_time = now
+    else:
+        _env_cache["date"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+    return _env_cache
 
 
 @lru_cache(maxsize=32)
@@ -131,8 +143,26 @@ def _get_git_status(project_path: Path) -> Dict[str, Any]:
         return {"modified": [], "untracked": [], "clean": True}
 
 
+_lang_cache: Dict[str, str] = {}
+
+
 def _detect_primary_language(project_path: Path) -> str:
-    """Detect primary programming language (optimized)."""
+    """Detect primary programming language (cached + optimized)."""
+    path_str = str(project_path)
+    if path_str in _lang_cache:
+        return _lang_cache[path_str]
+
+    indicator_files = {
+        "pyproject.toml": "Python",
+        "Cargo.toml": "Rust",
+        "package.json": "JavaScript",
+        "go.mod": "Go",
+    }
+    for file, lang in indicator_files.items():
+        if (project_path / file).exists():
+            _lang_cache[path_str] = lang
+            return lang
+
     extensions = {
         ".py": "Python",
         ".rs": "Rust",
@@ -146,31 +176,25 @@ def _detect_primary_language(project_path: Path) -> str:
     counts: Dict[str, int] = {}
     try:
         for ext, lang in extensions.items():
-            count = len(list(project_path.glob(f"*{ext}")))
-            if count > 0:
-                counts[lang] = counts.get(lang, 0) + count
-            for subdir in ["src", "lib", "app", "python"]:
-                subpath = project_path / subdir
+            for subdir in ["src", "lib", "app", "python", "."]:
+                subpath = project_path / subdir if subdir != "." else project_path
                 if subpath.exists():
-                    count = len(list(subpath.glob(f"**/*{ext}")))
-                    if count > 0:
-                        counts[lang] = counts.get(lang, 0) + count
+                    try:
+                        count = sum(1 for _ in subpath.glob(f"**/*{ext}"))
+                        if count > 0:
+                            counts[lang] = counts.get(lang, 0) + count
+                    except Exception:
+                        pass
     except Exception:
         pass
 
     if counts:
-        return max(counts, key=counts.get)
+        result = max(counts, key=counts.get)
+    else:
+        result = "Unknown"
 
-    indicator_files = {
-        "pyproject.toml": "Python",
-        "Cargo.toml": "Rust",
-        "package.json": "JavaScript",
-        "go.mod": "Go",
-    }
-    for file, lang in indicator_files.items():
-        if (project_path / file).exists():
-            return lang
-    return "Unknown"
+    _lang_cache[path_str] = result
+    return result
 
 
 def _detect_framework(project_path: Path) -> Optional[str]:
