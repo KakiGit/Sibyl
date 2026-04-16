@@ -28,7 +28,7 @@ class SimpleMemoryHandler:
         """Handle memory.query method."""
         query = params.get("query", "")
         num_results = params.get("num_results", 10)
-        session_id = params.get("session_id")
+        session_id = params.get("session_id") or params.get("project_id")
 
         results = await self.store.search(
             query=query,
@@ -47,7 +47,7 @@ class SimpleMemoryHandler:
         """Handle memory.add_episode method."""
         content = params.get("content", "")
         source = params.get("source_description", "user conversation")
-        session_id = params.get("session_id")
+        session_id = params.get("session_id") or params.get("project_id")
 
         episode_id = await self.store.add_episode(
             content=content,
@@ -61,7 +61,7 @@ class SimpleMemoryHandler:
         """Handle memory.get_context method."""
         query = params.get("query", "")
         max_tokens = params.get("max_tokens", 4000)
-        session_id = params.get("session_id")
+        session_id = params.get("session_id") or params.get("project_id")
 
         results = await self.store.search(
             query=query,
