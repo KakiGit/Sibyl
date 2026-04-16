@@ -16,6 +16,8 @@ Users can create skills/tools/workflows once and use them across different LLMs 
 
 Sibyl can utilize the other harnesses because those took millions of dollars to develop and they have decent accuracy.
 
+Consider multiple Sibyl instances can run at the same time.
+
 ## Memory System Spec
 
 Sibyl supports real time natual language query to its database.
