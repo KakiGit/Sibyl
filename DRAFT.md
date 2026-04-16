@@ -28,6 +28,8 @@ Irrelevant memories will be removed from the context if the subagent evaluates s
 
 Sibyl should provide interface to manage the memories. (add, search, modify and delete)
 
+Learn useful concepts and implementations from graphiti
+
 ## Performance requirement
 
 The Sibyl should have top-notch performance.
@@ -42,6 +44,7 @@ Implementation can learn from these repos:
 * ~/Github/claw-code
 * ~/Github/opencode
 * ~/Github/codex
+* ~/Github/graphiti/
 
 ## Basic Architecture
 
