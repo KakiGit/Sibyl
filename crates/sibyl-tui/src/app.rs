@@ -219,7 +219,6 @@ impl Default for StatusBarState {
 
 use std::sync::Arc;
 use crossterm::event::KeyEvent;
-use ratatui::{Frame, layout::Rect};
 use sibyl_deps::{DependencyManager, SibylConfig};
 use sibyl_harness::Harness;
 use sibyl_ipc::client::IpcClient;
@@ -324,6 +323,7 @@ impl App {
         self.spinner.tick();
     }
 
+    #[allow(dead_code)]
     pub fn render_completion(&self, f: &mut ratatui::Frame, area: ratatui::layout::Rect) {
         self.completion.render(f, area, area.y);
     }

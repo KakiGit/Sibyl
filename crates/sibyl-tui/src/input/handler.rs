@@ -11,6 +11,7 @@ pub enum HandleResult {
     ScrollUp(usize),
     ScrollDown(usize),
     SubmitInput,
+    #[allow(dead_code)]
     ClearChat,
     ShowHelp,
     HideHelp,

@@ -9,7 +9,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crossterm::{
-    event::{self, Event, KeyCode, KeyEvent},
+    event::{self, Event},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -20,10 +20,9 @@ use ratatui::{
 };
 use sibyl_deps::{DependencyManager, load_config};
 
-use app::{App, AppMode, AppStatus, ChatState, InputState, MemoryPanelState, Message, MessageRole, StatusBarState};
-use input::{handle_global_key, Command, InputComposer, HandleResult};
+use app::{App, AppMode, AppStatus};
 use render::{render_chat, render_command_input, render_input, render_memory_panel, render_status_bar};
-use widgets::{render_help_overlay, Spinner};
+use widgets::render_help_overlay;
 
 fn ui(f: &mut Frame, app: &App) {
     let chunks = if app.memory_visible() {
@@ -117,7 +116,7 @@ fn main() -> anyhow::Result<()> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let mut app = App::new(deps.clone(), config);
+    let app = App::new(deps.clone(), config);
     
     terminal.draw(|f| ui(f, &app))?;
 

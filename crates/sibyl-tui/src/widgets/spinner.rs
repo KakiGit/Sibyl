@@ -4,6 +4,7 @@ use std::time::Instant;
 pub enum SpinnerState {
     Idle,
     Processing,
+    #[allow(dead_code)]
     Streaming,
 }
 
@@ -50,6 +51,7 @@ impl Spinner {
         }
     }
 
+    #[allow(dead_code)]
     pub fn current_char(&self) -> char {
         if self.is_active() {
             SPINNER_CHARS[self.frame]
@@ -70,10 +72,12 @@ impl Spinner {
         self.start_time.map(|t| t.elapsed())
     }
 
+    #[allow(dead_code)]
     pub fn elapsed_secs(&self) -> u64 {
         self.elapsed().map(|d| d.as_secs()).unwrap_or(0)
     }
 
+    #[allow(dead_code)]
     pub fn format_status(&self) -> String {
         match self.state {
             SpinnerState::Idle => String::new(),
@@ -93,8 +97,10 @@ impl Spinner {
 }
 
 const SPINNER_CHARS: &[char] = &['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+#[allow(dead_code)]
 const SPINNER_STRS: &[&str] = &["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 
+#[allow(dead_code)]
 pub fn render_spinner(spinner: &Spinner) -> String {
     spinner.format_status()
 }

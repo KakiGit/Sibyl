@@ -1,6 +1,6 @@
 use ratatui::{
     layout::Rect,
-    style::{Modifier, Style},
+    style::Modifier,
     text::{Line, Span},
     widgets::{Block, Borders, Clear, List, ListItem},
     Frame,
@@ -35,6 +35,7 @@ impl CompletionPopup {
         self.visible = !self.completions.is_empty();
     }
 
+    #[allow(dead_code)]
     pub fn show(&mut self) {
         self.visible = !self.completions.is_empty();
     }
@@ -108,6 +109,7 @@ impl CompletionPopup {
     }
 }
 
+#[allow(dead_code)]
 pub fn filter_completions(candidates: &[&str], prefix: &str) -> Vec<String> {
     candidates
         .iter()

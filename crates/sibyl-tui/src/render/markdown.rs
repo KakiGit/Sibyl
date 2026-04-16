@@ -8,12 +8,14 @@ use syntect::parsing::SyntaxSet;
 
 use crate::theme::*;
 
+#[allow(dead_code)]
 pub struct MarkdownRenderer {
     syntax_set: SyntaxSet,
     theme_set: ThemeSet,
 }
 
 impl MarkdownRenderer {
+    #[allow(dead_code)]
     pub fn new() -> Self {
         let syntax_set = SyntaxSet::load_defaults_newlines();
         let theme_set = ThemeSet::load_defaults();
@@ -149,6 +151,7 @@ impl MarkdownRenderer {
         Text::from(lines)
     }
 
+    #[allow(dead_code)]
     fn highlight_code(&self, code: &str, lang: Option<&str>) -> Text<'static> {
         let syntax = lang
             .and_then(|l| self.syntax_set.find_syntax_by_token(l))
@@ -192,6 +195,7 @@ impl Default for MarkdownRenderer {
     }
 }
 
+#[allow(dead_code)]
 pub fn render_markdown_inline(text: &str) -> Text<'static> {
     let renderer = MarkdownRenderer::new();
     renderer.render(text)

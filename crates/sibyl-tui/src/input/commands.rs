@@ -38,6 +38,7 @@ impl Command {
         })
     }
 
+    #[allow(dead_code)]
     pub fn name(&self) -> &'static str {
         match self {
             Command::Help => "help",
@@ -49,6 +50,7 @@ impl Command {
         }
     }
 
+    #[allow(dead_code)]
     pub fn description(&self) -> &'static str {
         match self {
             Command::Help => "Show available commands",

@@ -1,13 +1,13 @@
 use ratatui::{
     layout::{Alignment, Rect},
-    style::{Modifier, Style},
+    style::Modifier,
     text::{Line, Span},
     widgets::{Block, Borders, Clear, Paragraph},
     Frame,
 };
 
 use crate::input::get_command_help;
-use crate::theme::{accent, border, default, header, muted, success};
+use crate::theme::{accent, border, default, header, muted};
 
 const KEYBINDINGS: &[(&str, &str)] = &[
     ("Enter", "Send message"),
@@ -111,6 +111,7 @@ pub fn render_help_overlay(f: &mut Frame, area: Rect) {
     f.render_widget(help, help_area);
 }
 
+#[allow(dead_code)]
 pub fn get_keybinding_text() -> String {
     KEYBINDINGS
         .iter()

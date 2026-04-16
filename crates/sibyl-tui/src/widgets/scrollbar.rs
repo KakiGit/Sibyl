@@ -1,4 +1,4 @@
-use ratatui::{layout::Rect, style::Style, widgets::Block, Frame};
+use ratatui::{layout::Rect, style::Style, Frame};
 
 use crate::theme::muted;
 
@@ -50,6 +50,7 @@ pub fn render_scrollbar(
     }
 }
 
+#[allow(dead_code)]
 pub fn render_scrollbar_track(f: &mut Frame, area: Rect) {
     let scrollbar_height = area.height.saturating_sub(2);
     if scrollbar_height == 0 {
@@ -73,6 +74,7 @@ pub fn render_scrollbar_track(f: &mut Frame, area: Rect) {
     }
 }
 
+#[allow(dead_code)]
 pub struct ScrollbarState {
     pub offset: usize,
     pub max_offset: usize,

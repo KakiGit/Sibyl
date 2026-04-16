@@ -65,6 +65,7 @@ pub fn render_memory_panel(f: &mut Frame, state: &MemoryPanelState, area: Rect) 
     }
 }
 
+#[allow(dead_code)]
 pub fn render_memory_search_input(f: &mut Frame, query: &str, area: Rect, focused: bool) {
     let style = if focused { border_focused() } else { border() };
 

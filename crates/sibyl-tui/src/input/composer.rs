@@ -51,6 +51,7 @@ impl InputComposer {
         self.cursor
     }
 
+    #[allow(dead_code)]
     pub fn is_empty(&self) -> bool {
         self.buffer.is_empty()
     }

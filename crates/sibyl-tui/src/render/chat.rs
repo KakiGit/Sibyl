@@ -256,6 +256,7 @@ fn needs_scrollbar(state: &ChatState, height: usize) -> bool {
     total_lines > height.saturating_sub(2)
 }
 
+#[allow(dead_code)]
 pub fn render_streaming_indicator(f: &mut Frame, area: Rect) {
     let indicator = Paragraph::new("...")
         .style(assistant_message().add_modifier(Modifier::BOLD))

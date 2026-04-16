@@ -1,5 +1,5 @@
 use crate::theme::colors::*;
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::{Modifier, Style};
 
 pub fn default() -> Style {
     Style::default().fg(FOREGROUND).bg(BACKGROUND)
