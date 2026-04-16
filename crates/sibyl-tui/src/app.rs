@@ -387,7 +387,34 @@ impl App {
             }
             _ => {
                 if should_handle_as_input(key, self.mode) {
-                    self.composer.handle_key(key);
+                    let action = self.composer.handle_key(key);
+                    match action {
+                        crate::input::ComposerAction::HistoryUp => {
+                            self.composer.history_up();
+                        }
+                        crate::input::ComposerAction::HistoryDown => {
+                            self.composer.history_down();
+                        }
+                        crate::input::ComposerAction::MoveWordLeft => {
+                            self.composer.move_word_left();
+                        }
+                        crate::input::ComposerAction::MoveWordRight => {
+                            self.composer.move_word_right();
+                        }
+                        crate::input::ComposerAction::MoveToStart => {
+                            self.composer.move_to_start();
+                        }
+                        crate::input::ComposerAction::MoveToEnd => {
+                            self.composer.move_to_end();
+                        }
+                        crate::input::ComposerAction::DeleteWord => {
+                            self.composer.delete_word();
+                        }
+                        crate::input::ComposerAction::DeleteLine => {
+                            self.composer.delete_line();
+                        }
+                        _ => {}
+                    }
                 }
             }
         }
@@ -411,7 +438,34 @@ impl App {
             }
             _ => {
                 if should_handle_as_input(key, self.mode) {
-                    self.composer.handle_key(key);
+                    let action = self.composer.handle_key(key);
+                    match action {
+                        crate::input::ComposerAction::HistoryUp => {
+                            self.composer.history_up();
+                        }
+                        crate::input::ComposerAction::HistoryDown => {
+                            self.composer.history_down();
+                        }
+                        crate::input::ComposerAction::MoveWordLeft => {
+                            self.composer.move_word_left();
+                        }
+                        crate::input::ComposerAction::MoveWordRight => {
+                            self.composer.move_word_right();
+                        }
+                        crate::input::ComposerAction::MoveToStart => {
+                            self.composer.move_to_start();
+                        }
+                        crate::input::ComposerAction::MoveToEnd => {
+                            self.composer.move_to_end();
+                        }
+                        crate::input::ComposerAction::DeleteWord => {
+                            self.composer.delete_word();
+                        }
+                        crate::input::ComposerAction::DeleteLine => {
+                            self.composer.delete_line();
+                        }
+                        _ => {}
+                    }
                 }
             }
         }

@@ -10,7 +10,8 @@ use crate::input::get_command_help;
 use crate::theme::{accent, border, default, header, muted};
 
 const KEYBINDINGS: &[(&str, &str)] = &[
-    ("j / k", "Scroll chat up/down"),
+    ("Up / Down", "Scroll chat"),
+    ("Alt+j / Alt+k", "Scroll chat (vim-style)"),
     ("Ctrl+d / Ctrl+u", "Half-page scroll"),
     ("Enter", "Send message"),
     ("Tab", "Toggle memory panel"),
@@ -18,8 +19,7 @@ const KEYBINDINGS: &[(&str, &str)] = &[
     ("Esc", "Cancel/Close overlay"),
     ("?", "Show this help"),
     (":", "Open command palette"),
-    ("Alt+m", "Toggle memory panel (alternative)"),
-    ("Up / Down", "History navigation"),
+    ("Up / Down (in input)", "History navigation"),
 ];
 
 pub fn render_help_overlay(f: &mut Frame, area: Rect) {

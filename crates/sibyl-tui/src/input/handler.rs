@@ -42,10 +42,12 @@ pub fn handle_global_key(key: KeyEvent, current_mode: AppMode) -> HandleResult {
 
 pub fn handle_chat_key(key: KeyEvent) -> HandleResult {
     match key.code {
-        KeyCode::Char('j') if key.modifiers.contains(KeyModifiers::NONE) => {
+        KeyCode::Down if key.modifiers.contains(KeyModifiers::NONE) => HandleResult::ScrollDown(1),
+        KeyCode::Up if key.modifiers.contains(KeyModifiers::NONE) => HandleResult::ScrollUp(1),
+        KeyCode::Char('j') if key.modifiers.contains(KeyModifiers::ALT) => {
             HandleResult::ScrollDown(1)
         }
-        KeyCode::Char('k') if key.modifiers.contains(KeyModifiers::NONE) => {
+        KeyCode::Char('k') if key.modifiers.contains(KeyModifiers::ALT) => {
             HandleResult::ScrollUp(1)
         }
         KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) => {
@@ -61,10 +63,12 @@ pub fn handle_chat_key(key: KeyEvent) -> HandleResult {
 
 pub fn handle_memory_key(key: KeyEvent) -> HandleResult {
     match key.code {
-        KeyCode::Char('j') if key.modifiers.contains(KeyModifiers::NONE) => {
+        KeyCode::Down if key.modifiers.contains(KeyModifiers::NONE) => HandleResult::ScrollDown(1),
+        KeyCode::Up if key.modifiers.contains(KeyModifiers::NONE) => HandleResult::ScrollUp(1),
+        KeyCode::Char('j') if key.modifiers.contains(KeyModifiers::ALT) => {
             HandleResult::ScrollDown(1)
         }
-        KeyCode::Char('k') if key.modifiers.contains(KeyModifiers::NONE) => {
+        KeyCode::Char('k') if key.modifiers.contains(KeyModifiers::ALT) => {
             HandleResult::ScrollUp(1)
         }
         KeyCode::Tab | KeyCode::Esc => HandleResult::ToggleMemoryPanel,
