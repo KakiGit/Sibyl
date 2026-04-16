@@ -42,7 +42,7 @@ impl OpenCodeClient {
     }
     
     pub async fn health_check(&self) -> crate::Result<()> {
-        let url = format!("{}/health", self.config.url);
+        let url = format!("{}/global/health", self.config.url);
         self.http
             .get(&url)
             .send()

@@ -38,7 +38,7 @@ impl OpenCodeManager {
         info!("Checking OpenCode status (env: {})", self.container_env);
         
         let url = self.get_effective_url();
-        let health_url = format!("{}/health", url);
+        let health_url = format!("{}/global/health", url);
         
         match self.checker.check_http(&health_url, "opencode").await {
             Ok(_) => {
@@ -140,7 +140,7 @@ impl OpenCodeManager {
 
     async fn wait_for_healthy(&self) -> Result<()> {
         let url = self.get_effective_url();
-        let health_url = format!("{}/health", url);
+        let health_url = format!("{}/global/health", url);
         self.checker
             .wait_for_http(&health_url, "opencode", self.config.startup_timeout)
             .await

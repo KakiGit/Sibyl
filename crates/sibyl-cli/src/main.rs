@@ -183,7 +183,7 @@ fn run_tui() -> anyhow::Result<()> {
 fn run_headless(prompt: Option<String>, use_stdin: bool, json_output: bool) -> anyhow::Result<()> {
     use sibyl_deps::load_config;
     let config = load_config();
-    let deps = Arc::new(DependencyManager::new(config.dependencies));
+    let deps = Arc::new(DependencyManager::new(config.dependencies.clone()));
     
     let rt = tokio::runtime::Runtime::new()?;
     
@@ -209,7 +209,7 @@ fn run_headless(prompt: Option<String>, use_stdin: bool, json_output: bool) -> a
         std::process::exit(1);
     }
 
-    let mut runner = SessionRunner::new(deps.clone());
+    let mut runner = SessionRunner::new(deps.clone(), config);
     
     let result = rt.block_on(async {
         runner.run(&prompt_text).await

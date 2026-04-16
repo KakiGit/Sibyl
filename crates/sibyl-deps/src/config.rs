@@ -75,7 +75,7 @@ fn default_opencode_mode() -> DepMode {
     DepMode::Auto
 }
 
-fn default_opencode_url() -> String {
+pub fn default_opencode_url() -> String {
     "http://127.0.0.1:4096".to_string()
 }
 
