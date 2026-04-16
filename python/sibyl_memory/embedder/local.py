@@ -56,34 +56,44 @@ try:
     class GraphitiLocalEmbedder(GraphitiEmbedderClient, LocalEmbedder):
         """Local embedder compatible with graphiti-core EmbedderClient interface."""
 
-        def create(
+        async def create(
             self,
             input_data: Union[str, List[str], Iterable[int], Iterable[Iterable[int]]],
         ) -> List[float]:
             """Create embedding for input data (graphiti-core interface)."""
             if isinstance(input_data, str):
-                return self.embed_sync([input_data])[0]
+                result = await self.embed([input_data])
+                return result[0]
             elif isinstance(input_data, list) and all(
                 isinstance(x, str) for x in input_data
             ):
-                return self.embed_sync(input_data)
+                return await self.embed(input_data)
             else:
                 raise ValueError(f"Unsupported input type: {type(input_data)}")
+
+        async def create_batch(self, input_data_list: List[str]) -> List[List[float]]:
+            """Create embeddings for a batch of strings (graphiti-core interface)."""
+            return await self.embed(input_data_list)
+
+        def set_tracer(self, tracer):
+            """Set tracer for graphiti-core compatibility."""
+            pass
 
 except ImportError:
 
     class GraphitiLocalEmbedder(LocalEmbedder):
         """Fallback embedder when graphiti-core not installed."""
 
-        def create(
+        async def create(
             self,
             input_data: Union[str, List[str], Iterable[int], Iterable[Iterable[int]]],
         ) -> List[float]:
             if isinstance(input_data, str):
-                return self.embed_sync([input_data])[0]
+                result = await self.embed([input_data])
+                return result[0]
             elif isinstance(input_data, list) and all(
                 isinstance(x, str) for x in input_data
             ):
-                return self.embed_sync(input_data)
+                return await self.embed(input_data)
             else:
                 raise ValueError(f"Unsupported input type: {type(input_data)}")
