@@ -5,11 +5,8 @@
 
 ## Running the System
 ```bash
-# Start optimized IPC server (SimpleMemoryStore - recommended)
-cd python && bash start_server.sh
-
-# Or manually:
-cd python && nohup python -u -m sibyl_ipc_server.__main_optimized__ > /tmp/sibyl-server.log 2>&1 & disown
+# Start Sibyl (auto-starts Python IPC server internally)
+cargo run
 
 # Run full test suite
 cd python && python run_test_suite.py
@@ -50,8 +47,8 @@ cd python && python test_headless.py
 
 ## Architecture
 Hybrid Rust + Python:
-- **Rust**: TUI (ratatui), core orchestration, harness integration, plugins
-- **Python**: Memory system (Graphiti + FalkorDB), prompt building, relevance evaluation
+- **Rust**: TUI (ratatui), core orchestration, harness integration, auto-starts Python IPC server
+- **Python**: Memory system (SimpleMemoryStore + FalkorDB), prompt building, embedding-based relevance
 - **IPC**: JSON-RPC 2.0 over Unix domain sockets
 
 ## Directory Structure (Planned)
@@ -64,7 +61,7 @@ sibyl/
 │   ├── sibyl-ipc/       # IPC communication
 │   └── sibyl-plugin/    # Plugin system
 ├── python/              # Python components
-│   ├── sibyl_memory/    # Graphiti + FalkorDB
+│   ├── sibyl_memory/    # SimpleMemoryStore + FalkorDB
 │   ├── sibyl_prompt/    # Prompt assembly
 │   └── sibyl_ipc_server/
 ├── plugins/             # Built-in plugins
@@ -79,7 +76,7 @@ Learn patterns from:
 
 ## Dependencies
 - FalkorDB requires Docker: `docker run -d -p 6379:6379 falkordb/falkordb`
-- Python: `graphiti-core[falkordb]`, `sentence-transformers`
+- Python: `sentence-transformers`, `jinja2`, `httpx`
 - Rust: `ratatui`, `crossterm`, `tokio`, `reqwest`
 
 ## Development Order (from MVP roadmap)

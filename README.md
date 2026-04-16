@@ -4,12 +4,12 @@ Memory-enhanced coding assistant with hybrid Rust + Python architecture.
 
 ## Overview
 
-Sibyl provides a TUI interface that integrates with OpenCode (or other coding assistants) while maintaining persistent memory of coding sessions using Graphiti + FalkorDB.
+Sibyl provides a TUI interface that integrates with OpenCode while maintaining persistent memory of coding sessions using FalkorDB and embedding-based search.
 
 ## Architecture
 
 - **Rust**: TUI (ratatui), core orchestration, harness integration, plugins
-- **Python**: Memory system (Graphiti + FalkorDB), prompt building, relevance evaluation
+- **Python**: Memory system (SimpleMemoryStore + FalkorDB), prompt building, embedding-based relevance
 - **IPC**: JSON-RPC 2.0 over Unix domain sockets
 
 ## Quick Start
@@ -19,13 +19,13 @@ Sibyl provides a TUI interface that integrates with OpenCode (or other coding as
 - Rust 1.70+ (`rustup install stable`)
 - Python 3.10+
 - Docker (for FalkorDB)
-- OpenCode running locally
+- OpenCode running locally (`opencode` at `127.0.0.1:4096`)
 
 ### Setup
 
-1. **Start FalkorDB and Ollama**:
+1. **Start FalkorDB**:
    ```bash
-   docker-compose up -d
+   docker run -d -p 6379:6379 falkordb/falkordb
    ```
 
 2. **Install Python dependencies**:
@@ -34,21 +34,12 @@ Sibyl provides a TUI interface that integrates with OpenCode (or other coding as
    pip install -e .
    ```
 
-3. **Pull Ollama model** (for relevance evaluation):
+3. **Build and run Sibyl**:
    ```bash
-   docker exec sibyl-ollama ollama pull llama3.2
+   cargo run
    ```
-
-4. **Start the IPC server**:
-   ```bash
-   python -m sibyl_ipc_server
-   ```
-
-5. **Build and run Sibyl TUI**:
-   ```bash
-   cargo build
-   cargo run --package sibyl-tui
-   ```
+   
+   Sibyl automatically starts the Python IPC server internally.
 
 ## Configuration
 
@@ -112,7 +103,7 @@ sibyl/
 │   ├── sibyl-harness/   # Harness trait
 │   └── sibyl-plugin/    # Plugin system
 ├── python/              # Python components
-│   ├── sibyl_memory/    # Graphiti + FalkorDB
+│   ├── sibyl_memory/    # SimpleMemoryStore + FalkorDB
 │   ├── sibyl_prompt/    # Prompt assembly
 │   ├── sibyl_relevance/ # Relevance evaluation
 │   └── sibyl_ipc_server/
@@ -124,10 +115,7 @@ sibyl/
 
 ```bash
 # Run with logging
-RUST_LOG=debug cargo run --package sibyl-tui
-
-# Run Python server with debug
-python -m sibyl_ipc_server --log-level debug
+RUST_LOG=debug cargo run
 
 # Run tests
 cargo test
