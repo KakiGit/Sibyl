@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from typing import List, Optional, Union, Iterable
 
@@ -30,12 +31,16 @@ class LocalEmbedder:
         return self._model
 
     async def embed(self, texts: List[str]) -> List[List[float]]:
-        """Generate embeddings for a list of texts."""
-        embeddings = self.model.encode(
-            texts,
-            batch_size=self.config.batch_size,
-            show_progress_bar=False,
-            convert_to_numpy=True,
+        """Generate embeddings for a list of texts (async with thread executor)."""
+        loop = asyncio.get_event_loop()
+        embeddings = await loop.run_in_executor(
+            None,
+            lambda: self.model.encode(
+                texts,
+                batch_size=self.config.batch_size,
+                show_progress_bar=False,
+                convert_to_numpy=True,
+            ),
         )
         return embeddings.tolist()
 
