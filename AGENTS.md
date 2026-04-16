@@ -1,7 +1,30 @@
 # Sibyl - Agent Instructions
 
 ## Project State
-Specification phase. No implementation exists yet. See `specs/` for detailed specs.
+**Python layer implemented and tested.** IPC server, memory system, prompt building, and relevance evaluation are working. See `python/` for implementation.
+
+## Running the System
+```bash
+# Start IPC server (background)
+python server_daemon.py
+
+# Test the system
+python test_final_headless.py
+```
+
+## Configuration (Optimized for limited hardware)
+- LLM: `qwen2.5:0.5b` via Ollama at `127.0.0.1:11434`
+- Embeddings: `all-MiniLM-L6-v2` (384 dimensions, CPU)
+- OpenCode: `127.0.0.1:4096`
+- FalkorDB/Redis: `localhost:6379`
+
+## Performance Metrics (tested)
+- Memory add episode: ~0.01s
+- Memory query: ~0.01s
+- Relevance evaluation: ~0.02s
+- Prompt build: ~0.00s
+- OpenCode session: ~0.01s
+- LLM inference: varies (30-45s on limited hardware)
 
 ## Architecture
 Hybrid Rust + Python:
