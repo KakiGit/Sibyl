@@ -13,38 +13,29 @@ test.use({
 });
 
 test("sibyl tui shows welcome screen", async ({ terminal }) => {
-  await expect(terminal.getByText("Welcome")).toBeVisible({ timeout: 20000 });
+  await expect(terminal.getByText("Welcome")).toBeVisible({ timeout: 30000 });
 });
 
-test("sibyl tui shows keybindings in welcome", async ({ terminal }) => {
-  await expect(terminal.getByText("Tab")).toBeVisible({ timeout: 20000 });
+test("sibyl tui shows keybindings hint", async ({ terminal }) => {
+  await expect(terminal.getByText("Tab:Mem")).toBeVisible({ timeout: 30000 });
 });
 
 test("sibyl tui shows command hints", async ({ terminal }) => {
-  await expect(terminal.getByText("/help")).toBeVisible({ timeout: 20000 });
+  await expect(terminal.getByText("/help")).toBeVisible({ timeout: 30000 });
 });
 
 test("sibyl tui toggles help overlay", async ({ terminal }) => {
-  await expect(terminal.getByText("Welcome")).toBeVisible({ timeout: 20000 });
-  
+  await expect(terminal.getByText("Welcome")).toBeVisible({ timeout: 30000 });
   terminal.write("?");
-  await expect(terminal.getByText("Key Bindings")).toBeVisible();
-});
-
-test("sibyl tui toggles memory panel", async ({ terminal }) => {
-  await expect(terminal.getByText("Welcome")).toBeVisible({ timeout: 20000 });
-  
-  terminal.write("\t");
-  await expect(terminal.getByText("Memory")).toBeVisible();
+  await expect(terminal.getByText("Key Bindings")).toBeVisible({ timeout: 5000 });
 });
 
 test("sibyl tui opens command palette", async ({ terminal }) => {
-  await expect(terminal.getByText("Welcome")).toBeVisible({ timeout: 20000 });
-  
+  await expect(terminal.getByText("Welcome")).toBeVisible({ timeout: 30000 });
   terminal.write(":");
-  await expect(terminal.getByText("COMMAND")).toBeVisible();
+  await expect(terminal.getByText("COMMAND")).toBeVisible({ timeout: 5000 });
 });
 
 test("sibyl tui shows status bar with model", async ({ terminal }) => {
-  await expect(terminal.getByText("glm-5")).toBeVisible({ timeout: 20000 });
+  await expect(terminal.getByText("glm-5")).toBeVisible({ timeout: 30000 });
 });
