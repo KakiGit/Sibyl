@@ -1,6 +1,6 @@
 use ratatui::{
     layout::Rect,
-    style::{Modifier, Style},
+    style::Modifier,
     text::{Line, Span},
     widgets::{Block, Borders, List, ListItem, Paragraph},
     Frame,
@@ -11,6 +11,11 @@ use crate::theme::*;
 use crate::widgets::scrollbar::render_scrollbar;
 
 pub fn render_memory_panel(f: &mut Frame, state: &MemoryPanelState, area: Rect) {
+    if state.results.is_empty() {
+        render_empty_memory_panel(f, area);
+        return;
+    }
+
     let has_scrollbar = state.results.len() > area.height.saturating_sub(2) as usize;
     let list_area = if has_scrollbar {
         Rect {
@@ -74,14 +79,29 @@ pub fn render_memory_search_input(f: &mut Frame, query: &str, area: Rect, focuse
 }
 
 pub fn render_empty_memory_panel(f: &mut Frame, area: Rect) {
-    let empty = Paragraph::new("No memories found\n\nType to search")
-        .style(muted())
+    let empty_lines = vec![
+        Line::from(""),
+        Line::from(vec![Span::styled("Memory Panel", header())]),
+        Line::from(""),
+        Line::from(vec![Span::styled("No memories yet", muted())]),
+        Line::from(""),
+        Line::from(vec![Span::styled(
+            "Memories are automatically stored",
+            accent(),
+        )]),
+        Line::from(vec![Span::styled("when you send messages.", accent())]),
+        Line::from(""),
+        Line::from(vec![Span::styled("Press Tab to close", muted())]),
+        Line::from(""),
+    ];
+
+    let empty = Paragraph::new(empty_lines)
         .alignment(ratatui::layout::Alignment::Center)
         .block(
             Block::default()
                 .borders(Borders::ALL)
                 .title(" Memory ")
-                .title_style(muted())
+                .title_style(header())
                 .style(border()),
         );
     f.render_widget(empty, area);

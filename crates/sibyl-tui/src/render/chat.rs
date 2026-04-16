@@ -11,6 +11,11 @@ use crate::theme::*;
 use crate::widgets::scrollbar::render_scrollbar;
 
 pub fn render_chat(f: &mut Frame, state: &ChatState, area: Rect, processing: bool) {
+    if state.messages.is_empty() && !processing {
+        render_welcome(f, area);
+        return;
+    }
+
     let has_scrollbar = needs_scrollbar(state, area.height as usize);
     let list_area = if has_scrollbar {
         Rect {
@@ -38,7 +43,7 @@ pub fn render_chat(f: &mut Frame, state: &ChatState, area: Rect, processing: boo
 
     if processing {
         items.push(ListItem::new(Line::from(vec![
-            Span::styled("◐ ", warning()),
+            Span::styled("⠋ ", warning()),
             Span::styled(
                 "Processing...",
                 warning().add_modifier(Modifier::SLOW_BLINK),
@@ -58,6 +63,52 @@ pub fn render_chat(f: &mut Frame, state: &ChatState, area: Rect, processing: boo
     if has_scrollbar {
         render_scrollbar(f, area, scroll_offset, total_lines, visible_lines);
     }
+}
+
+fn render_welcome(f: &mut Frame, area: Rect) {
+    let welcome_lines = vec![
+        Line::from(""),
+        Line::from(vec![Span::styled("Welcome to Sibyl", header())]),
+        Line::from(vec![Span::styled(
+            "Your memory-enhanced AI assistant",
+            accent(),
+        )]),
+        Line::from(""),
+        Line::from(vec![Span::styled("Quick Start:", muted())]),
+        Line::from(vec![
+            Span::styled("  • ", muted()),
+            Span::styled("Type a message and press Enter", default()),
+        ]),
+        Line::from(vec![
+            Span::styled("  • ", muted()),
+            Span::styled("Press Tab to toggle memory panel", default()),
+        ]),
+        Line::from(vec![
+            Span::styled("  • ", muted()),
+            Span::styled("Press ? for help", default()),
+        ]),
+        Line::from(vec![
+            Span::styled("  • ", muted()),
+            Span::styled("Press : for command palette", default()),
+        ]),
+        Line::from(""),
+        Line::from(vec![Span::styled(
+            "Commands: /help, /memory <query>, /clear",
+            muted(),
+        )]),
+        Line::from(""),
+    ];
+
+    let welcome = Paragraph::new(welcome_lines)
+        .alignment(ratatui::layout::Alignment::Center)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(" Chat ")
+                .title_style(header())
+                .style(border()),
+        );
+    f.render_widget(welcome, area);
 }
 
 fn render_message_lines(msg: &Message, width: usize) -> Vec<ListItem<'static>> {
