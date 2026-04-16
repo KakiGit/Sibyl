@@ -5,50 +5,37 @@
 
 ## Running the System
 ```bash
-# Start IPC server (background)
-cd python && python -m sibyl_ipc_server
+# Start optimized IPC server (SimpleMemoryStore - recommended)
+cd python && python -m sibyl_ipc_server.__main_optimized__
 
-# Run optimized test (SimpleMemoryStore - no entity extraction)
-cd python && python test_optimized.py
+# Run full test suite
+cd python && python run_test_suite.py
 
-# Run full test (Graphiti with entity extraction - requires larger LLM)
-cd python && python test_embedded.py
+# Run headless IPC test (requires running IPC server)
+cd python && python test_headless.py
 ```
 
 ## Configuration (Optimized for limited hardware)
-- LLM: `qwen2.5:7b` via Ollama at `127.0.0.1:11434` (for entity extraction)
-- SimpleStore: Uses `qwen2.5:0.5b` for fast operations (no entity extraction)
+- LLM: `qwen2.5:0.5b` via Ollama at `127.0.0.1:11434` (minimal LLM usage)
+- Memory: SimpleMemoryStore (no entity extraction, embedding-based search)
 - Embeddings: `all-MiniLM-L6-v2` (384 dimensions, CPU)
 - OpenCode: `127.0.0.1:4096`
 - FalkorDB/Redis: `localhost:6379`
 
-## Performance Metrics (tested 2026-04-16 12:35)
-- IPC latency: 0.01-0.02s
-- Memory add episode: 0.01-0.02s
-- Memory query: 0.01s (1 result)
-- Get context: 0.01s (43 chars)
-- Relevance evaluation: 0.02s (2 relevant facts)
-- Prompt build: 0.00s (172 chars)
-- OpenCode session create: 0.00s
-- OpenCode send message: 12.81s (qwen2.5:0.5b inference)
-- Total test suite: 15.11s
-
-## Performance Metrics (SimpleMemoryStore - tested 2026-04-16 12:50)
+## Performance Metrics (Optimized SimpleMemoryStore - tested 2026-04-16 14:05)
 - Redis connect: 0.004s
-- Embedder init: 7.72s (one-time cost)
-- Add episode avg: 0.012s (no entity extraction)
-- Search avg: 0.011s (embedding similarity)
-- Prompt build: 0.37s
-- Total test suite: 8.12s
+- Embedder init: 7.77s (one-time startup cost)
+- Store init: 0.000s
+- Add 10 episodes: 0.114s (~11ms each)
+- Search: 0.014s (embedding similarity)
+- Relevance eval: 0.018s (embedding-based, 5 facts)
+- Prompt build: 0.38s
+- Total runtime (excluding embedder init): ~0.55s
 
-## Performance Metrics (InMemoryStore with Embeddings - tested 2026-04-16 13:30)
-- IPC connect: 0.000s
-- Add 10 episodes: 0.094s (~9.4ms each)
-- Memory query: 0.009s (embedding similarity)
-- Memory get context: 0.009s
-- Prompt build: 0.000s
-- Relevance evaluate: 0.026s (5 facts, embedding-based)
-- Total headless test: 0.064s
+## Previous Performance Metrics
+- IPC latency: 0.01-0.02s (tested 2026-04-16 12:35)
+- Memory add episode: 0.01-0.02s (with Graphiti)
+- Full test with Graphiti: 15.11s (includes entity extraction)
 
 ## Architecture
 Hybrid Rust + Python:

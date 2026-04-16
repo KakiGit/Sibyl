@@ -187,9 +187,12 @@ async def main():
 
         relevance_evaluator = CachedRelevanceEvaluator(
             llm_client=ollama_client,
+            embedder=embedder,
             cache_ttl=300,
+            threshold=0.25,
+            use_llm=False,
         )
-        print("  Relevance evaluator ready (qwen2.5:0.5b)")
+        print("  Relevance evaluator ready (embedding-based)")
     except Exception as e:
         print(f"  Relevance evaluator skipped: {e}")
 
