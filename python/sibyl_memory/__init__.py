@@ -6,6 +6,7 @@ Memory layer using Graphiti + FalkorDB for temporal context graphs.
 
 from .memory import MemorySystem
 from .graphiti_client import GraphitiClient
+from .simple_store import SimpleMemoryStore
 from .models import (
     Episode,
     Entity,
@@ -33,6 +34,7 @@ from .llm import OllamaClient, LLMConfig
 __all__ = [
     "MemorySystem",
     "GraphitiClient",
+    "SimpleMemoryStore",
     "Episode",
     "Entity",
     "Fact",

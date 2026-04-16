@@ -1,19 +1,26 @@
+#!/usr/bin/env python
+"""Run IPC server in foreground for testing."""
+
 import asyncio
 import logging
+import sys
+import os
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "python"))
+
 from sibyl_memory import MemorySystem
 from sibyl_memory.llm.config import LLMConfig
 from sibyl_memory.graphiti_client import GraphitiClient
 from sibyl_prompt import TemplatePromptBuilder
 from sibyl_ipc_server import IpcServer, MemoryHandler, PromptHandler
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
 
 
 async def main():
     llm_config = LLMConfig(
         base_url="http://127.0.0.1:11434",
-        model="qwen2.5:7b",
+        model="qwen2.5:0.5b",
         timeout=120,
     )
 
@@ -24,16 +31,15 @@ async def main():
     prompt_builder = TemplatePromptBuilder()
 
     relevance_evaluator = None
-    if memory.client._llm_client:
-        try:
-            from sibyl_relevance import CachedRelevanceEvaluator
+    try:
+        from sibyl_relevance import CachedRelevanceEvaluator
 
-            relevance_evaluator = CachedRelevanceEvaluator(
-                llm_client=memory.client._llm_client,
-                cache_ttl=300,
-            )
-        except Exception as e:
-            logger.warning(f"Relevance evaluator initialization failed: {e}")
+        relevance_evaluator = CachedRelevanceEvaluator(
+            llm_client=memory.client._llm_client,
+            cache_ttl=300,
+        )
+    except Exception as e:
+        logging.warning(f"Relevance evaluator initialization failed: {e}")
 
     server = IpcServer()
 
@@ -46,12 +52,13 @@ async def main():
     server.register("prompt.build", prompt_handler.handle_build)
     server.register("relevance.evaluate", prompt_handler.handle_relevance_evaluate)
 
-    logger.info("Starting Sibyl IPC Server...")
+    logging.info("Starting Sibyl IPC Server...")
+    logging.info(f"Socket path: {server.socket_path}")
 
     try:
         await server.start()
     except KeyboardInterrupt:
-        logger.info("Shutting down...")
+        logging.info("Shutting down...")
     finally:
         await memory.shutdown()
 
