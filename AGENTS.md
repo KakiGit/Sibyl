@@ -35,7 +35,7 @@ dependencies:
     startup_timeout: 15s
 ```
 
-## Performance Metrics (Headless IPC Test - 2026-04-16 16:38)
+## Performance Metrics (Headless IPC Test - 2026-04-16)
 - IPC connect: 0.000s
 - Memory add_episode: 0.014s
 - Memory query: 0.013s
@@ -48,15 +48,17 @@ dependencies:
 - Total IPC runtime (excluding embedder init): ~0.24s
 - Embedder init: ~8s (one-time startup cost)
 
-## Full Test Suite Metrics (2026-04-16 16:38)
-- Redis connect: 0.004s
-- Store init: 0.000s
-- Add 10 episodes: 0.103s (0.010s avg)
-- Search: 0.039s (5 results)
-- Relevance eval: 0.019s (1 relevant)
-- Prompt build: 0.153s
-- OpenCode connect: 0.002s
-- Total runtime: ~0.33s (excluding embedder init)
+## Baseline Verification (2026-04-16)
+- Config loaded from ~/.config/sibyl/config.yaml ✓
+- Headless mode: memory query → prompt build → harness response ✓
+- Memory storage after conversation ✓
+- Memory query command works ✓
+- JSON output mode works ✓
+
+## TUI Testing
+- tui-test framework setup in `tui-tests/` directory
+- Run: `npm install && npm run test:tui` (requires Node.js)
+- Tests cover: welcome screen, keybindings, memory panel toggle, command palette
 
 ## Architecture
 Hybrid Rust + Python:
