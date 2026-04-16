@@ -15,13 +15,13 @@ OPENCODE_URL = "http://127.0.0.1:4096"
 class IpcClient:
     def __init__(self, socket_path: str = SOCKET_PATH):
         self.socket_path = socket_path
-        self._sock = None
+        self._reader = None
+        self._writer = None
 
     async def connect(self):
-        loop = asyncio.get_event_loop()
-        self._sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        self._sock.setblocking(False)
-        await loop.sock_connect(self._sock, self.socket_path)
+        self._reader, self._writer = await asyncio.open_unix_connection(
+            self.socket_path
+        )
 
     async def call(self, method: str, params: Optional[Dict[str, Any]] = None) -> Dict:
         request = {
@@ -33,18 +33,19 @@ class IpcClient:
         data = json.dumps(request).encode()
         len_bytes = len(data).to_bytes(4, "big")
 
-        loop = asyncio.get_event_loop()
-        self._sock.sendall(len_bytes + data)
+        self._writer.write(len_bytes + data)
+        await self._writer.drain()
 
-        len_data = await loop.sock_recv(self._sock, 4)
+        len_data = await self._reader.readexactly(4)
         msg_len = int.from_bytes(len_data, "big")
-        response_data = await loop.sock_recv(self._sock, msg_len)
+        response_data = await self._reader.readexactly(msg_len)
         response = json.loads(response_data)
         return response
 
     async def close(self):
-        if self._sock:
-            self._sock.close()
+        if self._writer:
+            self._writer.close()
+            await self._writer.wait_closed()
 
 
 async def test_ipc_ping():
