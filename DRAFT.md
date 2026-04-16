@@ -1,5 +1,9 @@
 # Sibyl
 
+NO DEAD CODE
+NO DEAD CODE
+NO DEAD CODE
+
 ## Overview
 
 The Sibyl is a TUI-based tool to provide a unified interface for various LLM-based code generation and analysis tools.
@@ -23,6 +27,14 @@ Use subagent to evaluate if the memory is relevant to the conversation.
 Irrelevant memories will be removed from the context if the subagent evaluates so.
 
 Sibyl should provide interface to manage the memories. (add, search, modify and delete)
+
+## Performance requirement
+
+The Sibyl should have top-notch performance.
+
+## UX
+
+The Sibyl should have top-notch UX
 
 ## Valueable Implementations
 
