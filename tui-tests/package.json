@@ -1,0 +1,11 @@
+{
+  "name": "sibyl-tui-tests",
+  "version": "1.0.0",
+  "description": "TUI tests for Sibyl",
+  "scripts": {
+    "test:tui": "tui-test"
+  },
+  "devDependencies": {
+    "@microsoft/tui-test": "^0.0.4"
+  }
+}

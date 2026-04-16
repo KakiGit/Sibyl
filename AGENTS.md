@@ -55,10 +55,18 @@ dependencies:
 - Memory query command works ✓
 - JSON output mode works ✓
 
+## Baseline Re-verified (2026-04-16)
+- `./target/release/sibyl run --prompt "What is 2+2?" --json` ✓
+- Memories retrieved and injected ✓
+- Response from OpenCode harness ✓
+- Memory stored after conversation ✓
+- `./target/release/sibyl memory --query "math"` ✓
+
 ## TUI Testing
 - tui-test framework setup in `tui-tests/` directory
-- Run: `npm install && npm run test:tui` (requires Node.js)
+- Run: `npm install && npm run test:tui` (requires Node.js 16.6.0+ or Bun 1.3.5+)
 - Tests cover: welcome screen, keybindings, memory panel toggle, command palette
+- Package: `@microsoft/tui-test ^0.0.4`
 
 ## Architecture
 Hybrid Rust + Python:
