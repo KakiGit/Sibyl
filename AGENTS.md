@@ -6,14 +6,18 @@
 ## Running the System
 ```bash
 # Start IPC server (background)
-python server_daemon.py
+cd python && python -m sibyl_ipc_server
 
-# Test the system
-python test_final_headless.py
+# Run optimized test (SimpleMemoryStore - no entity extraction)
+cd python && python test_optimized.py
+
+# Run full test (Graphiti with entity extraction - requires larger LLM)
+cd python && python test_embedded.py
 ```
 
 ## Configuration (Optimized for limited hardware)
-- LLM: `qwen2.5:0.5b` via Ollama at `127.0.0.1:11434`
+- LLM: `qwen2.5:7b` via Ollama at `127.0.0.1:11434` (for entity extraction)
+- SimpleStore: Uses `qwen2.5:0.5b` for fast operations (no entity extraction)
 - Embeddings: `all-MiniLM-L6-v2` (384 dimensions, CPU)
 - OpenCode: `127.0.0.1:4096`
 - FalkorDB/Redis: `localhost:6379`
@@ -28,6 +32,14 @@ python test_final_headless.py
 - OpenCode session create: 0.00s
 - OpenCode send message: 12.81s (qwen2.5:0.5b inference)
 - Total test suite: 15.11s
+
+## Performance Metrics (SimpleMemoryStore - tested 2026-04-16 12:50)
+- Redis connect: 0.004s
+- Embedder init: 7.72s (one-time cost)
+- Add episode avg: 0.012s (no entity extraction)
+- Search avg: 0.011s (embedding similarity)
+- Prompt build: 0.37s
+- Total test suite: 8.12s
 
 ## Architecture
 Hybrid Rust + Python:
