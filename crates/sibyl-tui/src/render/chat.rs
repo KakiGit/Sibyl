@@ -68,33 +68,79 @@ pub fn render_chat(f: &mut Frame, state: &ChatState, area: Rect, processing: boo
 fn render_welcome(f: &mut Frame, area: Rect) {
     let welcome_lines = vec![
         Line::from(""),
-        Line::from(vec![Span::styled("Welcome to Sibyl", header())]),
         Line::from(vec![Span::styled(
-            "Your memory-enhanced AI assistant",
+            "╔══════════════════════════════════════╗",
             accent(),
         )]),
+        Line::from(vec![Span::styled(
+            "║       Welcome to Sibyl               ║",
+            accent(),
+        )]),
+        Line::from(vec![Span::styled(
+            "╚══════════════════════════════════════╝",
+            accent(),
+        )]),
+        Line::from(vec![Span::styled(
+            "  Your memory-enhanced AI assistant",
+            muted(),
+        )]),
         Line::from(""),
-        Line::from(vec![Span::styled("Quick Start:", muted())]),
+        Line::from(vec![Span::styled(
+            "┌─ Quick Start ────────────────────────",
+            header(),
+        )]),
         Line::from(vec![
-            Span::styled("  • ", muted()),
-            Span::styled("Type a message and press Enter", default()),
+            Span::styled("│ ", muted()),
+            Span::styled("→ ", accent()),
+            Span::styled("Type a message, press Enter to send", default()),
         ]),
         Line::from(vec![
-            Span::styled("  • ", muted()),
+            Span::styled("│ ", muted()),
+            Span::styled("→ ", accent()),
             Span::styled("Press Tab to toggle memory panel", default()),
         ]),
         Line::from(vec![
-            Span::styled("  • ", muted()),
-            Span::styled("Press ? for help", default()),
+            Span::styled("│ ", muted()),
+            Span::styled("→ ", accent()),
+            Span::styled("Press ? for keybindings help", default()),
         ]),
         Line::from(vec![
-            Span::styled("  • ", muted()),
+            Span::styled("│ ", muted()),
+            Span::styled("→ ", accent()),
             Span::styled("Press : for command palette", default()),
         ]),
+        Line::from(vec![Span::styled(
+            "└──────────────────────────────────────",
+            header(),
+        )]),
         Line::from(""),
         Line::from(vec![Span::styled(
-            "Commands: /help, /memory <query>, /clear",
-            muted(),
+            "┌─ Commands ───────────────────────────",
+            header(),
+        )]),
+        Line::from(vec![
+            Span::styled("│ ", muted()),
+            Span::styled("/help      ", accent()),
+            Span::styled("Show available commands", default()),
+        ]),
+        Line::from(vec![
+            Span::styled("│ ", muted()),
+            Span::styled("/memory q  ", accent()),
+            Span::styled("Search memories", default()),
+        ]),
+        Line::from(vec![
+            Span::styled("│ ", muted()),
+            Span::styled("/clear     ", accent()),
+            Span::styled("Clear chat history", default()),
+        ]),
+        Line::from(vec![Span::styled(
+            "└──────────────────────────────────────",
+            header(),
+        )]),
+        Line::from(""),
+        Line::from(vec![Span::styled(
+            "  Memories are automatically injected for context",
+            muted().add_modifier(Modifier::ITALIC),
         )]),
         Line::from(""),
     ];

@@ -7,24 +7,24 @@ use ratatui::{
 };
 
 use crate::input::get_command_help;
-use crate::theme::{accent, border, default, header, muted};
+use crate::theme::{accent, border, default, header, muted, success};
 
 const KEYBINDINGS: &[(&str, &str)] = &[
-    ("Up / Down", "Scroll chat"),
-    ("Alt+j / Alt+k", "Scroll chat (vim-style)"),
-    ("Ctrl+d / Ctrl+u", "Half-page scroll"),
     ("Enter", "Send message"),
+    ("Up / Down", "Scroll chat history"),
+    ("Alt+j / Alt+k", "Scroll (vim-style)"),
+    ("Ctrl+d / Ctrl+u", "Half-page scroll"),
     ("Tab", "Toggle memory panel"),
-    ("Ctrl+c", "Quit"),
-    ("Esc", "Cancel/Close overlay"),
     ("?", "Show this help"),
-    (":", "Open command palette"),
-    ("Up / Down (in input)", "History navigation"),
+    (":", "Command palette"),
+    ("Esc", "Close overlay/cancel"),
+    ("Ctrl+c", "Quit Sibyl"),
 ];
 
 pub fn render_help_overlay(f: &mut Frame, area: Rect) {
-    let help_width = 60u16;
-    let help_height = (KEYBINDINGS.len() + get_command_help().len() + 6) as u16;
+    let help_width = 65u16;
+    let cmd_help = get_command_help();
+    let help_height = (KEYBINDINGS.len() + cmd_help.len() + 8) as u16;
 
     let help_area = Rect {
         x: (area.width.saturating_sub(help_width)) / 2,
@@ -38,38 +38,67 @@ pub fn render_help_overlay(f: &mut Frame, area: Rect) {
     let mut lines: Vec<Line<'static>> = Vec::new();
 
     lines.push(Line::from(""));
-    lines.push(Line::from(vec![Span::styled("  Key Bindings", header())]));
     lines.push(Line::from(vec![Span::styled(
-        "  ──────────────────────────────────────",
-        muted(),
+        "  ╔══ Key Bindings ═══════════════════════╗",
+        accent(),
     )]));
+    lines.push(Line::from(vec![
+        Span::styled("  ║", accent()),
+        Span::styled("                                  ", default()),
+        Span::styled("║", accent()),
+    ]));
 
     for (key, desc) in KEYBINDINGS {
         lines.push(Line::from(vec![
-            Span::styled(format!("  {:20} ", key), accent()),
-            Span::styled(desc.to_string(), default()),
+            Span::styled("  ║ ", accent()),
+            Span::styled(
+                format!("{:18} ", key),
+                accent().add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(format!("→ {}", desc), default()),
+            Span::styled("       ║", accent()),
         ]));
     }
 
-    lines.push(Line::from(""));
-    lines.push(Line::from(vec![Span::styled("  Commands", header())]));
     lines.push(Line::from(vec![Span::styled(
-        "  ──────────────────────────────────────",
-        muted(),
+        "  ╚══════════════════════════════════════╝",
+        accent(),
     )]));
+    lines.push(Line::from(""));
+    lines.push(Line::from(vec![Span::styled(
+        "  ╔══ Commands ═══════════════════════════╗",
+        accent(),
+    )]));
+    lines.push(Line::from(vec![
+        Span::styled("  ║", accent()),
+        Span::styled("                                  ", default()),
+        Span::styled("║", accent()),
+    ]));
 
-    for (cmd, desc) in get_command_help() {
+    for (cmd, desc) in cmd_help.iter() {
         lines.push(Line::from(vec![
-            Span::styled(format!("  {:25} ", cmd), accent()),
-            Span::styled(desc.to_string(), default()),
+            Span::styled("  ║ ", accent()),
+            Span::styled(
+                format!("{:22} ", cmd),
+                accent().add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(format!("→ {}", desc), default()),
+            Span::styled("   ║", accent()),
         ]));
     }
 
-    lines.push(Line::from(""));
     lines.push(Line::from(vec![Span::styled(
-        "  Press any key to close",
-        muted(),
+        "  ╚══════════════════════════════════════╝",
+        accent(),
     )]));
+    lines.push(Line::from(""));
+    lines.push(Line::from(vec![
+        Span::styled("  ", default()),
+        Span::styled(
+            "Press any key to close",
+            muted().add_modifier(Modifier::ITALIC),
+        ),
+    ]));
 
     let help = Paragraph::new(lines).alignment(Alignment::Left).block(
         Block::default()
@@ -85,7 +114,7 @@ pub fn render_help_overlay(f: &mut Frame, area: Rect) {
 pub fn get_keybinding_text() -> String {
     KEYBINDINGS
         .iter()
-        .map(|(key, desc)| format!("{:20} - {}", key, desc))
+        .map(|(key, desc)| format!("{:18} → {}", key, desc))
         .collect::<Vec<_>>()
         .join("\n")
 }

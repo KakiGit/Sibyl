@@ -81,17 +81,33 @@ pub fn render_memory_search_input(f: &mut Frame, query: &str, area: Rect, focuse
 pub fn render_empty_memory_panel(f: &mut Frame, area: Rect) {
     let empty_lines = vec![
         Line::from(""),
-        Line::from(vec![Span::styled("Memory Panel", header())]),
+        Line::from(vec![Span::styled("╔══════════════════════════╗", accent())]),
+        Line::from(vec![Span::styled("║      Memory Panel        ║", accent())]),
+        Line::from(vec![Span::styled("╚══════════════════════════╝", accent())]),
         Line::from(""),
-        Line::from(vec![Span::styled("No memories yet", muted())]),
+        Line::from(vec![Span::styled("  No memories yet", muted())]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("  ", default()),
+            Span::styled("●", success()),
+            Span::styled(" Memories are auto-stored", default()),
+        ]),
+        Line::from(vec![
+            Span::styled("  ", default()),
+            Span::styled("●", success()),
+            Span::styled(" Context injected on queries", default()),
+        ]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("  ", default()),
+            Span::styled("/memory <query>", accent()),
+            Span::styled(" to search", muted()),
+        ]),
         Line::from(""),
         Line::from(vec![Span::styled(
-            "Memories are automatically stored",
-            accent(),
+            "  Press Tab to close",
+            muted().add_modifier(Modifier::ITALIC),
         )]),
-        Line::from(vec![Span::styled("when you send messages.", accent())]),
-        Line::from(""),
-        Line::from(vec![Span::styled("Press Tab to close", muted())]),
         Line::from(""),
     ];
 

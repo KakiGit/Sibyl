@@ -1,6 +1,6 @@
 use ratatui::{
     layout::Rect,
-    style::Style,
+    style::{Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph},
     Frame,
@@ -16,60 +16,74 @@ pub fn render_input(
     focused: bool,
     processing: bool,
 ) {
-    let style = if processing {
-        muted()
+    let (style, border_style) = if processing {
+        (muted(), muted())
     } else if focused {
-        default()
+        (default(), border_focused())
     } else {
-        muted()
+        (muted(), border())
     };
 
-    let border_style = if focused { border_focused() } else { border() };
-
-    let display_text = if state.buffer.is_empty() {
+    let (display_text, text_style): (&str, Style) = if state.buffer.is_empty() {
         if focused {
-            "Send a message (Enter) | /help for commands | Tab for memory"
+            ("Type your message → Enter to send", muted())
         } else {
-            "Input (press any key to focus)"
+            ("Press any key to start typing", muted())
         }
     } else {
-        &state.buffer
+        (state.buffer.as_str(), style)
     };
 
-    let text_style = if state.buffer.is_empty() {
-        muted()
+    let prefix = if focused && !processing {
+        vec![Span::styled("▶ ", accent().add_modifier(Modifier::BOLD))]
+    } else if processing {
+        vec![Span::styled("◐ ", warning())]
     } else {
-        style
+        vec![Span::styled("○ ", muted())]
     };
 
-    let input = Paragraph::new(display_text).style(text_style).block(
+    let text_spans: Vec<Span<'_>> = if state.buffer.is_empty() {
+        vec![Span::styled(display_text, text_style)]
+    } else {
+        vec![Span::styled(display_text, text_style)]
+    };
+
+    let input = Paragraph::new(Line::from(
+        prefix.into_iter().chain(text_spans).collect::<Vec<_>>(),
+    ))
+    .block(
         Block::default()
             .borders(Borders::ALL)
-            .title(" Input ")
+            .title(if focused { " Input " } else { " " })
             .title_style(if focused { header() } else { muted() })
             .style(border_style),
     );
 
     f.render_widget(input, area);
 
-    if focused && !processing {
-        let cursor_x = area.x + 1 + state.cursor_position as u16;
+    if focused && !processing && !state.buffer.is_empty() {
+        let cursor_x = area.x + 3 + state.cursor_position as u16;
         let cursor_y = area.y + 1;
         f.set_cursor_position((cursor_x, cursor_y));
     }
 }
 
 pub fn render_command_input(f: &mut Frame, state: &InputState, area: Rect) {
-    let spans: Vec<Span<'_>> = if state.buffer.starts_with('/') {
+    let prefix = vec![Span::styled("▶ ", accent().add_modifier(Modifier::BOLD))];
+
+    let content_spans: Vec<Span<'_>> = if state.buffer.starts_with('/') {
         vec![
-            Span::styled("/", accent().add_modifier(ratatui::style::Modifier::BOLD)),
+            Span::styled("/", accent().add_modifier(Modifier::BOLD)),
             Span::styled(&state.buffer[1..], accent()),
         ]
     } else {
         vec![Span::styled(&state.buffer, default())]
     };
 
-    let input = Paragraph::new(Line::from(spans)).block(
+    let input = Paragraph::new(Line::from(
+        prefix.into_iter().chain(content_spans).collect::<Vec<_>>(),
+    ))
+    .block(
         Block::default()
             .borders(Borders::ALL)
             .title(" Command ")
@@ -79,7 +93,7 @@ pub fn render_command_input(f: &mut Frame, state: &InputState, area: Rect) {
 
     f.render_widget(input, area);
 
-    let cursor_x = area.x + 1 + state.cursor_position as u16;
+    let cursor_x = area.x + 3 + state.cursor_position as u16;
     let cursor_y = area.y + 1;
     f.set_cursor_position((cursor_x, cursor_y));
 }

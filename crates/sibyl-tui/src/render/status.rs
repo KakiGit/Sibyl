@@ -16,64 +16,60 @@ pub fn render_status_bar(
     bar_state: &StatusBarState,
     mode_text: &str,
 ) {
-    let status_text = match status {
-        AppStatus::Idle => "● Ready",
-        AppStatus::Processing => "◐ Processing...",
-        AppStatus::Error => "✗ Error",
+    let (status_icon, status_text, status_style) = match status {
+        AppStatus::Idle => ("●", "Ready", success()),
+        AppStatus::Processing => (
+            "◐",
+            "Processing...",
+            warning().add_modifier(Modifier::SLOW_BLINK),
+        ),
+        AppStatus::Error => ("✗", "Error", error()),
     };
 
-    let status_style = match status {
-        AppStatus::Idle => success(),
-        AppStatus::Processing => warning().add_modifier(Modifier::SLOW_BLINK),
-        AppStatus::Error => error(),
-    };
-
-    let session_info = bar_state
+    let session_short = bar_state
         .session_id
         .as_ref()
-        .map(|id| format!("Session: {} | ", id.chars().take(8).collect::<String>()))
-        .unwrap_or_else(|| "No session | ".to_string());
+        .map(|id| id.chars().take(8).collect::<String>())
+        .unwrap_or_else(|| "—".to_string());
 
-    let memory_info = if bar_state.memory_count > 0 {
-        format!("{} memories | ", bar_state.memory_count)
-    } else {
-        String::new()
-    };
-
-    let model_info = format!("{} | ", bar_state.model);
-
-    let dep_info = if bar_state.dep_status.contains("ready") || bar_state.dep_status.contains("All")
-    {
-        format!("{} | ", bar_state.dep_status)
-    } else if bar_state.dep_status.contains("Degraded") {
-        format!("{} | ", bar_state.dep_status)
-    } else {
-        format!("{} | ", bar_state.dep_status)
-    };
-
-    let dep_style =
+    let (dep_icon, dep_style) =
         if bar_state.dep_status.contains("ready") || bar_state.dep_status.contains("All") {
-            success()
+            ("●", success())
         } else if bar_state.dep_status.contains("Degraded") {
-            warning()
+            ("◐", warning())
         } else if bar_state.dep_status.contains("failed") {
-            error()
+            ("✗", error())
         } else {
-            muted()
+            ("○", muted())
         };
 
-    let mut spans = vec![
-        Span::styled(&model_info, accent()),
-        Span::styled(&dep_info, dep_style),
-        Span::styled(&session_info, muted()),
-        Span::styled(&memory_info, memory_highlight()),
-        Span::styled(status_text, status_style),
-        Span::styled(" | ", muted()),
-        Span::styled(mode_text, accent()),
-    ];
+    let mem_count = if bar_state.memory_count > 0 {
+        format!("{} mem", bar_state.memory_count)
+    } else {
+        "0 mem".to_string()
+    };
 
-    let help_text = " | Tab: Memory | ?: Help | Ctrl+C: Quit";
-    spans.push(Span::styled(help_text, muted()));
+    let spans = vec![
+        Span::styled(" ", default()),
+        Span::styled(&bar_state.model, accent().add_modifier(Modifier::BOLD)),
+        Span::styled(" │ ", muted()),
+        Span::styled(dep_icon, dep_style),
+        Span::styled(" deps", dep_style),
+        Span::styled(" │ ", muted()),
+        Span::styled(&mem_count, memory_highlight()),
+        Span::styled(" │ ", muted()),
+        Span::styled(&session_short, muted()),
+        Span::styled(" │ ", muted()),
+        Span::styled(status_icon, status_style),
+        Span::styled(" ", status_style),
+        Span::styled(status_text, status_style),
+        Span::styled(" │ ", muted()),
+        Span::styled("[", muted()),
+        Span::styled(mode_text, accent()),
+        Span::styled("]", muted()),
+        Span::styled("  ", default()),
+        Span::styled("Tab:Mem ?:Help Ctrl+C:Quit", muted()),
+    ];
 
     let status = Paragraph::new(Line::from(spans)).style(default());
     f.render_widget(status, area);
