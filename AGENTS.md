@@ -18,17 +18,16 @@ python test_final_headless.py
 - OpenCode: `127.0.0.1:4096`
 - FalkorDB/Redis: `localhost:6379`
 
-## Performance Metrics (tested 2026-04-16)
-- IPC latency: 0.01-0.03s
-- Memory add episode: 0.01s
-- Memory batch add (3): 0.01s
-- Memory query: 0.01-0.03s
-- Get context: 0.01s
-- Relevance evaluation: 0.02s
-- Prompt build: 0.16s
+## Performance Metrics (tested 2026-04-16 12:35)
+- IPC latency: 0.01-0.02s
+- Memory add episode: 0.01-0.02s
+- Memory query: 0.01s (1 result)
+- Get context: 0.01s (43 chars)
+- Relevance evaluation: 0.02s (2 relevant facts)
+- Prompt build: 0.00s (172 chars)
 - OpenCode session create: 0.00s
-- LLM inference (complex): 10-15s (qwen2.5:0.5b)
-- Ollama direct (simple): 1.18s
+- OpenCode send message: 12.81s (qwen2.5:0.5b inference)
+- Total test suite: 15.11s
 
 ## Architecture
 Hybrid Rust + Python:
