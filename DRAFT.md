@@ -4,7 +4,7 @@
 
 The Sibyl is a TUI-based tool to provide a unified interface for various LLM-based code generation and analysis tools.
 
-Sibyl has a built-in memory system. Spec stated below. 
+Sibyl has a built-in memory system. Spec stated below.
 
 Sibyl also supports a plugin system to allow users to easily extend the functionality. For example custom workflow, etc.
 
@@ -14,13 +14,15 @@ Sibyl can utilize the other harnesses because those took millions of dollars to 
 
 ## Memory System Spec
 
-Sibyl supports real time natual language query to its database. 
+Sibyl supports real time natual language query to its database.
 
 The memory gets injected automatically to the context smoothly.
 
 Use subagent to evaluate if the memory is relevant to the conversation.
 
 Irrelevant memories will be removed from the context if the subagent evaluates so.
+
+Sibyl should provide interface to manage the memories. (add, search, modify and delete)
 
 ## Valueable Implementations
 
@@ -36,9 +38,9 @@ Implementation can learn from these repos:
 
 ### Layers and Connections
 
-                   TUI 
+                   TUI
                     |
-Memory System <-> Core <-> Prompt Building 
+Memory System <-> Core <-> Prompt Building
                     |
                  Harnesses
 

@@ -219,6 +219,7 @@ impl Default for StatusBarState {
 
 use std::sync::Arc;
 use crossterm::event::KeyEvent;
+use ratatui::{Frame, layout::Rect};
 use sibyl_deps::DependencyManager;
 use sibyl_harness::Harness;
 use sibyl_ipc::client::IpcClient;
@@ -227,8 +228,8 @@ use sibyl_opencode::client::OpenCodeClient;
 use sibyl_opencode::config::OpenCodeConfig;
 use sibyl_opencode::types::UserMessage;
 
-use crate::input::{handle_chat_key, handle_global_key, handle_memory_key, Command, InputComposer, HandleResult, should_handle_as_input};
-use crate::widgets::{Spinner, SpinnerState};
+use crate::input::{handle_chat_key, handle_global_key, handle_memory_key, Command, InputComposer, HandleResult, should_handle_as_input, get_command_completions};
+use crate::widgets::{Spinner, SpinnerState, CompletionPopup};
 
 pub struct App {
     mode: AppMode,
@@ -239,6 +240,7 @@ pub struct App {
     status_bar: StatusBarState,
     composer: InputComposer,
     spinner: Spinner,
+    completion: CompletionPopup,
     opencode: OpenCodeClient,
     ipc: IpcClient,
     session_id: Option<String>,
@@ -260,6 +262,7 @@ impl App {
             status_bar: StatusBarState::default(),
             composer: InputComposer::new(),
             spinner: Spinner::new(),
+            completion: CompletionPopup::new(),
             opencode,
             ipc,
             session_id: None,
@@ -310,6 +313,10 @@ impl App {
 
     pub fn tick_spinner(&mut self) {
         self.spinner.tick();
+    }
+
+    pub fn render_completion(&self, f: &mut ratatui::Frame, area: ratatui::layout::Rect) {
+        self.completion.render(f, area, area.y);
     }
 
     pub fn handle_key(&mut self, key: KeyEvent) -> bool {
@@ -477,14 +484,41 @@ impl App {
             KeyCode::Esc => {
                 self.mode = AppMode::Chat;
                 self.composer.clear();
+                self.completion.hide();
             }
             KeyCode::Enter => {
                 let cmd_text = self.composer.submit();
                 self.execute_command(&cmd_text);
                 self.mode = AppMode::Chat;
+                self.completion.hide();
+            }
+            KeyCode::Tab => {
+                if self.completion.is_visible() {
+                    if let Some(selected) = self.completion.selected_completion() {
+                        self.composer.set_buffer(selected.to_string());
+                        self.completion.hide();
+                    }
+                }
+            }
+            KeyCode::Down => {
+                if self.completion.is_visible() {
+                    self.completion.select_next();
+                }
+            }
+            KeyCode::Up => {
+                if self.completion.is_visible() {
+                    self.completion.select_prev();
+                }
             }
             _ => {
                 self.composer.handle_key(key);
+                let buffer = self.composer.buffer();
+                if buffer.starts_with('/') {
+                    let completions = get_command_completions(buffer);
+                    self.completion.set_completions(completions);
+                } else {
+                    self.completion.hide();
+                }
             }
         }
     }

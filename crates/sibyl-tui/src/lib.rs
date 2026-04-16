@@ -12,8 +12,9 @@ pub use app::{
 pub use input::{
     Command, InputComposer, HandleResult,
     handle_global_key, handle_chat_key, handle_memory_key, should_handle_as_input,
+    get_command_completions,
 };
-pub use widgets::{Spinner, SpinnerState, render_help_overlay};
+pub use widgets::{Spinner, SpinnerState, render_help_overlay, CompletionPopup};
 pub use render::{
     render_chat, render_input, render_memory_panel, render_status_bar,
     render_command_input,

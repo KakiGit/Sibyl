@@ -27,7 +27,11 @@ pub fn render_input(
     let border_style = if focused { border_focused() } else { border() };
 
     let display_text = if state.buffer.is_empty() {
-        "Type a message... (/ for commands)"
+        if focused {
+            "Send a message (Enter) | /help for commands | Tab for memory"
+        } else {
+            "Input (press any key to focus)"
+        }
     } else {
         &state.buffer
     };

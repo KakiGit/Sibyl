@@ -10,7 +10,7 @@ use crate::app::{ChatState, Message, MessageRole};
 use crate::theme::*;
 use crate::widgets::scrollbar::render_scrollbar;
 
-pub fn render_chat(f: &mut Frame, state: &ChatState, area: Rect) {
+pub fn render_chat(f: &mut Frame, state: &ChatState, area: Rect, processing: bool) {
     let has_scrollbar = needs_scrollbar(state, area.height as usize);
     let list_area = if has_scrollbar {
         Rect {
@@ -28,13 +28,23 @@ pub fn render_chat(f: &mut Frame, state: &ChatState, area: Rect) {
         .scroll_offset
         .min(total_lines.saturating_sub(visible_lines));
 
-    let items: Vec<ListItem> = state
+    let mut items: Vec<ListItem> = state
         .messages
         .iter()
         .flat_map(|msg| render_message_lines(msg, list_area.width as usize))
         .skip(scroll_offset)
         .take(visible_lines)
         .collect();
+
+    if processing {
+        items.push(ListItem::new(Line::from(vec![
+            Span::styled("◐ ", warning()),
+            Span::styled(
+                "Processing...",
+                warning().add_modifier(Modifier::SLOW_BLINK),
+            ),
+        ])));
+    }
 
     let chat = List::new(items).block(
         Block::default()

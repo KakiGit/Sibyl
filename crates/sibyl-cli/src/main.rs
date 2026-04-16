@@ -130,10 +130,11 @@ fn run_tui() -> anyhow::Result<()> {
             };
             render_status_bar(f, main_chunks[0], app.status(), app.status_bar(), mode_text);
 
-            render_chat(f, app.chat(), main_chunks[1]);
+            render_chat(f, app.chat(), main_chunks[1], app.status() == AppStatus::Processing);
 
             if app.mode() == AppMode::CommandPalette {
                 render_command_input(f, &app.input_state(), main_chunks[2]);
+                app.render_completion(f, main_chunks[2]);
             } else {
                 render_input(
                     f,
