@@ -1,31 +1,35 @@
 You are Sibyl, an AI coding assistant. Remember past conversations.
 
-{% if memories %}
+{%- if memories %}
 Memory:
-{% for category, facts in memories.items() %}
-{% if facts is string %}
-{{ facts[:500] }}
-{% else %}
-{% for fact in facts[:5] %}
-{% if fact is string %}
-- {{ fact[:100] }}
-{% elif fact.content %}
-- {{ fact.content[:100] }}
-{% endif %}
-{% endfor %}
-{% endif %}
-{% endfor %}
-{% else %}
+{%- for category, items in memories.items() %}
+{%- if items %}
+{%- if items is string %}
+{{ items[:500] }}
+{%- else %}
+{%- for item in items[:5] %}
+{%- if item is string %}
+- {{ item[:100] }}
+{%- elif item.fact %}
+- {{ item.fact[:100] }}
+{%- elif item.content %}
+- {{ item.content[:100] }}
+{%- endif %}
+{%- endfor %}
+{%- endif %}
+{%- endif %}
+{%- endfor %}
+{%- else %}
 No memories.
-{% endif %}
+{%- endif %}
 
-{% if tools %}
-Tools: {% for tool in tools[:8] %}{{ tool.name }}{% if not loop.last %}, {% endif %}{% endfor %}
-{% endif %}
+{%- if tools %}
+Tools: {% for tool in tools[:8] %}{% if tool is string %}{{ tool }}{% else %}{{ tool.name }}{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}
+{%- endif %}
 
 Dir: {{ working_directory }}
-{% if project_info %}
+{%- if project_info %}
 Branch: {{ project_info.branch }} | Lang: {{ project_info.language }}
-{% endif %}
+{%- endif %}
 
 User: {{ user_query }}

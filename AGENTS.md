@@ -22,26 +22,18 @@ cd python && python test_headless.py
 - OpenCode: `127.0.0.1:4096`
 - FalkorDB/Redis: `localhost:6379`
 
-## Performance Metrics (Headless IPC Test - 2026-04-16 15:31)
+## Performance Metrics (Headless IPC Test - 2026-04-16 16:12)
 - IPC connect: 0.000s
-- Memory add_episode: 0.013s
-- Memory query: 0.010s
-- Memory get_context: 0.010s
-- Prompt build: 0.164s
-- Relevance evaluate: 0.024s
-- Total runtime (excluding embedder init): ~0.22s
+- Memory add_episode: 0.011s
+- Memory query: 0.011s
+- Memory get_context: 0.011s
+- Prompt build: 0.013s (optimized template with whitespace control)
+- Relevance evaluate: 0.000s (cached, embedding-based)
+- OpenCode session create: 0.006s
+- OpenCode list sessions: 0.017s
+- Total IPC runtime (excluding embedder init): ~0.05s
 - Embedder init: ~8s (one-time startup cost)
-
-## Performance Metrics (Direct Test Suite - 2026-04-16 15:28)
-- Redis connect: 0.004s
-- Embedder init: 8.089s (one-time startup cost)
-- Store init: 0.000s
-- Add 10 episodes: 0.107s (~11ms each)
-- Search: 0.030s (embedding similarity)
-- Relevance eval: 0.025s (embedding-based, 5 facts)
-- Prompt build: 0.163s
-- OpenCode connect: 0.002s
-- Total runtime (excluding embedder init): ~0.33s
+- OpenCode send message: ~4-7s (LLM response time, depends on model)
 
 ## Previous Performance Metrics
 - IPC latency: 0.01-0.02s (tested 2026-04-16 12:35)
