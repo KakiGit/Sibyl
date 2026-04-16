@@ -181,8 +181,8 @@ async def test_opencode_session():
     start = time.time()
     async with aiohttp.ClientSession() as session:
         async with session.post(
-            f"{OPENCODE_URL}/sessions",
-            json={"name": "test_session"},
+            f"{OPENCODE_URL}/session",
+            json={},
         ) as resp:
             data = await resp.json()
     elapsed = time.time() - start
@@ -198,10 +198,9 @@ async def test_opencode_send_message(session_id: str):
     start = time.time()
     async with aiohttp.ClientSession() as session:
         async with session.post(
-            f"{OPENCODE_URL}/sessions/{session_id}/messages",
+            f"{OPENCODE_URL}/session/{session_id}/message",
             json={
-                "role": "user",
-                "content": "Say 'hello' in one word.",
+                "parts": [{"type": "text", "text": "Say 'hello' in one word."}],
             },
         ) as resp:
             data = await resp.json()
@@ -217,7 +216,7 @@ async def test_opencode_list_sessions():
 
     start = time.time()
     async with aiohttp.ClientSession() as session:
-        async with session.get(f"{OPENCODE_URL}/sessions") as resp:
+        async with session.get(f"{OPENCODE_URL}/session") as resp:
             data = await resp.json()
     elapsed = time.time() - start
     print(f"  List sessions: {elapsed:.3f}s")
