@@ -180,7 +180,7 @@ fn default_python_ipc_socket_path() -> String {
 }
 
 fn default_python_ipc_spawn_command() -> String {
-    "python -m sibyl_ipc_server".to_string()
+    "python -u -m sibyl_ipc_server.__main_optimized__".to_string()
 }
 
 fn default_python_ipc_timeout() -> Duration {
