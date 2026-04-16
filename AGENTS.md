@@ -41,6 +41,15 @@ cd python && python test_embedded.py
 - Prompt build: 0.37s
 - Total test suite: 8.12s
 
+## Performance Metrics (InMemoryStore with Embeddings - tested 2026-04-16 13:30)
+- IPC connect: 0.000s
+- Add 10 episodes: 0.094s (~9.4ms each)
+- Memory query: 0.009s (embedding similarity)
+- Memory get context: 0.009s
+- Prompt build: 0.000s
+- Relevance evaluate: 0.026s (5 facts, embedding-based)
+- Total headless test: 0.064s
+
 ## Architecture
 Hybrid Rust + Python:
 - **Rust**: TUI (ratatui), core orchestration, harness integration, plugins
