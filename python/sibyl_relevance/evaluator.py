@@ -15,12 +15,11 @@ class CachedRelevanceEvaluator:
         self,
         llm_client=None,
         cache_ttl: int = 300,
-        threshold: float = 0.7,
+        threshold: float = 0.5,
     ):
         self.llm_client = llm_client
         self.cache = RelevanceCache(ttl_seconds=cache_ttl)
         self.threshold = threshold
-        self.model = "llama3.2"
 
     async def evaluate_batch(
         self,
@@ -53,28 +52,24 @@ class CachedRelevanceEvaluator:
         """Evaluate single fact relevance using LLM."""
         fact_text = self._get_fact_text(fact)
 
-        prompt = f"""Evaluate if this memory is relevant to the query.
+        prompt = f"""Is this memory relevant to the query? Reply with only a number from 0.0 to 1.0.
 
-Query: "{query}"
+Query: {query}
+Memory: {fact_text}
 
-Memory:
-- Content: "{fact_text}"
-- Source entity: {getattr(fact, "source_node_uuid", "unknown")}
-- Target entity: {getattr(fact, "target_node_uuid", "unknown")}
-- When it became true: {getattr(fact, "valid_at", "unknown")}
-
-Answer with a single number between 0 and 1:
-- 1.0 = Highly relevant, essential context
-- 0.5 = Somewhat related, may be useful
-- 0.0 = Not relevant, should not be included
-
-Score:"""
+Relevance score (0.0=not relevant, 1.0=very relevant):"""
 
         try:
             if self.llm_client:
-                response = await self.llm_client.generate(prompt, max_tokens=10)
-                score = float(response.strip())
-                return max(0.0, min(1.0, score))
+                response = await self.llm_client.generate(prompt, max_tokens=5)
+                text = response.strip()
+                if not text:
+                    return 0.5
+                try:
+                    score = float(text)
+                    return max(0.0, min(1.0, score))
+                except ValueError:
+                    pass
         except Exception as e:
             logger.warning(f"LLM evaluation failed: {e}")
 

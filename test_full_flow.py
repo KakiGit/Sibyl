@@ -86,16 +86,16 @@ async def test_opencode_rest():
                 print(f"OpenCode health check failed: {resp.status}")
                 return False
 
-        async with session.post(
-            f"{base_url}/session?directory=/home/kaki/Github/Sibyl", json={}
-        ) as resp:
+        async with session.post(f"{base_url}/session", json={}) as resp:
             data = await resp.json()
             session_id = data.get("id")
             print(f"Created OpenCode session: {session_id}")
 
         async with session.post(
             f"{base_url}/session/{session_id}/message",
-            json={"prompt": "List files in current directory"},
+            json={
+                "parts": [{"type": "text", "text": "List files in current directory"}]
+            },
         ) as resp:
             print(f"Sent message to OpenCode: {resp.status}")
 
@@ -204,14 +204,15 @@ async def run_tests():
     resp = await send_request(
         "relevance.evaluate",
         {
-            "memory_items": [
+            "facts": [
                 {"content": "Python type hints help documentation", "type": "fact"},
                 {"content": "The weather is sunny", "type": "fact"},
             ],
             "query": "How to use Python type hints?",
+            "threshold": 0.3,
         },
     )
-    results = resp.get("result", {}).get("relevant_items", [])
+    results = resp.get("result", {}).get("results", [])
     print(f"   Relevant items found: {len(results)}", flush=True)
 
     print("\n6. Testing OpenCode REST API...", flush=True)
