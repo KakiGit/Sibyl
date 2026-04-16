@@ -22,15 +22,16 @@ cd python && python test_headless.py
 - OpenCode: `127.0.0.1:4096`
 - FalkorDB/Redis: `localhost:6379`
 
-## Performance Metrics (Optimized SimpleMemoryStore - tested 2026-04-16 14:05)
+## Performance Metrics (Optimized SimpleMemoryStore - tested 2026-04-16 14:25)
 - Redis connect: 0.004s
-- Embedder init: 7.77s (one-time startup cost)
+- Embedder init: 7.86s (one-time startup cost)
 - Store init: 0.000s
-- Add 10 episodes: 0.114s (~11ms each)
+- Add 10 episodes: 0.115s (~11ms each)
 - Search: 0.014s (embedding similarity)
-- Relevance eval: 0.018s (embedding-based, 5 facts)
-- Prompt build: 0.38s
-- Total runtime (excluding embedder init): ~0.55s
+- Relevance eval: 0.019s (embedding-based, 5 facts)
+- Prompt build: 0.363s
+- OpenCode connect: 0.002s
+- Total runtime (excluding embedder init): ~0.5s
 
 ## Previous Performance Metrics
 - IPC latency: 0.01-0.02s (tested 2026-04-16 12:35)
