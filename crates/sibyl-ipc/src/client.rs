@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use tokio::net::UnixStream;
 use tracing::{debug, info, warn};
 
+#[derive(Clone)]
 pub struct IpcClient {
     socket_path: PathBuf,
 }

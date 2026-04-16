@@ -94,13 +94,18 @@ impl SessionRunner {
             .map(String::from)
             .unwrap_or_else(|| "No response received from harness".to_string());
 
-        let add_request = Request::new(Method::MemoryAddEpisode, serde_json::json!({
-            "name": "conversation",
-            "content": prompt,
-            "source_description": "user conversation",
-            "session_id": session_id
-        }));
-        let _ = self.ipc.send(add_request).await;
+        let ipc = self.ipc.clone();
+        let session_id_clone = session_id.clone();
+        let prompt_clone = prompt.to_string();
+        tokio::spawn(async move {
+            let add_request = Request::new(Method::MemoryAddEpisode, serde_json::json!({
+                "name": "conversation",
+                "content": prompt_clone,
+                "source_description": "user conversation",
+                "session_id": session_id_clone
+            }));
+            let _ = ipc.send(add_request).await;
+        });
 
         Ok(SessionResult {
             response: content,

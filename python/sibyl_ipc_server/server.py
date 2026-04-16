@@ -87,7 +87,10 @@ class IpcServer:
             logger.error(f"Connection error: {e}")
         finally:
             writer.close()
-            await writer.wait_closed()
+            try:
+                await writer.wait_closed()
+            except Exception:
+                pass
 
     async def _handle_request(self, request: JsonRpcRequest) -> JsonRpcResponse:
         """Handle a JSON-RPC request."""
