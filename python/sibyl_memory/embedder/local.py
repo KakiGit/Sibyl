@@ -60,14 +60,24 @@ try:
             self,
             input_data: Union[str, List[str], Iterable[int], Iterable[Iterable[int]]],
         ) -> List[float]:
-            """Create embedding for input data (graphiti-core interface)."""
+            """Create embedding for input data (graphiti-core interface).
+
+            Returns a flat list of floats for single string input.
+            For list input, returns first embedding only (use create_batch for batch).
+            """
             if isinstance(input_data, str):
                 result = await self.embed([input_data])
                 return result[0]
-            elif isinstance(input_data, list) and all(
-                isinstance(x, str) for x in input_data
-            ):
-                return await self.embed(input_data)
+            elif isinstance(input_data, list):
+                if len(input_data) == 0:
+                    return []
+                if all(isinstance(x, str) for x in input_data):
+                    if len(input_data) == 1:
+                        result = await self.embed(input_data)
+                        return result[0]
+                    result = await self.embed(input_data)
+                    return result[0]
+                raise ValueError(f"Unsupported list element type")
             else:
                 raise ValueError(f"Unsupported input type: {type(input_data)}")
 
@@ -91,9 +101,12 @@ except ImportError:
             if isinstance(input_data, str):
                 result = await self.embed([input_data])
                 return result[0]
-            elif isinstance(input_data, list) and all(
-                isinstance(x, str) for x in input_data
-            ):
-                return await self.embed(input_data)
+            elif isinstance(input_data, list):
+                if len(input_data) == 0:
+                    return []
+                if all(isinstance(x, str) for x in input_data):
+                    result = await self.embed(input_data)
+                    return result[0]
+                raise ValueError(f"Unsupported list element type")
             else:
                 raise ValueError(f"Unsupported input type: {type(input_data)}")
