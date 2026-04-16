@@ -3,8 +3,8 @@ from typing import Optional
 
 
 class LLMConfig(BaseModel):
-    model: str = "llama3.2"
-    base_url: str = "http://localhost:11434"
+    model: str = "qwen2.5:0.5b"
+    base_url: str = "http://127.0.0.1:11434"
     temperature: float = 0.0
-    max_tokens: Optional[int] = None
-    timeout: int = 60
+    max_tokens: Optional[int] = 512
+    timeout: int = 30
