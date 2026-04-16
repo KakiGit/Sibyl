@@ -1,4 +1,4 @@
-use std::io::{self, IsTerminal};
+use std::io;
 use std::sync::Arc;
 
 use clap::{Parser, Subcommand};
@@ -70,8 +70,10 @@ fn run_tui() -> anyhow::Result<()> {
         render_chat, render_input, render_memory_panel, render_status_bar,
         render_command_input, render_help_overlay,
     };
+    use sibyl_deps::load_config;
 
-    let deps = Arc::new(DependencyManager::with_defaults());
+    let config = load_config();
+    let deps = Arc::new(DependencyManager::new(config.dependencies));
     
     tracing::info!("Starting Sibyl TUI - ensuring dependencies are running");
     
@@ -178,7 +180,9 @@ fn run_tui() -> anyhow::Result<()> {
 }
 
 fn run_headless(prompt: Option<String>, use_stdin: bool, json_output: bool) -> anyhow::Result<()> {
-    let deps = Arc::new(DependencyManager::with_defaults());
+    use sibyl_deps::load_config;
+    let config = load_config();
+    let deps = Arc::new(DependencyManager::new(config.dependencies));
     
     let rt = tokio::runtime::Runtime::new()?;
     
@@ -242,8 +246,10 @@ fn run_headless(prompt: Option<String>, use_stdin: bool, json_output: bool) -> a
 fn run_memory_query(query: String) -> anyhow::Result<()> {
     use sibyl_ipc::client::IpcClient;
     use sibyl_ipc::{Method, Request};
+    use sibyl_deps::load_config;
     
-    let deps = Arc::new(DependencyManager::with_defaults());
+    let config = load_config();
+    let deps = Arc::new(DependencyManager::new(config.dependencies));
     let rt = tokio::runtime::Runtime::new()?;
     
     rt.block_on(async {

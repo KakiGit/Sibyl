@@ -64,9 +64,8 @@ impl SessionRunner {
             "session_id": session_id,
             "num_results": 10 
         }));
-        let memories_result = self.ipc.send(query_request).await
-            .ok()
-            .and_then(|r| r.result);
+        let memories_response = self.ipc.send(query_request).await;
+        let memories_result = memories_response.ok().and_then(|r| r.result);
 
         let memories: Vec<String> = memories_result
             .as_ref()
@@ -121,19 +120,14 @@ impl SessionRunner {
             .map(String::from)
             .unwrap_or_else(|| "No response received from harness".to_string());
 
-        let ipc = self.ipc.clone();
-        let session_id_clone = session_id.clone();
-        let prompt_clone = prompt.to_string();
         let full_conversation = format!("User: {}\nAssistant: {}", prompt, content);
-        tokio::spawn(async move {
-            let add_request = Request::new(Method::MemoryAddEpisode, serde_json::json!({
-                "name": "conversation",
-                "content": full_conversation,
-                "source_description": "user conversation",
-                "session_id": session_id_clone
-            }));
-            let _ = ipc.send(add_request).await;
-        });
+        let add_request = Request::new(Method::MemoryAddEpisode, serde_json::json!({
+            "name": "conversation",
+            "content": full_conversation,
+            "source_description": "user conversation",
+            "session_id": session_id.clone()
+        }));
+        let _ = self.ipc.send(add_request).await;
 
         Ok(SessionResult {
             response: content,

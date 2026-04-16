@@ -92,6 +92,11 @@ impl PythonIpcManager {
     }
 
     pub async fn shutdown(&self) -> Result<()> {
+        if self.config.mode == DepMode::Manual {
+            debug!("Python IPC mode is manual, skipping shutdown");
+            return Ok(());
+        }
+
         let mut child_guard = self.child.lock().await;
         
         if let Some(mut child) = child_guard.take() {
