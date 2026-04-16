@@ -57,6 +57,7 @@ dependencies:
 - `./target/release/sibyl memory --query "math"` ✓
 - JSON output mode works ✓
 - Dependencies auto-started (Python IPC, FalkorDB) ✓
+- TUI tests: 7/7 passed (Node 20.X via fnm required) ✓
 
 ## TUI Testing
 - tui-test framework setup in `tui-tests/` directory
