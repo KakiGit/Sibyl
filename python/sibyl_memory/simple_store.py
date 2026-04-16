@@ -86,7 +86,7 @@ class SimpleMemoryStore:
         query_embedding: List[float],
         session_id: Optional[str] = None,
     ) -> List[tuple]:
-        """Search using embedding cosine similarity."""
+        """Search using embedding cosine similarity with batch retrieval."""
         scored = []
 
         episode_ids = []
@@ -114,27 +114,25 @@ class SimpleMemoryStore:
                     for k in keys
                 ]
 
-        for ep_id in episode_ids:
-            embedding_key = f"embedding:{ep_id}"
-            embedding_data = await self.redis.get(embedding_key)
+        if not episode_ids:
+            return scored
 
-            if embedding_data:
+        embedding_keys = [f"embedding:{ep_id}" for ep_id in episode_ids]
+        episode_keys = [f"episode:{ep_id}" for ep_id in episode_ids]
+
+        embedding_values = await self.redis.mget(embedding_keys)
+        episode_values = await self.redis.mget(episode_keys)
+
+        for i, (emb_data, ep_data) in enumerate(zip(embedding_values, episode_values)):
+            if emb_data and ep_data:
                 embedding = json.loads(
-                    embedding_data.decode()
-                    if isinstance(embedding_data, bytes)
-                    else embedding_data
+                    emb_data.decode() if isinstance(emb_data, bytes) else emb_data
+                )
+                episode = json.loads(
+                    ep_data.decode() if isinstance(ep_data, bytes) else ep_data
                 )
                 similarity = self._cosine_similarity(query_embedding, embedding)
-
-                episode_key = f"episode:{ep_id}"
-                episode_data = await self.redis.get(episode_key)
-                if episode_data:
-                    episode = json.loads(
-                        episode_data.decode()
-                        if isinstance(episode_data, bytes)
-                        else episode_data
-                    )
-                    scored.append((episode, similarity))
+                scored.append((episode, similarity))
 
         scored.sort(key=lambda x: x[1], reverse=True)
         return scored

@@ -36,10 +36,10 @@ class CachedRelevanceEvaluator:
         threshold = threshold or self.threshold
         results = []
 
-        if self.embedder and not self.use_llm:
-            query_embedding = await self._get_query_embedding(query)
+        uncached_facts = []
+        uncached_indices = []
 
-        for fact in facts:
+        for i, fact in enumerate(facts):
             fact_id = self._get_fact_id(fact)
             cached_score = self.cache.get(query, fact_id)
 
@@ -48,13 +48,29 @@ class CachedRelevanceEvaluator:
                 if cached_score >= threshold:
                     results.append((fact, cached_score))
             else:
-                if self.embedder and not self.use_llm:
-                    score = await self._evaluate_embedding(query_embedding, fact)
-                elif self.use_llm and self.llm_client:
+                uncached_facts.append(fact)
+                uncached_indices.append(i)
+
+        if uncached_facts and self.embedder and not self.use_llm:
+            query_embedding = await self._get_query_embedding(query)
+            fact_texts = [self._get_fact_text(f) for f in uncached_facts]
+            fact_embeddings = await self.embedder.embed(fact_texts)
+
+            for idx, (fact, fact_embedding) in enumerate(
+                zip(uncached_facts, fact_embeddings)
+            ):
+                similarity = self._cosine_similarity(query_embedding, fact_embedding)
+                fact_id = self._get_fact_id(fact)
+                self.cache.set(query, fact_id, similarity)
+                if similarity >= threshold:
+                    results.append((fact, similarity))
+        elif uncached_facts:
+            for fact in uncached_facts:
+                fact_id = self._get_fact_id(fact)
+                if self.use_llm and self.llm_client:
                     score = await self._evaluate_single_llm(query, fact)
                 else:
                     score = self._evaluate_keyword(query, fact)
-
                 self.cache.set(query, fact_id, score)
                 if score >= threshold:
                     results.append((fact, score))
