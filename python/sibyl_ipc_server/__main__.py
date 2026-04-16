@@ -14,7 +14,7 @@ async def main():
     llm_config = LLMConfig(
         base_url="http://127.0.0.1:11434",
         model="qwen2.5:0.5b",
-        timeout=120,
+        timeout=60,
     )
 
     client = GraphitiClient(llm_config=llm_config)

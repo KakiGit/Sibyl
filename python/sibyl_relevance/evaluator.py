@@ -16,7 +16,7 @@ class CachedRelevanceEvaluator:
         llm_client=None,
         embedder=None,
         cache_ttl: int = 600,
-        threshold: float = 0.5,
+        threshold: float = 0.25,
         use_llm: bool = False,
     ):
         self.llm_client = llm_client
@@ -151,6 +151,8 @@ class CachedRelevanceEvaluator:
 
     def _get_fact_text(self, fact) -> str:
         """Get text representation of a fact."""
+        if isinstance(fact, dict):
+            return fact.get("fact") or fact.get("content") or str(fact)
         if hasattr(fact, "fact"):
             return fact.fact
         if hasattr(fact, "content"):

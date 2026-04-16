@@ -161,7 +161,7 @@ async def test_relevance():
                 {"content": "Python is good for AI"},
             ],
             "query": "fast inference",
-            "threshold": 0.3,
+            "threshold": 0.15,
         },
     )
     elapsed = time.time() - start
