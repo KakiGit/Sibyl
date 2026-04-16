@@ -19,11 +19,14 @@ TEMPLATES_DIR = Path(__file__).parent / "templates"
 class TemplatePromptBuilder:
     """Builds prompts using Jinja2 templates from spec."""
 
+    _template_cache: dict = {}
+
     def __init__(self, templates_dir: Optional[Path] = None):
         templates_dir = templates_dir or TEMPLATES_DIR
         self.env = Environment(
             loader=FileSystemLoader(templates_dir),
             autoescape=select_autoescape(enabled_extensions=("html",)),
+            cache_size=100,
         )
         self.relevance_evaluator = RelevanceEvaluator()
 

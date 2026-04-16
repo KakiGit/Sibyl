@@ -6,6 +6,7 @@ import subprocess
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, Any, List
+from functools import lru_cache
 
 
 def get_environment_info() -> Dict[str, Any]:
@@ -21,24 +22,41 @@ def get_environment_info() -> Dict[str, Any]:
     }
 
 
+@lru_cache(maxsize=32)
+def _cached_git_branch(path_str: str) -> str:
+    return _get_git_branch_raw(Path(path_str))
+
+
+def _get_git_branch_raw(project_path: Path) -> str:
+    try:
+        result = subprocess.run(
+            ["git", "branch", "--show-current"],
+            cwd=str(project_path),
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        return result.stdout.strip() or "unknown"
+    except Exception:
+        return "unknown"
+
+
 def get_project_info(project_path: Optional[Path] = None) -> Dict[str, Any]:
     """Gather project-specific context."""
     if project_path is None:
         project_path = Path.cwd()
 
     info: Dict[str, Any] = {}
+    path_str = str(project_path)
 
     git_dir = project_path / ".git"
     if git_dir.exists():
-        info["branch"] = _get_git_branch(project_path)
-        info["recent_commits"] = _get_recent_commits(project_path, limit=5)
-        info["status"] = _get_git_status(project_path)
+        info["branch"] = _cached_git_branch(path_str)
         info["is_repo"] = True
     else:
         info["is_repo"] = False
 
     info["language"] = _detect_primary_language(project_path)
-    info["framework"] = _detect_framework(project_path)
     info["project_name"] = project_path.name
 
     return info
@@ -114,7 +132,7 @@ def _get_git_status(project_path: Path) -> Dict[str, Any]:
 
 
 def _detect_primary_language(project_path: Path) -> str:
-    """Detect primary programming language."""
+    """Detect primary programming language (optimized)."""
     extensions = {
         ".py": "Python",
         ".rs": "Rust",
@@ -123,28 +141,35 @@ def _detect_primary_language(project_path: Path) -> str:
         ".tsx": "TypeScript",
         ".go": "Go",
         ".java": "Java",
-        ".kt": "Kotlin",
-        ".cpp": "C++",
-        ".c": "C",
-        ".rb": "Ruby",
-        ".php": "PHP",
-        ".swift": "Swift",
-        ".scala": "Scala",
     }
 
     counts: Dict[str, int] = {}
     try:
-        for file in project_path.rglob("*"):
-            if file.is_file() and not any(p.startswith(".") for p in file.parts):
-                ext = file.suffix.lower()
-                if ext in extensions:
-                    lang = extensions[ext]
-                    counts[lang] = counts.get(lang, 0) + 1
+        for ext, lang in extensions.items():
+            count = len(list(project_path.glob(f"*{ext}")))
+            if count > 0:
+                counts[lang] = counts.get(lang, 0) + count
+            for subdir in ["src", "lib", "app", "python"]:
+                subpath = project_path / subdir
+                if subpath.exists():
+                    count = len(list(subpath.glob(f"**/*{ext}")))
+                    if count > 0:
+                        counts[lang] = counts.get(lang, 0) + count
     except Exception:
         pass
 
     if counts:
         return max(counts, key=counts.get)
+
+    indicator_files = {
+        "pyproject.toml": "Python",
+        "Cargo.toml": "Rust",
+        "package.json": "JavaScript",
+        "go.mod": "Go",
+    }
+    for file, lang in indicator_files.items():
+        if (project_path / file).exists():
+            return lang
     return "Unknown"
 
 

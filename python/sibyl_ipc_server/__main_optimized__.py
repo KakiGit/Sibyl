@@ -138,6 +138,8 @@ class OptimizedPromptHandler:
 
     def _fact_to_dict(self, fact) -> Dict[str, Any]:
         """Convert fact to dictionary."""
+        if isinstance(fact, dict):
+            return fact
         if hasattr(fact, "model_dump"):
             return fact.model_dump()
         if hasattr(fact, "fact"):
