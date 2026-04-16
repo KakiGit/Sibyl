@@ -9,12 +9,31 @@
 cargo run
 ```
 
-## Configuration (Optimized for limited hardware)
-- **No LLM dependency** - Uses embedding-based relevance evaluation
-- Memory: SimpleMemoryStore (no entity extraction, embedding-based search)
-- Embeddings: `all-MiniLM-L6-v2` (384 dimensions, CPU)
-- OpenCode: `127.0.0.1:4096` (provides its own LLM)
-- FalkorDB/Redis: `localhost:6379`
+## Configuration
+Config file: `~/.config/sibyl/config.yaml`
+- **Memory**: SimpleMemoryStore (no LLM dependency, embedding-based search)
+- **IPC Server**: Optimized version (`sibyl_ipc_server.__main_optimized__`)
+- **Embeddings**: `all-MiniLM-L6-v2` (384 dimensions, CPU)
+- **OpenCode**: Configurable URL and model from config file
+- **FalkorDB/Redis**: `localhost:6379`
+
+## Config Example
+```yaml
+harness:
+  default: opencode
+  opencode:
+    url: http://localhost:4096
+    model: glm-5
+
+ipc:
+  socket_path: /tmp/sibyl-ipc.sock
+
+dependencies:
+  python_ipc:
+    mode: auto
+    spawn_command: python -u -m sibyl_ipc_server.__main_optimized__
+    startup_timeout: 15s
+```
 
 ## Performance Metrics (Headless IPC Test - 2026-04-16 16:38)
 - IPC connect: 0.000s

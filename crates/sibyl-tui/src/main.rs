@@ -109,7 +109,7 @@ fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
 
     let config = load_config();
-    let deps = Arc::new(DependencyManager::new(config.dependencies));
+    let deps = Arc::new(DependencyManager::new(config.dependencies.clone()));
     
     tracing::info!("Starting Sibyl - ensuring dependencies are running");
     
@@ -126,7 +126,7 @@ fn main() -> anyhow::Result<()> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let app = App::new(deps.clone());
+    let app = App::new(deps.clone(), config);
 
     let result = run_app(&mut terminal, app);
 

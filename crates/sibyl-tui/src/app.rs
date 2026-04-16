@@ -220,7 +220,7 @@ impl Default for StatusBarState {
 use std::sync::Arc;
 use crossterm::event::KeyEvent;
 use ratatui::{Frame, layout::Rect};
-use sibyl_deps::DependencyManager;
+use sibyl_deps::{DependencyManager, SibylConfig};
 use sibyl_harness::Harness;
 use sibyl_ipc::client::IpcClient;
 use sibyl_ipc::{Method, Request};
@@ -245,13 +245,18 @@ pub struct App {
     ipc: IpcClient,
     session_id: Option<String>,
     deps: Arc<DependencyManager>,
+    config: SibylConfig,
 }
 
 impl App {
-    pub fn new(deps: Arc<DependencyManager>) -> Self {
-        let opencode_config = OpenCodeConfig::default();
+    pub fn new(deps: Arc<DependencyManager>, config: SibylConfig) -> Self {
+        let opencode_config = OpenCodeConfig {
+            url: config.harness.opencode.url.clone(),
+            model: config.harness.opencode.model.clone(),
+            ..Default::default()
+        };
         let opencode = OpenCodeClient::new(opencode_config);
-        let ipc = IpcClient::new("/tmp/sibyl-ipc.sock");
+        let ipc = IpcClient::new(&config.ipc.socket_path);
         
         Self {
             mode: AppMode::Chat,
@@ -259,7 +264,10 @@ impl App {
             chat: ChatState::default(),
             memory: MemoryPanelState::default(),
             input: InputState::default(),
-            status_bar: StatusBarState::default(),
+            status_bar: StatusBarState {
+                model: config.harness.opencode.model.clone(),
+                ..Default::default()
+            },
             composer: InputComposer::new(),
             spinner: Spinner::new(),
             completion: CompletionPopup::new(),
@@ -267,6 +275,7 @@ impl App {
             ipc,
             session_id: None,
             deps,
+            config,
         }
     }
 
@@ -542,8 +551,15 @@ impl App {
         let rt = tokio::runtime::Runtime::new().unwrap();
         
         let session_id = self.session_id.clone();
-        let ipc_client = IpcClient::new("/tmp/sibyl-ipc.sock");
-        let opencode_config = OpenCodeConfig::default();
+        let ipc_socket = self.config.ipc.socket_path.clone();
+        let ipc_client = IpcClient::new(&ipc_socket);
+        let opencode_url = self.config.harness.opencode.url.clone();
+        let opencode_model = self.config.harness.opencode.model.clone();
+        let opencode_config = OpenCodeConfig {
+            url: opencode_url,
+            model: opencode_model,
+            ..Default::default()
+        };
         let opencode_client = OpenCodeClient::new(opencode_config);
         
         let result: (Option<String>, Option<serde_json::Value>, Option<String>) = rt.block_on(async {
@@ -660,7 +676,7 @@ impl App {
                     if !query.is_empty() {
                         self.status = AppStatus::Processing;
                         let rt = tokio::runtime::Runtime::new().unwrap();
-                        let ipc_client = IpcClient::new("/tmp/sibyl-ipc.sock");
+                        let ipc_client = IpcClient::new(&self.config.ipc.socket_path);
                         let request = Request::new(
                             Method::MemoryQuery,
                             serde_json::json!({ "query": query }),
@@ -690,7 +706,11 @@ impl App {
                 }
                 Command::Skill(name) => {
                     let rt = tokio::runtime::Runtime::new().unwrap();
-                    let opencode_config = OpenCodeConfig::default();
+                    let opencode_config = OpenCodeConfig {
+                        url: self.config.harness.opencode.url.clone(),
+                        model: self.config.harness.opencode.model.clone(),
+                        ..Default::default()
+                    };
                     let opencode = OpenCodeClient::new(opencode_config);
                     
                     if let Ok(skills) = rt.block_on(opencode.list_skills()) {

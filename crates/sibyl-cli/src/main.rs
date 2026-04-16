@@ -73,7 +73,7 @@ fn run_tui() -> anyhow::Result<()> {
     use sibyl_deps::load_config;
 
     let config = load_config();
-    let deps = Arc::new(DependencyManager::new(config.dependencies));
+    let deps = Arc::new(DependencyManager::new(config.dependencies.clone()));
     
     tracing::info!("Starting Sibyl TUI - ensuring dependencies are running");
     
@@ -90,7 +90,7 @@ fn run_tui() -> anyhow::Result<()> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let mut app = App::new(deps.clone());
+    let mut app = App::new(deps.clone(), config);
 
     let result: io::Result<()> = loop {
         {
