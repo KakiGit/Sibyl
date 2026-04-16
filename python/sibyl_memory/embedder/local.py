@@ -1,10 +1,13 @@
 import asyncio
 import logging
+import os
 from typing import List, Optional, Union, Iterable
 
 from .config import EmbedderConfig
 
 logger = logging.getLogger(__name__)
+
+os.environ.setdefault("HF_HUB_DISABLE_TELEMETRY", "1")
 
 
 class LocalEmbedder:
@@ -23,6 +26,7 @@ class LocalEmbedder:
                 self._model = SentenceTransformer(
                     self.config.model,
                     device=self.config.device,
+                    trust_remote_code=False,
                 )
                 logger.info(f"Loaded embedding model: {self.config.model}")
             except ImportError:
