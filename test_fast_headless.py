@@ -31,7 +31,9 @@ class SimpleMemoryHandler:
         num_results = params.get("num_results", 10)
         session_id = params.get("session_id")
 
-        results = await self.store.search(query, num_results, session_id)
+        results = await self.store.search(
+            query, num_results, session_id, use_embedding=True
+        )
         return {
             "episodes": results,
             "entities": [],
@@ -51,7 +53,7 @@ class SimpleMemoryHandler:
         query = params.get("query", "")
         session_id = params.get("session_id")
 
-        results = await self.store.search(query, 5, session_id)
+        results = await self.store.search(query, 5, session_id, use_embedding=True)
         context = "\n".join([r.get("content", "") for r in results])
         return {"context": context or "# No relevant memories found"}
 
@@ -101,16 +103,10 @@ async def run_server():
 
     prompt_builder = TemplatePromptBuilder()
 
-    llm_config = LLMConfig(
-        base_url="http://127.0.0.1:11434",
-        model="qwen2.5:0.5b",
-        timeout=30,
-    )
-
-    client = GraphitiClient(llm_config=llm_config)
     relevance_evaluator = CachedRelevanceEvaluator(
-        llm_client=client._llm_client,
-        cache_ttl=300,
+        embedder=embedder,
+        cache_ttl=600,
+        use_llm=False,
     )
 
     server = IpcServer()
@@ -131,12 +127,12 @@ async def run_server():
 async def run_tests():
     """Run integration tests."""
     print("=" * 60, flush=True)
-    print("Testing Sibyl IPC Server (Fast Mode)", flush=True)
+    print("Testing Sibyl IPC Server (Optimized Mode)", flush=True)
     print("=" * 60, flush=True)
 
-    print("\n1. Testing memory.query (empty)...", flush=True)
+    print("\n1. Testing memory.query (embedding search)...", flush=True)
     resp = await send_request("memory.query", {"query": "Python type hints"})
-    print(f"Result: {json.dumps(resp, indent=2)}", flush=True)
+    print(f"Result: {json.dumps(resp, indent=2)[:500]}...", flush=True)
 
     print("\n2. Testing memory.add_episode...", flush=True)
     resp = await send_request(
@@ -150,7 +146,8 @@ async def run_tests():
 
     print("\n3. Testing memory.query (after add)...", flush=True)
     resp = await send_request("memory.query", {"query": "Python"})
-    print(f"Result: {json.dumps(resp, indent=2)}", flush=True)
+    episodes = resp.get("result", {}).get("episodes", [])
+    print(f"Found {len(episodes)} episodes", flush=True)
 
     print("\n4. Testing memory.get_context...", flush=True)
     resp = await send_request(
@@ -181,7 +178,7 @@ async def main():
     """Run server and tests."""
     server_task = asyncio.create_task(run_server())
 
-    await asyncio.sleep(10)
+    await asyncio.sleep(5)
 
     await run_tests()
 

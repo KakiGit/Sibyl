@@ -11,8 +11,6 @@ import time
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "python"))
 
 from sibyl_memory import MemorySystem, SimpleMemoryStore
-from sibyl_memory.llm.config import LLMConfig
-from sibyl_memory.graphiti_client import GraphitiClient
 from sibyl_memory.embedder.local import LocalEmbedder
 from sibyl_memory.embedder.config import EmbedderConfig
 from sibyl_prompt import TemplatePromptBuilder
@@ -29,7 +27,9 @@ class FullFlowHandler:
         query = params.get("query", "")
         num_results = params.get("num_results", 10)
         session_id = params.get("session_id")
-        results = await self.store.search(query, num_results, session_id)
+        results = await self.store.search(
+            query, num_results, session_id, use_embedding=True
+        )
         return {
             "episodes": results,
             "entities": [],
@@ -47,7 +47,7 @@ class FullFlowHandler:
     async def handle_get_context(self, params: dict) -> dict:
         query = params.get("query", "")
         session_id = params.get("session_id")
-        results = await self.store.search(query, 5, session_id)
+        results = await self.store.search(query, 5, session_id, use_embedding=True)
         context = "\n".join([r.get("content", "") for r in results])
         return {"context": context or "# No relevant memories found"}
 
@@ -99,7 +99,7 @@ async def test_opencode_rest():
         ) as resp:
             print(f"Sent message to OpenCode: {resp.status}")
 
-        await asyncio.sleep(2)
+        await asyncio.sleep(1)
 
         async with session.get(f"{base_url}/session/{session_id}/message") as resp:
             messages = await resp.json()
@@ -129,16 +129,10 @@ async def run_server():
 
     prompt_builder = TemplatePromptBuilder()
 
-    llm_config = LLMConfig(
-        base_url="http://127.0.0.1:11434",
-        model="qwen2.5:0.5b",
-        timeout=30,
-    )
-
-    client = GraphitiClient(llm_config=llm_config)
     relevance_evaluator = CachedRelevanceEvaluator(
-        llm_client=client._llm_client,
-        cache_ttl=300,
+        embedder=embedder,
+        cache_ttl=600,
+        use_llm=False,
     )
 
     server = IpcServer()
@@ -158,7 +152,7 @@ async def run_server():
 
 async def run_tests():
     print("\n" + "=" * 60, flush=True)
-    print("Full Flow Integration Test", flush=True)
+    print("Full Flow Integration Test (Optimized)", flush=True)
     print("=" * 60, flush=True)
 
     start_time = time.time()
@@ -227,7 +221,7 @@ async def run_tests():
 
 async def main():
     server_task = asyncio.create_task(run_server())
-    await asyncio.sleep(8)
+    await asyncio.sleep(5)
     await run_tests()
     server_task.cancel()
     try:

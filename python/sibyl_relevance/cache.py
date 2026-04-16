@@ -18,7 +18,7 @@ class CacheEntry:
 class RelevanceCache:
     """Cache relevance scores to avoid repeated LLM calls."""
 
-    def __init__(self, ttl_seconds: int = 300, max_size: int = 1000):
+    def __init__(self, ttl_seconds: int = 600, max_size: int = 2000):
         self.cache: dict[str, CacheEntry] = {}
         self.ttl = ttl_seconds
         self.max_size = max_size
