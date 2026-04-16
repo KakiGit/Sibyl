@@ -61,6 +61,46 @@ class SimpleMemoryStore:
         logger.info(f"Stored episode: {episode_id}")
         return episode_id
 
+    async def add_episode_with_embedding(
+        self,
+        content: str,
+        source: str = "conversation",
+        session_id: Optional[str] = None,
+        embedding: Optional[List[float]] = None,
+        reference_time: Optional[datetime] = None,
+    ) -> str:
+        """Store an episode with pre-computed embedding (faster for batch operations)."""
+        if reference_time is None:
+            reference_time = datetime.utcnow()
+
+        episode_id = str(uuid4())
+        episode_data = {
+            "uuid": episode_id,
+            "content": content,
+            "source": source,
+            "session_id": session_id or "default",
+            "created_at": reference_time.isoformat(),
+        }
+
+        key = f"episode:{episode_id}"
+        serialized = json.dumps(episode_data)
+        await self.redis.set(key, serialized)
+
+        if embedding:
+            embedding_key = f"embedding:{episode_id}"
+            await self.redis.set(embedding_key, json.dumps(embedding))
+            self._embedding_cache[episode_id] = embedding
+
+        if session_id:
+            session_key = f"session:{session_id}:episodes"
+            await self.redis.rpush(session_key, episode_id)
+
+        all_episodes_key = "all:episodes"
+        await self.redis.rpush(all_episodes_key, episode_id)
+
+        logger.info(f"Stored episode: {episode_id}")
+        return episode_id
+
     async def search(
         self,
         query: str,

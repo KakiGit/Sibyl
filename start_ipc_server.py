@@ -64,11 +64,22 @@ class OptimizedMemoryHandler:
         episodes = params.get("episodes", [])
         session_id = params.get("session_id")
         ids = []
-        for ep in episodes:
-            episode_id = await self.store.add_episode(
-                ep.get("content", ""), ep.get("source", "conversation"), session_id
-            )
-            ids.append(episode_id)
+        contents = [ep.get("content", "") for ep in episodes]
+        sources = [ep.get("source", "conversation") for ep in episodes]
+
+        if contents and self.embedder:
+            embeddings = await self.embedder.embed(contents)
+            for i, (content, source, embedding) in enumerate(
+                zip(contents, sources, embeddings)
+            ):
+                episode_id = await self.store.add_episode_with_embedding(
+                    content, source, session_id, embedding
+                )
+                ids.append(episode_id)
+        else:
+            for content, source in zip(contents, sources):
+                episode_id = await self.store.add_episode(content, source, session_id)
+                ids.append(episode_id)
         return {"status": "ok", "episode_ids": ids}
 
 
