@@ -42,10 +42,9 @@ Memory System <-> Core <-> Prompt Building
                     |
                  Harnesses
 
-
 ## Supported Harnesses
 
 * OpenCode
 * Cursor
 * Claude Code
-* Codex
+* mCodex

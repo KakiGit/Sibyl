@@ -28,3 +28,5 @@ chrono.workspace = true
 pulldown-cmark = "0.12"
 syntect = "5.2"
 unicode-width = "0.2"
+serde_yaml = "0.9"
+dirs = "5.0"

@@ -19,29 +19,34 @@ cd python && python test_headless.py
 ```
 
 ## Configuration (Optimized for limited hardware)
-- LLM: `qwen2.5:0.5b` via Ollama at `127.0.0.1:11434` (minimal LLM usage)
+- **No LLM dependency** - Uses embedding-based relevance evaluation
 - Memory: SimpleMemoryStore (no entity extraction, embedding-based search)
 - Embeddings: `all-MiniLM-L6-v2` (384 dimensions, CPU)
-- OpenCode: `127.0.0.1:4096`
+- OpenCode: `127.0.0.1:4096` (provides its own LLM)
 - FalkorDB/Redis: `localhost:6379`
 
-## Performance Metrics (Headless IPC Test - 2026-04-16 16:28)
+## Performance Metrics (Headless IPC Test - 2026-04-16 16:38)
 - IPC connect: 0.000s
-- Memory add_episode: 0.013s
-- Memory query: 0.012s
+- Memory add_episode: 0.014s
+- Memory query: 0.013s
 - Memory get_context: 0.013s
-- Prompt build: 0.157s (cached environment info, optimized language detection)
-- Relevance evaluate: 0.021s (embedding-based, cached)
+- Prompt build: 0.164s (cached environment info, optimized language detection)
+- Relevance evaluate: 0.026s (embedding-based, cached)
 - OpenCode session create: 0.006s
-- OpenCode list sessions: 0.031s
-- Total IPC runtime (excluding embedder init): ~0.25s
+- OpenCode list sessions: 0.010s
+- OpenCode send message: 5.732s (LLM response time, depends on model)
+- Total IPC runtime (excluding embedder init): ~0.24s
 - Embedder init: ~8s (one-time startup cost)
-- OpenCode send message: ~6s (LLM response time, depends on model)
 
-## Previous Performance Metrics
-- IPC latency: 0.01-0.02s (tested 2026-04-16 12:35)
-- Memory add episode: 0.01-0.02s (with Graphiti)
-- Full test with Graphiti: 15.11s (includes entity extraction)
+## Full Test Suite Metrics (2026-04-16 16:38)
+- Redis connect: 0.004s
+- Store init: 0.000s
+- Add 10 episodes: 0.103s (0.010s avg)
+- Search: 0.039s (5 results)
+- Relevance eval: 0.019s (1 relevant)
+- Prompt build: 0.153s
+- OpenCode connect: 0.002s
+- Total runtime: ~0.33s (excluding embedder init)
 
 ## Architecture
 Hybrid Rust + Python:

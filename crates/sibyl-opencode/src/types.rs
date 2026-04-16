@@ -70,6 +70,21 @@ impl UserMessage {
             }],
         }
     }
+
+    pub fn with_context(content: impl Into<String>, context: &str) -> Self {
+        let full_text = if context.is_empty() {
+            content.into()
+        } else {
+            format!("{}\n\n{}", context, content.into())
+        };
+        Self {
+            role: "user".to_string(),
+            parts: vec![MessagePart {
+                part_type: "text".to_string(),
+                text: full_text,
+            }],
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

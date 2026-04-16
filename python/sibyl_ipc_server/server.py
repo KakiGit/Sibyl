@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 class JsonRpcRequest(BaseModel):
     jsonrpc: str = "2.0"
-    id: Optional[int] = None
+    id: Optional[str | int] = None
     method: str
     params: Dict[str, Any] = {}
 

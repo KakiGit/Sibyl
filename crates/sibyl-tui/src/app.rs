@@ -470,10 +470,34 @@ impl App {
                 }
             };
             
-            let request = Request::new(Method::MemoryQuery, serde_json::json!({ "query": text }));
-            let memories: Option<serde_json::Value> = ipc_client.send(request).await.ok().and_then(|r| r.result);
+            let query_request = Request::new(Method::MemoryQuery, serde_json::json!({ 
+                "query": text,
+                "session_id": sid,
+                "num_results": 10
+            }));
+            let memories_result: Option<serde_json::Value> = ipc_client.send(query_request).await.ok().and_then(|r| r.result);
             
-            let user_msg = UserMessage::new(&text);
+            let build_request = Request::new(Method::PromptBuild, serde_json::json!({
+                "session_id": sid,
+                "project_path": std::env::current_dir().ok().map(|p| p.to_string_lossy().to_string()),
+                "user_query": text,
+                "conversation_history": [],
+                "memories": {
+                    "episodes": memories_result.as_ref().and_then(|r| r.get("episodes")).cloned().unwrap_or(serde_json::json!([])),
+                    "entities": memories_result.as_ref().and_then(|r| r.get("entities")).cloned().unwrap_or(serde_json::json!([])),
+                    "facts": memories_result.as_ref().and_then(|r| r.get("facts")).cloned().unwrap_or(serde_json::json!([])),
+                },
+                "tools": ["bash", "read", "write", "edit", "glob", "grep"],
+                "harness_name": "opencode",
+                "max_tokens": 4000
+            }));
+            let built_prompt = ipc_client.send(build_request).await
+                .ok()
+                .and_then(|r| r.result)
+                .and_then(|result| result.get("prompt").and_then(|p| p.as_str()).map(String::from))
+                .unwrap_or_default();
+            
+            let user_msg = UserMessage::with_context(&text, &built_prompt);
             let _ = opencode_client.send_user_message(&sid, &user_msg).await;
             
             tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
@@ -486,14 +510,16 @@ impl App {
                 .and_then(|parts: &Vec<serde_json::Value>| parts.iter().find(|p| p.get("type").and_then(|t| t.as_str()) == Some("text")))
                 .and_then(|p: &serde_json::Value| p.get("text").and_then(|t| t.as_str()).map(String::from));
             
+            let full_conversation = format!("User: {}\nAssistant: {}", text, content.as_deref().unwrap_or(""));
             let add_request = Request::new(Method::MemoryAddEpisode, serde_json::json!({
                 "name": "conversation",
-                "content": text.clone(),
-                "source_description": "user conversation"
+                "content": full_conversation,
+                "source_description": "user conversation",
+                "session_id": sid
             }));
             let _ = ipc_client.send(add_request).await;
             
-            (Some(sid), memories, content)
+            (Some(sid), memories_result, content)
         });
         
         let (new_session_id, mem_result, assistant_content) = result;

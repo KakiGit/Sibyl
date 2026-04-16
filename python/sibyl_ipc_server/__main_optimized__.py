@@ -1,16 +1,14 @@
 #!/usr/bin/env python3
-"""Optimized IPC server using SimpleMemoryStore for limited hardware."""
+"""Optimized IPC server using SimpleMemoryStore - no LLM dependency."""
 
 import asyncio
 import logging
-from typing import Any, Dict, Optional, List
+from typing import Any, Dict, List
 
 import redis.asyncio as redis
 
 from sibyl_memory.simple_store import SimpleMemoryStore
 from sibyl_memory.embedder.local import LocalEmbedder, EmbedderConfig
-from sibyl_memory.llm.config import LLMConfig
-from sibyl_memory.llm.ollama import OllamaClient
 from sibyl_prompt import TemplatePromptBuilder
 from sibyl_ipc_server.server import IpcServer
 
@@ -176,19 +174,11 @@ async def main():
     print("\n[4/4] Initializing prompt builder...")
     prompt_builder = TemplatePromptBuilder()
 
-    llm_config = LLMConfig(
-        base_url="http://127.0.0.1:11434",
-        model="qwen2.5:0.5b",
-        timeout=30,
-    )
-    ollama_client = OllamaClient(llm_config)
-
     relevance_evaluator = None
     try:
         from sibyl_relevance import CachedRelevanceEvaluator
 
         relevance_evaluator = CachedRelevanceEvaluator(
-            llm_client=ollama_client,
             embedder=embedder,
             cache_ttl=300,
             threshold=0.25,

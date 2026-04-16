@@ -18,7 +18,7 @@ use ratatui::{
     layout::{Constraint, Direction, Layout},
     Terminal, Frame,
 };
-use sibyl_deps::DependencyManager;
+use sibyl_deps::{DependencyManager, load_config};
 
 use app::{App, AppMode, AppStatus, ChatState, InputState, MemoryPanelState, Message, MessageRole, StatusBarState};
 use input::{handle_global_key, Command, InputComposer, HandleResult};
@@ -108,7 +108,8 @@ fn run_app<B: ratatui::backend::Backend>(
 fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
 
-    let deps = Arc::new(DependencyManager::with_defaults());
+    let config = load_config();
+    let deps = Arc::new(DependencyManager::new(config.dependencies));
     
     tracing::info!("Starting Sibyl - ensuring dependencies are running");
     

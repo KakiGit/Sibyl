@@ -59,10 +59,17 @@ impl SessionRunner {
             }
         };
 
-        let request = Request::new(Method::MemoryQuery, serde_json::json!({ "query": prompt }));
-        let memories = self.ipc.send(request).await
+        let query_request = Request::new(Method::MemoryQuery, serde_json::json!({ 
+            "query": prompt,
+            "session_id": session_id,
+            "num_results": 10 
+        }));
+        let memories_result = self.ipc.send(query_request).await
             .ok()
-            .and_then(|r| r.result)
+            .and_then(|r| r.result);
+
+        let memories: Vec<String> = memories_result
+            .as_ref()
             .and_then(|result| {
                 result.get("episodes")
                     .and_then(|e| e.as_array())
@@ -75,7 +82,27 @@ impl SessionRunner {
             })
             .unwrap_or_default();
 
-        let user_msg = UserMessage::new(prompt);
+        let build_request = Request::new(Method::PromptBuild, serde_json::json!({
+            "session_id": session_id,
+            "project_path": std::env::current_dir().ok().map(|p| p.to_string_lossy().to_string()),
+            "user_query": prompt,
+            "conversation_history": [],
+            "memories": {
+                "episodes": memories_result.as_ref().and_then(|r| r.get("episodes")).cloned().unwrap_or(serde_json::json!([])),
+                "entities": memories_result.as_ref().and_then(|r| r.get("entities")).cloned().unwrap_or(serde_json::json!([])),
+                "facts": memories_result.as_ref().and_then(|r| r.get("facts")).cloned().unwrap_or(serde_json::json!([])),
+            },
+            "tools": ["bash", "read", "write", "edit", "glob", "grep"],
+            "harness_name": "opencode",
+            "max_tokens": 4000
+        }));
+        let built_prompt = self.ipc.send(build_request).await
+            .ok()
+            .and_then(|r| r.result)
+            .and_then(|result| result.get("prompt").and_then(|p| p.as_str()).map(String::from))
+            .unwrap_or_default();
+
+        let user_msg = UserMessage::with_context(prompt, &built_prompt);
         self.opencode.send_user_message(&session_id, &user_msg).await
             .map_err(|e| format!("Failed to send message: {}", e))?;
 
@@ -97,10 +124,11 @@ impl SessionRunner {
         let ipc = self.ipc.clone();
         let session_id_clone = session_id.clone();
         let prompt_clone = prompt.to_string();
+        let full_conversation = format!("User: {}\nAssistant: {}", prompt, content);
         tokio::spawn(async move {
             let add_request = Request::new(Method::MemoryAddEpisode, serde_json::json!({
                 "name": "conversation",
-                "content": prompt_clone,
+                "content": full_conversation,
                 "source_description": "user conversation",
                 "session_id": session_id_clone
             }));
