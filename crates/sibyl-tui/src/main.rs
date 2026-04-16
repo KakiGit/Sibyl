@@ -111,6 +111,16 @@ fn main() -> anyhow::Result<()> {
     let config = load_config();
     let deps = Arc::new(DependencyManager::new(config.dependencies.clone()));
     
+    enable_raw_mode()?;
+    let mut stdout = io::stdout();
+    execute!(stdout, EnterAlternateScreen)?;
+    let backend = CrosstermBackend::new(stdout);
+    let mut terminal = Terminal::new(backend)?;
+
+    let mut app = App::new(deps.clone(), config);
+    
+    terminal.draw(|f| ui(f, &app))?;
+
     tracing::info!("Starting Sibyl - ensuring dependencies are running");
     
     let rt = tokio::runtime::Runtime::new().unwrap();
@@ -119,14 +129,6 @@ fn main() -> anyhow::Result<()> {
             tracing::error!("Failed to start critical dependency: {}", e);
         }
     });
-
-    enable_raw_mode()?;
-    let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen)?;
-    let backend = CrosstermBackend::new(stdout);
-    let mut terminal = Terminal::new(backend)?;
-
-    let app = App::new(deps.clone(), config);
 
     let result = run_app(&mut terminal, app);
 

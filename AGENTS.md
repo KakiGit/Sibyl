@@ -64,9 +64,11 @@ dependencies:
 
 ## TUI Testing
 - tui-test framework setup in `tui-tests/` directory
-- Run: `npm install && npm run test:tui` (requires Node.js 16.6.0+ or Bun 1.3.5+)
+- Run: `npm install && npm run test:tui` (requires Node.js 16.6.0-24.X)
 - Tests cover: welcome screen, keybindings, memory panel toggle, command palette
 - Package: `@microsoft/tui-test ^0.0.4`
+- **Note**: Node.js 25.X is NOT supported by tui-test. Use Node.js 20.X LTS for testing.
+- TUI verified manually: runs correctly, renders welcome screen, handles input
 
 ## Architecture
 Hybrid Rust + Python:
