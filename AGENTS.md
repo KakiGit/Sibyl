@@ -7,12 +7,6 @@
 ```bash
 # Start Sibyl (auto-starts Python IPC server internally)
 cargo run
-
-# Run full test suite
-cd python && python run_test_suite.py
-
-# Run headless IPC test (requires running IPC server)
-cd python && python test_headless.py
 ```
 
 ## Configuration (Optimized for limited hardware)
@@ -95,5 +89,5 @@ Learn patterns from:
 
 ## Note
 
-* **ALWAYS** make a git commit after completing a feature. 
+* **ALWAYS** make a git commit after completing a feature.
 * **DO NOT** push the change.
