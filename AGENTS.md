@@ -49,16 +49,27 @@ dependencies:
 - Embedder init: ~8s (one-time startup cost)
 
 ## Baseline Verified (2026-04-17)
-- `./target/release/sibyl run --prompt "What is 2+2?" --json` ✓
 - Config loaded from ~/.config/sibyl/config.yaml ✓
-- Memories retrieved (10 most relevant) and injected ✓
-- Response from OpenCode harness (glm-5 model at localhost:4096) ✓
-- Memory stored after conversation ✓
-- `./target/release/sibyl memory --query "math"` ✓
-- `./target/release/sibyl memory --query "math" --json` ✓ (new)
-- JSON output mode works for both run and memory commands ✓
-- Dependencies auto-started (Python IPC, FalkorDB) ✓
-- TUI tests: 7/7 passed (Node 20.X via fnm required) ✓
+  - Harness: opencode (url: http://localhost:4096, model: glm-5)
+  - IPC: /tmp/sibyl-ipc.sock
+  - Dependencies: auto-start enabled
+- Headless mode: `./target/release/sibyl run --prompt "..." --json` ✓
+  - Prompt sent to OpenCode harness
+  - Memories retrieved (10 most relevant) and injected
+  - Response received from harness
+  - Memory stored after conversation
+- Memory system: `./target/release/sibyl memory --query "..." --json` ✓
+  - Real-time natural language query
+  - Returns episodes, facts, and relevance scores
+- Dependencies auto-started ✓
+  - Python IPC server (optimized version)
+  - FalkorDB/Redis at localhost:6379
+  - OpenCode harness at localhost:4096
+- TUI tests: 7/7 passed ✓
+  - Welcome screen, keybindings, command hints
+  - Help overlay, command palette
+  - Status bar with model name
+  - Note: Requires Node.js 20.X LTS via fnm
 
 ## TUI Testing
 - tui-test framework setup in `tui-tests/` directory
