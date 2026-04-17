@@ -139,11 +139,9 @@ impl BackgroundTask {
                     sibyl_opencode::types::SessionStatus::Idle => false,
                     sibyl_opencode::types::SessionStatus::Retry { .. } => true,
                 };
-                let _ = self.tx.send(if self.session_busy {
-                    UiEvent::SessionBusy { session_id: properties.session_id }
-                } else {
-                    UiEvent::SessionIdle { session_id: properties.session_id }
-                });
+                if self.session_busy {
+                    let _ = self.tx.send(UiEvent::SessionBusy { session_id: properties.session_id });
+                }
             }
             OpenCodeEvent::SessionIdle { properties } => {
                 tracing::info!("SessionIdle: session_id={}", properties.session_id);
