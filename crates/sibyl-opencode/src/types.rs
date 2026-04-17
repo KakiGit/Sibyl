@@ -3,6 +3,18 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum OpenCodeEvent {
+    #[serde(rename = "server.connected")]
+    ServerConnected {
+        #[serde(default)]
+        properties: serde_json::Value,
+    },
+
+    #[serde(rename = "server.heartbeat")]
+    ServerHeartbeat {
+        #[serde(default)]
+        properties: serde_json::Value,
+    },
+
     #[serde(rename = "session.status")]
     SessionStatus {
         #[serde(rename = "properties")]

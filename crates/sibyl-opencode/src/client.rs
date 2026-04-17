@@ -52,8 +52,9 @@ impl OpenCodeClient {
     }
     
     pub async fn connect_events(&self) -> crate::Result<()> {
-        tracing::info!("Connecting to SSE events at: {}", self.config.url.clone() + "/event");
-        let sse = SseClient::new(self.config.url.clone() + "/event");
+        let url = self.config.url.clone() + "/global/event";
+        tracing::info!("Connecting to SSE events at: {}", url);
+        let sse = SseClient::new(url);
         let stream = sse.connect().await?;
         let mut guard = self.event_stream.write().await;
         *guard = Some(stream);

@@ -124,6 +124,12 @@ impl BackgroundTask {
     async fn handle_event(&mut self, event: OpenCodeEvent) {
         tracing::debug!("Handling WebSocket event: {:?}", event);
         match event {
+            OpenCodeEvent::ServerConnected { .. } => {
+                tracing::info!("SSE server connected");
+            }
+            OpenCodeEvent::ServerHeartbeat { .. } => {
+                tracing::debug!("SSE heartbeat received");
+            }
             OpenCodeEvent::SessionStatus { properties } => {
                 tracing::info!("SessionStatus: session_id={}, status={:?}", properties.session_id, properties.status);
                 self.session_busy = match properties.status {

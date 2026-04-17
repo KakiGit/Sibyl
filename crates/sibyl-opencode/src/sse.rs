@@ -44,10 +44,29 @@ impl SseClient {
                     Ok(event) => {
                         tracing::debug!("SSE event: event={}, data={}", event.event, event.data);
                         if event.event == "message" || event.event.is_empty() {
-                            match serde_json::from_str::<OpenCodeEvent>(&event.data) {
-                                Ok(parsed) => Some(Ok(parsed)),
+                            let data = event.data.trim();
+                            if data.is_empty() {
+                                return None;
+                            }
+                            let event_json: serde_json::Value = match serde_json::from_str(data) {
+                                Ok(v) => v,
                                 Err(e) => {
-                                    tracing::warn!("Parse error: {} - data: {}", e, event.data);
+                                    tracing::warn!("JSON parse error: {} - data: {}", e, data);
+                                    return None;
+                                }
+                            };
+                            let inner_event = if let Some(payload) = event_json.get("payload") {
+                                payload.clone()
+                            } else {
+                                event_json
+                            };
+                            match serde_json::from_value::<OpenCodeEvent>(inner_event) {
+                                Ok(parsed) => {
+                                    tracing::info!("Parsed SSE event: {:?}", parsed);
+                                    Some(Ok(parsed))
+                                }
+                                Err(e) => {
+                                    tracing::warn!("Event parse error: {} - data: {}", e, data);
                                     None
                                 }
                             }

@@ -160,9 +160,11 @@ fn main() -> anyhow::Result<()> {
     let opencode = OpenCodeClient::new(opencode_config);
     let ipc = IpcClient::new(&config.ipc.socket_path);
     
-    rt.spawn(async move {
+    tracing::info!("Spawning background task with SSE events");
+    let bg_handle = rt.spawn(async move {
         spawn_background_task_with_events(opencode, ipc, bg_rx, ui_tx).await
     });
+    tracing::info!("Background task spawned, handle: {:?}", bg_handle);
     
     let app = App::new(deps.clone(), config, bg_tx, ui_rx);
     
