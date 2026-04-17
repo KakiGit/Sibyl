@@ -135,6 +135,12 @@ impl BackgroundTask {
             OpenCodeEvent::ServerConnected { .. } => {
                 tracing::info!("SSE server connected");
             }
+            OpenCodeEvent::SessionCreated { properties } => {
+                tracing::info!("SessionCreated: session_id={}", properties.session_id);
+                self.session_id = Some(properties.session_id.clone());
+                self.session_busy = false;
+                let _ = self.tx.send(UiEvent::SessionIdle { session_id: properties.session_id });
+            }
             OpenCodeEvent::ServerHeartbeat { .. } => {
                 tracing::debug!("SSE heartbeat received");
             }

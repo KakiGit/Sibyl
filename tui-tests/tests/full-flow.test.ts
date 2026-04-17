@@ -68,7 +68,6 @@ test("sibyl tui processes multiple queued messages sequentially from beginning",
   terminal.write("reply with 'A'\r");
   terminal.write("reply with 'B'\r");
   terminal.write("reply with 'C'\r");
-  j
 
   await expect(terminal.getByText("You:")).toBeVisible({ timeout: 5000 });
 

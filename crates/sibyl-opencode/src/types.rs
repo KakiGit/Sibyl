@@ -15,6 +15,12 @@ pub enum OpenCodeEvent {
         properties: serde_json::Value,
     },
 
+    #[serde(rename = "session.created")]
+    SessionCreated {
+        #[serde(rename = "properties")]
+        properties: SessionCreatedProperties,
+    },
+
     #[serde(rename = "session.status")]
     SessionStatus {
         #[serde(rename = "properties")]
@@ -105,6 +111,13 @@ pub enum OpenCodeEvent {
 
     #[serde(rename = "stream")]
     Stream { delta: String },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SessionCreatedProperties {
+    #[serde(rename = "sessionID")]
+    pub session_id: String,
+    pub info: SessionInfo,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

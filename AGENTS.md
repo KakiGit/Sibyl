@@ -65,13 +65,14 @@ dependencies:
   - Python IPC server (optimized version)
   - FalkorDB/Redis at localhost:6379
   - OpenCode harness at localhost:4096
-- TUI tests: 16/23 passed ✓ (2026-04-17)
+- TUI tests: 21/24 passed ✓ (2026-04-17)
   - Basic tests: welcome screen, keybindings, help overlay, command palette, status bar
   - Message tests: send message, queue messages, queue panel display
   - Flow tests: nonblocking input, queue processing
-  - Note: full-flow tests timeout due to LLM response latency (expected)
+  - Note: full-flow tests (3) timeout due to LLM response latency (expected)
   - Requires Node.js 20.X LTS via fnm
 - UX Optimization (2026-04-17): Animated spinner for streaming indicator ✓
+- Bug fix (2026-04-17): Added `session.created` SSE event handling ✓
 
 ## TUI Testing
 - tui-test framework setup in `tui-tests/` directory
@@ -81,12 +82,13 @@ dependencies:
 - **Note**: Node.js 25.X is NOT supported. Use Node.js 20.X LTS.
   - Install fnm: `sudo pacman -S fnm` (Arch Linux)
   - Use Node 20: `eval "$(fnm env --shell bash)" && fnm use 20`
-- Tests verified (2026-04-17): 16/23 passed
-  - basic.test.ts: welcome screen, keybindings hint, command hints, help overlay, command palette, status bar
-  - tests/single-message.test.ts: send message, queue messages, You indicator
-  - tests/nonblocking.test.ts: typed text, responsive input, processing state
-  - tests/queue-flow.test.ts: first message, queued messages, queue count, input clear
-  - tests/full-flow.test.ts: timeout (LLM response latency, expected)
+- Tests verified (2026-04-17): 21/24 passed
+  - basic.test.ts: 6/6 passed - welcome screen, keybindings hint, command hints, help overlay, command palette, status bar
+  - tests/single-message.test.ts: 3/3 passed - send message, queue messages, You indicator
+  - tests/nonblocking.test.ts: 3/3 passed - typed text, responsive input, processing state
+  - tests/queue-flow.test.ts: 4/4 passed - first message, queued messages, queue count, input clear
+  - tests/messages.test.ts: 5/5 passed - send message, queue messages, queue panel, input field
+  - tests/full-flow.test.ts: 0/3 passed - timeout (LLM response latency, expected)
 
 ## Feature Status (from DRAFT.md)
 ### Implemented ✓
