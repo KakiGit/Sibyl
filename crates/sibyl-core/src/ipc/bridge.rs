@@ -87,6 +87,12 @@ pub struct AddEpisodeResult {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AddUserFactParams {
+    pub fact: String,
+    pub session_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PromptBuildParams {
     pub session_id: String,
     pub context: Option<String>,
@@ -226,6 +232,20 @@ impl IpcBridge {
         })?;
         
         let result = self.call("memory.add_episode", params).await?;
+        
+        let episode: AddEpisodeResult = serde_json::from_value(result)
+            .map_err(|e| sibyl_ipc::Error::ProtocolError(e.to_string()))?;
+        
+        Ok(episode.episode_id)
+    }
+
+    pub async fn memory_add_user_fact(&mut self, fact: &str, session_id: &str) -> Result<String> {
+        let params = serde_json::to_value(AddUserFactParams {
+            fact: fact.to_string(),
+            session_id: session_id.to_string(),
+        })?;
+        
+        let result = self.call("memory.add_user_fact", params).await?;
         
         let episode: AddEpisodeResult = serde_json::from_value(result)
             .map_err(|e| sibyl_ipc::Error::ProtocolError(e.to_string()))?;

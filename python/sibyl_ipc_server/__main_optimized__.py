@@ -55,6 +55,19 @@ class SimpleMemoryHandler:
 
         return {"status": "ok", "episode_id": episode_id}
 
+    async def handle_add_user_fact(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Handle memory.add_user_fact method."""
+        fact = params.get("fact", "")
+        session_id = params.get("session_id") or params.get("project_id")
+
+        episode_id = await self.store.add_episode(
+            content=fact,
+            source="user fact",
+            session_id=session_id,
+        )
+
+        return {"status": "ok", "episode_id": episode_id}
+
     async def handle_get_context(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """Handle memory.get_context method."""
         query = params.get("query", "")
@@ -194,6 +207,7 @@ async def main():
     server = IpcServer()
     server.register("memory.query", memory_handler.handle_query)
     server.register("memory.add_episode", memory_handler.handle_add_episode)
+    server.register("memory.add_user_fact", memory_handler.handle_add_user_fact)
     server.register("memory.get_context", memory_handler.handle_get_context)
     server.register("prompt.build", prompt_handler.handle_build)
     server.register("relevance.evaluate", prompt_handler.handle_relevance_evaluate)

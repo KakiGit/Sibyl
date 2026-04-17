@@ -42,6 +42,7 @@ async def main():
 
     server.register("memory.query", memory_handler.handle_query)
     server.register("memory.add_episode", memory_handler.handle_add_episode)
+    server.register("memory.add_user_fact", memory_handler.handle_add_user_fact)
     server.register("memory.get_context", memory_handler.handle_get_context)
     server.register("prompt.build", prompt_handler.handle_build)
     server.register("relevance.evaluate", prompt_handler.handle_relevance_evaluate)

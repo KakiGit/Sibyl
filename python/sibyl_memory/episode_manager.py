@@ -118,6 +118,29 @@ class EpisodeManager:
         logger.info(f"Added learning episode: {episode.uuid}")
         return episode
 
+    async def add_user_fact(
+        self,
+        fact: str,
+        session_id: Optional[str] = None,
+        reference_time: Optional[datetime] = None,
+    ) -> Episode:
+        """Add a user fact (e.g., preferences, work info)."""
+        if reference_time is None:
+            reference_time = datetime.utcnow()
+
+        name = f"fact-{session_id or uuid4().hex[:8]}"
+
+        episode = await self.client.add_episode(
+            name=name,
+            episode_body=fact,
+            source_description="user fact",
+            reference_time=reference_time,
+            group_id=session_id,
+        )
+
+        logger.info(f"Added user fact: {episode.uuid}")
+        return episode
+
     async def get_episode_history(
         self,
         session_id: str,

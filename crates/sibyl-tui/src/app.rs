@@ -704,6 +704,31 @@ impl App {
                         self.status = AppStatus::Idle;
                     }
                 }
+                Command::Remember(fact) => {
+                    if !fact.is_empty() {
+                        self.status = AppStatus::Processing;
+                        let rt = tokio::runtime::Runtime::new().unwrap();
+                        let ipc_client = IpcClient::new(&self.config.ipc.socket_path);
+                        let request = Request::new(
+                            Method::MemoryAddUserFact,
+                            serde_json::json!({ "fact": fact }),
+                        );
+
+                        let result = rt.block_on(ipc_client.send(request));
+                        let message = match result {
+                            Ok(response) if response.error.is_none() => {
+                                format!("Remembered: {}", fact)
+                            }
+                            _ => format!("Failed to remember: {}", fact),
+                        };
+                        
+                        self.chat.add_message(Message::new(
+                            MessageRole::System,
+                            message,
+                        ));
+                        self.status = AppStatus::Idle;
+                    }
+                }
                 Command::Skill(name) => {
                     let rt = tokio::runtime::Runtime::new().unwrap();
                     let opencode_config = OpenCodeConfig {

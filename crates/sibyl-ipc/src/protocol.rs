@@ -48,6 +48,8 @@ pub enum Method {
     MemoryQuery,
     #[serde(rename = "memory.add_episode")]
     MemoryAddEpisode,
+    #[serde(rename = "memory.add_user_fact")]
+    MemoryAddUserFact,
     #[serde(rename = "memory.get_context")]
     MemoryGetContext,
     #[serde(rename = "prompt.build")]

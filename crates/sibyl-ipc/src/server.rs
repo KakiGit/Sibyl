@@ -80,6 +80,14 @@ impl IpcServer {
                     error: None,
                 }
             }
+            crate::Method::MemoryAddUserFact => {
+                Response {
+                    jsonrpc: "2.0".to_string(),
+                    id: request.id,
+                    result: Some(serde_json::json!({"status": "ok"})),
+                    error: None,
+                }
+            }
             crate::Method::MemoryGetContext => {
                 Response {
                     jsonrpc: "2.0".to_string(),

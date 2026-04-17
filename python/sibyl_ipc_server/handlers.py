@@ -43,6 +43,26 @@ class MemoryHandler:
 
         return {"status": "ok", "episode_id": episode.uuid}
 
+    async def handle_add_user_fact(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Handle memory.add_user_fact method."""
+        fact = params.get("fact", "")
+        session_id = params.get("session_id")
+
+        if self.memory_system.episode_manager:
+            episode = await self.memory_system.episode_manager.add_user_fact(
+                fact=fact,
+                session_id=session_id,
+            )
+        else:
+            episode = await self.memory_system.add_episode(
+                name="user-fact",
+                content=fact,
+                source_description="user fact",
+                session_id=session_id,
+            )
+
+        return {"status": "ok", "episode_id": episode.uuid}
+
     async def handle_get_context(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """Handle memory.get_context method."""
         query = params.get("query", "")
