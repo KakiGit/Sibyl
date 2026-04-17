@@ -84,6 +84,24 @@ dependencies:
   - help overlay toggle, command palette
   - status bar with model name
 
+## Test Commands
+```bash
+# Headless mode
+./target/release/sibyl run --prompt "Hello, what is 2+2?"
+./target/release/sibyl run --prompt "Remember that I like Python programming" --json
+
+# Memory query
+./target/release/sibyl memory --query "What programming languages does the user like?" --json
+
+# TUI tests (requires Node.js 20.X)
+cd tui-tests
+eval "$(fnm env --shell bash)" && fnm use 20
+npm run test:tui
+
+# Cargo tests
+cargo test --package sibyl-deps test_load_config -- --nocapture
+```
+
 ## Architecture
 Hybrid Rust + Python:
 - **Rust**: TUI (ratatui), core orchestration, harness integration, auto-starts Python IPC server
