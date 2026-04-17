@@ -65,32 +65,43 @@ dependencies:
   - Python IPC server (optimized version)
   - FalkorDB/Redis at localhost:6379
   - OpenCode harness at localhost:4096
-- TUI tests: 7/7 passed ✓
-  - simple.test.ts: headless runs (17.7s)
-  - basic.test.ts: welcome screen (15.2s)
-  - basic.test.ts: keybindings hint (15.2s)
-  - basic.test.ts: command hints (15.1s)
-  - basic.test.ts: help overlay toggle (15.2s)
-  - basic.test.ts: command palette (15.2s)
-  - basic.test.ts: status bar with model (15.2s)
-  - Note: Requires Node.js 20.X LTS via fnm
+- TUI tests: 22/24 passed ✓
+  - Basic tests: welcome screen, keybindings, help overlay, command palette, status bar
+  - Message tests: send message, queue messages, queue panel display
+  - Flow tests: nonblocking input, queue processing
+  - Note: full-flow tests timeout due to LLM response latency (expected)
+  - Requires Node.js 20.X LTS via fnm
 
 ## TUI Testing
 - tui-test framework setup in `tui-tests/` directory
 - Run: `cd tui-tests && npm install && npm run test:tui`
-- Tests cover: welcome screen, keybindings, help overlay, command palette, status bar
+- Tests cover: welcome screen, keybindings, help overlay, command palette, status bar, message flow
 - Package: `@microsoft/tui-test ^0.0.4`
 - **Note**: Node.js 25.X is NOT supported. Use Node.js 20.X LTS.
   - Install fnm: `sudo pacman -S fnm` (Arch Linux)
   - Use Node 20: `eval "$(fnm env --shell bash)" && fnm use 20`
-- Tests verified (2026-04-17): 7/7 passed
-  - simple.test.ts:16:38 › sibyl headless runs (17.7s)
-  - basic.test.ts:15:49 › sibyl tui shows welcome screen (15.2s)
-  - basic.test.ts:19:51 › sibyl tui shows keybindings hint (15.2s)
-  - basic.test.ts:23:48 › sibyl tui shows command hints (15.1s)
-  - basic.test.ts:27:49 › sibyl tui toggles help overlay (15.2s)
-  - basic.test.ts:33:50 › sibyl tui opens command palette (15.2s)
-  - basic.test.ts:39:56 › sibyl tui shows status bar with model (15.2s)
+- Tests verified (2026-04-17): 22/24 passed
+  - simple.test.ts: headless runs
+  - basic.test.ts: welcome screen, keybindings hint, command hints, help overlay, command palette, status bar
+  - tests/messages.test.ts: send message, queue messages, queue panel, input field
+  - tests/nonblocking.test.ts: typed text, responsive input, processing state
+  - tests/queue-flow.test.ts: first message, queued messages, queue count, input clear
+  - tests/full-flow.test.ts: timeout (LLM response latency)
+
+## Feature Status (from DRAFT.md)
+### Implemented ✓
+- Memory query and add operations (embedding-based search)
+- Automatic context injection with relevance filtering
+- Subagent relevance evaluation (embedding + optional LLM)
+- OpenCode harness integration (full implementation)
+- Plugin system framework (skills/tools/workflows/MCP registries)
+
+### Missing (TODO)
+- Memory modify/delete operations for individual memories
+- Cursor, Claude Code, mCodex harness implementations
+- Harness switching functionality (stub only)
+- Memory management UI for modify/delete in TUI
+- Multiple instance isolation/synchronization
 
 ## Test Commands
 ```bash

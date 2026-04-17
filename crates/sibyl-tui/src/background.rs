@@ -71,10 +71,9 @@ impl BackgroundTask {
         use futures::StreamExt;
         use sibyl_opencode::Error as OpenCodeError;
         let events = self.events.take();
-        let mut events_boxed: Option<futures::stream::BoxStream<'static, Result<OpenCodeEvent, OpenCodeError>>> = 
-            events.map(|e| Box::pin(e) as futures::stream::BoxStream<'static, Result<OpenCodeEvent, OpenCodeError>>);
+        let mut events_stream: Option<sibyl_opencode::sse::EventStream> = events;
         
-        tracing::info!("Background task started, WebSocket stream: {:?}", events_boxed.is_some());
+        tracing::info!("Background task started, SSE stream: {:?}", events_stream.is_some());
         
         loop {
             tokio::select! {
@@ -85,13 +84,16 @@ impl BackgroundTask {
                     }
                 }
                 event_result = async {
-                    match &mut events_boxed {
-                        Some(ev) => ev.next().await,
+                    match &mut events_stream {
+                        Some(ev) => {
+                            use futures::StreamExt;
+                            ev.next().await
+                        }
                         None => std::future::pending::<Option<Result<OpenCodeEvent, OpenCodeError>>>().await,
                     }
                 } => {
                     if let Some(Ok(event)) = event_result {
-                        tracing::info!("Background received WebSocket event: {:?}", event);
+                        tracing::info!("Background received SSE event: {:?}", event);
                         self.handle_event(event).await;
                     }
                 }
