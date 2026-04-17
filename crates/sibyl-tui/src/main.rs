@@ -103,10 +103,10 @@ fn ui(f: &mut Frame, app: &App) {
 fn run_app<B: ratatui::backend::Backend>(
     terminal: &mut Terminal<B>,
     mut app: App,
+    rt: &tokio::runtime::Runtime,
 ) -> io::Result<()> {
     loop {
         {
-            let rt = tokio::runtime::Runtime::new().unwrap();
             let dep_status = rt.block_on(async {
                 app.deps().get_status_summary().await
             });
@@ -170,7 +170,7 @@ fn main() -> anyhow::Result<()> {
     
     terminal.draw(|f| ui(f, &app))?;
 
-    let result = run_app(&mut terminal, app);
+    let result = run_app(&mut terminal, app, &rt);
 
     tracing::info!("Shutting down Sibyl");
     rt.block_on(async {

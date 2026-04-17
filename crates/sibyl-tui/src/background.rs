@@ -220,16 +220,23 @@ impl BackgroundTask {
     }
 
     async fn send_message(&mut self, text: String, session_id: Option<String>) {
+        tracing::info!("send_message called with text: {}, session_id: {:?}", text, session_id);
         let sid = match session_id.or(self.session_id.clone()) {
-            Some(id) => id,
+            Some(id) => {
+                tracing::info!("Using existing session: {}", id);
+                id
+            }
             None => {
+                tracing::info!("Creating new session");
                 let cwd = std::env::current_dir().ok();
                 match self.opencode.create_session(cwd.as_deref()).await {
                     Ok(info) => {
+                        tracing::info!("Created session: {}", info.id);
                         self.session_id = Some(info.id.clone());
                         info.id
                     }
-                    Err(_) => {
+                    Err(e) => {
+                        tracing::error!("Failed to create session: {:?}", e);
                         let _ = self.tx.send(UiEvent::Error {
                             session_id: "unknown".to_string(),
                             message: "Failed to create session".to_string(),
@@ -240,14 +247,18 @@ impl BackgroundTask {
             }
         };
 
+        tracing::info!("Retrieving memories for session {}", sid);
         let memories_result = self.retrieve_memories(&text, &sid).await;
+        tracing::info!("Building prompt for session {}", sid);
         let prompt = self.build_prompt(&text, &sid, &memories_result).await;
 
         let user_msg = UserMessage::with_context(&text, &prompt);
+        tracing::info!("Sending message to OpenCode session {}", sid);
         let _ = self.opencode.send_user_message_async(&sid, &user_msg).await;
         
         self.session_busy = true;
         self.streaming_text.clear();
+        tracing::info!("Setting session_busy=true, sending SessionBusy event");
         let _ = self.tx.send(UiEvent::SessionBusy { session_id: sid });
     }
 

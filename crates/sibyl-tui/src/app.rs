@@ -444,8 +444,10 @@ impl App {
                     self.chat.finish_stream(content);
                 }
 
+                tracing::info!("Session idle, queue count: {}", self.queue.count());
                 if !self.queue.is_empty() && self.queue.messages.first().is_some() {
                     let next_msg = self.queue.messages.remove(0);
+                    tracing::info!("Sending queued message: {}", next_msg);
                     self.status_bar.queue_count = self.queue.count();
                     let _ = self.bg_tx.blocking_send(BackgroundCommand::SendMessage {
                         text: next_msg,
@@ -454,6 +456,8 @@ impl App {
                     self.session_busy = true;
                     self.chat.start_streaming();
                     self.status_bar.streaming = true;
+                } else {
+                    tracing::info!("No queued messages to send");
                 }
             }
             UiEvent::SessionBusy { session_id } => {
