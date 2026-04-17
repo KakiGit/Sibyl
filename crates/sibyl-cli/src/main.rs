@@ -299,7 +299,7 @@ fn run_memory_query(query: String, json_output: bool) -> anyhow::Result<()> {
         }
     });
 
-    let ipc = IpcClient::new("/tmp/sibyl-ipc.sock");
+    let ipc = IpcClient::new(&config.ipc.socket_path);
     
     let request = Request::new(Method::MemoryQuery, serde_json::json!({ "query": query }));
     
