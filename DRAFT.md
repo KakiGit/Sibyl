@@ -24,13 +24,9 @@ Sibyl supports real time natual language query to its database.
 
 The memory gets injected automatically to the context smoothly.
 
-Use subagent to evaluate if the memory is relevant to the conversation.
-
-Irrelevant memories will be removed from the context if the subagent evaluates so.
-
 Sibyl should provide interface to manage the memories. (add, search, modify and delete)
 
-Learn useful concepts and implementations from graphiti
+More memory design can be found from @docs/LLM_WIKI.md
 
 ## Performance requirement
 
