@@ -56,6 +56,7 @@ async fn handle_command_spawned(
                         Ok(info) => {
                             let mut guard = shared_session_id.write().await;
                             *guard = Some(info.id.clone());
+                            let _ = tx.send(UiEvent::SessionIdle { session_id: info.id.clone() });
                             info.id
                         }
                         Err(e) => {
@@ -194,20 +195,43 @@ impl BackgroundTask {
             });
         }
         
+        let mut sse_active = self.events.is_some();
+        
         loop {
-            tracing::debug!("Background loop tick");
+            tracing::debug!("Background loop tick, sse_active: {}", sse_active);
             
-            tokio::select! {
-                biased;
-                event = sse_rx.recv() => {
-                    if let Some(event) = event {
-                        tracing::info!("SSE event: {:?}", event);
-                        self.handle_event(event).await;
+            if sse_active {
+                tokio::select! {
+                    event = sse_rx.recv() => {
+                        match event {
+                            Some(event) => {
+                                tracing::info!("SSE event: {:?}", event);
+                                self.handle_event(event).await;
+                            }
+                            None => {
+                                tracing::warn!("SSE channel closed, disabling SSE");
+                                sse_active = false;
+                            }
+                        }
+                    }
+                    cmd = self.rx.recv() => {
+                        if let Some(c) = cmd {
+                            tracing::info!("Command received: {:?}", c);
+                            let opencode = self.opencode.clone();
+                            let ipc = self.ipc.clone();
+                            let tx = self.tx.clone();
+                            let shared_session_id = self.shared_session_id.clone();
+                            
+                            tokio::spawn(async move {
+                                handle_command_spawned(opencode, ipc, tx, c, shared_session_id).await;
+                            });
+                        }
                     }
                 }
-                cmd = self.rx.recv() => {
-                    if let Some(c) = cmd {
-                        tracing::info!("Command received: {:?}", c);
+            } else {
+                match self.rx.recv().await {
+                    Some(c) => {
+                        tracing::info!("Command received (no SSE): {:?}", c);
                         let opencode = self.opencode.clone();
                         let ipc = self.ipc.clone();
                         let tx = self.tx.clone();
@@ -216,6 +240,10 @@ impl BackgroundTask {
                         tokio::spawn(async move {
                             handle_command_spawned(opencode, ipc, tx, c, shared_session_id).await;
                         });
+                    }
+                    None => {
+                        tracing::info!("Command channel closed, exiting");
+                        break;
                     }
                 }
             }
@@ -247,6 +275,7 @@ impl BackgroundTask {
             }
             OpenCodeEvent::SessionStatus { properties } => {
                 tracing::info!("SessionStatus: session_id={}, status={:?}", properties.session_id, properties.status);
+                let was_busy = self.session_busy;
                 self.session_busy = match properties.status {
                     sibyl_opencode::types::SessionStatus::Busy => true,
                     sibyl_opencode::types::SessionStatus::Idle => false,
@@ -258,6 +287,8 @@ impl BackgroundTask {
                 }
                 if self.session_busy {
                     let _ = self.tx.send(UiEvent::SessionBusy { session_id: properties.session_id });
+                } else if was_busy {
+                    let _ = self.tx.send(UiEvent::SessionIdle { session_id: properties.session_id });
                 }
             }
             OpenCodeEvent::SessionIdle { properties } => {
@@ -314,6 +345,19 @@ impl BackgroundTask {
                             tool,
                             status,
                         });
+                    }
+sibyl_opencode::types::Part::StepFinish { .. } => {
+                        tracing::info!("Step finish received, completing stream");
+                        let content = self.streaming_text.clone();
+                        self.streaming_text.clear();
+                        if !content.is_empty() {
+                            let _ = self.tx.send(UiEvent::MessagePartComplete {
+                                session_id: properties.session_id,
+                                message_id: self.current_message_id.clone().unwrap_or_default(),
+                                part_id: "stream".to_string(),
+                                content,
+                            });
+                        }
                     }
                     other => {
                         tracing::debug!("Other part type: {:?}", other);
