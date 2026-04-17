@@ -223,10 +223,15 @@ impl BackgroundTask {
     }
 
     async fn handle_event(&mut self, event: OpenCodeEvent) {
-        tracing::debug!("Handling WebSocket event: {:?}", event);
+        tracing::info!("handle_event: {:?}", event);
         match event {
             OpenCodeEvent::ServerConnected { .. } => {
                 tracing::info!("SSE server connected");
+                let _ = self.tx.send(UiEvent::MessageCreated {
+                    session_id: "system".to_string(),
+                    message_id: "sse-connected".to_string(),
+                    role: "system".to_string(),
+                });
             }
             OpenCodeEvent::SessionCreated { properties } => {
                 tracing::info!("SessionCreated: session_id={}", properties.session_id);
@@ -270,6 +275,7 @@ impl BackgroundTask {
                     sibyl_opencode::types::MessageRole::Assistant => "assistant",
                     sibyl_opencode::types::MessageRole::System => "system",
                 };
+                tracing::info!("MessageUpdated: role={}", role_str);
                 let _ = self.tx.send(UiEvent::MessageCreated {
                     session_id: properties.session_id.clone(),
                     message_id: properties.info.id.clone(),
@@ -286,9 +292,12 @@ impl BackgroundTask {
                 }
             }
             OpenCodeEvent::MessagePartUpdated { properties, .. } => {
+                tracing::info!("MessagePartUpdated: {:?}", properties.part);
                 match properties.part {
                     sibyl_opencode::types::Part::Text { id, text, time, .. } => {
+                        tracing::info!("Text part: id={}, text={}, time={:?}", id, text, time);
                         if time.as_ref().and_then(|t| t.end).is_some() {
+                            tracing::info!("Text part complete: {}", text);
                             let _ = self.tx.send(UiEvent::MessagePartComplete {
                                 session_id: properties.session_id,
                                 message_id: self.current_message_id.clone().unwrap_or_default(),
@@ -299,16 +308,20 @@ impl BackgroundTask {
                     }
                     sibyl_opencode::types::Part::Tool { id: _, tool, state, .. } => {
                         let status = state.map(|s| s.status).unwrap_or_else(|| "unknown".to_string());
+                        tracing::info!("Tool part: tool={}, status={}", tool, status);
                         let _ = self.tx.send(UiEvent::ToolUse {
                             session_id: properties.session_id,
                             tool,
                             status,
                         });
                     }
-                    _ => {}
+                    other => {
+                        tracing::debug!("Other part type: {:?}", other);
+                    }
                 }
             }
             OpenCodeEvent::MessagePartDelta { properties } => {
+                tracing::debug!("MessagePartDelta: delta={}", properties.delta);
                 self.streaming_text.push_str(&properties.delta);
                 let _ = self.tx.send(UiEvent::MessagePartDelta {
                     session_id: properties.session_id,
@@ -318,6 +331,7 @@ impl BackgroundTask {
                 });
             }
             OpenCodeEvent::SessionError { properties } => {
+                tracing::error!("SessionError: {:?}", properties.error);
                 let msg = properties.error.message.clone()
                     .unwrap_or_else(|| properties.error.name.clone());
                 let _ = self.tx.send(UiEvent::Error {
@@ -326,12 +340,15 @@ impl BackgroundTask {
                 });
             }
             OpenCodeEvent::PermissionAsked { properties } => {
+                tracing::info!("PermissionAsked: {}", properties.permission);
                 let _ = self.tx.send(UiEvent::Error {
                     session_id: properties.session_id,
                     message: format!("Permission requested: {}", properties.permission),
                 });
             }
-            _ => {}
+            other => {
+                tracing::debug!("Unhandled event: {:?}", other);
+            }
         }
     }
 

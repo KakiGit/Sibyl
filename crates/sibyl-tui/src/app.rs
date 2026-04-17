@@ -442,16 +442,21 @@ impl App {
     fn handle_ui_event(&mut self, event: UiEvent) {
         match event {
             UiEvent::SessionIdle { session_id } => {
+                tracing::info!("UI: SessionIdle {}", session_id);
                 self.session_busy = false;
                 self.session_id = Some(session_id.clone());
-                self.status_bar.session_id = Some(session_id);
+                self.status_bar.session_id = Some(session_id.clone());
                 self.status_bar.streaming = false;
                 self.status = AppStatus::Idle;
                 self.spinner.stop();
 
                 if self.chat.streaming {
                     let content = self.chat.current_response.clone().unwrap_or_default();
-                    self.chat.finish_stream(content);
+                    if content.is_empty() {
+                        self.chat.add_message(Message::new(MessageRole::System, "No response received".to_string()));
+                    } else {
+                        self.chat.finish_stream(content);
+                    }
                 }
 
                 tracing::info!("Session idle, queue count: {}", self.queue.count());
@@ -471,8 +476,10 @@ impl App {
                 }
             }
             UiEvent::SessionBusy { session_id } => {
+                tracing::info!("UI: SessionBusy {}", session_id);
                 self.session_busy = true;
-                self.session_id = Some(session_id);
+                self.session_id = Some(session_id.clone());
+                self.status_bar.session_id = Some(session_id);
                 self.status = AppStatus::Processing;
                 self.spinner.start(SpinnerState::Processing);
                 if !self.chat.streaming {
@@ -480,18 +487,24 @@ impl App {
                     self.status_bar.streaming = true;
                 }
             }
-            UiEvent::MessageCreated { role, .. } => if role == "user" {},
+            UiEvent::MessageCreated { role, .. } => {
+                tracing::info!("UI: MessageCreated role={}", role);
+            }
             UiEvent::MessagePartDelta { delta, .. } => {
+                tracing::debug!("UI: MessagePartDelta delta={}", delta);
                 self.chat.append_stream(&delta);
             }
             UiEvent::MessagePartComplete { content, .. } => {
+                tracing::info!("UI: MessagePartComplete content={}", content);
                 self.chat.finish_stream(content);
             }
             UiEvent::MessageComplete { .. } => {
+                tracing::info!("UI: MessageComplete");
                 self.chat.streaming = false;
                 self.status_bar.streaming = false;
             }
             UiEvent::ToolUse { tool, status, .. } => {
+                tracing::info!("UI: ToolUse tool={} status={}", tool, status);
                 if status == "completed" {
                     let msg =
                         Message::new(MessageRole::System, format!("Tool '{}' completed", tool));
@@ -502,15 +515,19 @@ impl App {
                 }
             }
             UiEvent::Error { message, .. } => {
+                tracing::error!("UI: Error {}", message);
                 let msg = Message::new(MessageRole::System, format!("Error: {}", message));
                 self.chat.add_message(msg);
                 self.status = AppStatus::Error;
             }
             UiEvent::MemoryRetrieved { memories } => {
+                tracing::info!("UI: MemoryRetrieved {} memories", memories.len());
                 self.memory.results = memories.clone();
                 self.status_bar.memory_count = memories.len();
             }
-            _ => {}
+            UiEvent::PromptBuilt { prompt } => {
+                tracing::info!("UI: PromptBuilt len={}", prompt.len());
+            }
         }
     }
 

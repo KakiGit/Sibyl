@@ -26,11 +26,17 @@ pub fn render_status_bar(
         AppStatus::Error => ("✗", "Error", error()),
     };
 
-    let session_short = bar_state
+    let session_display = bar_state
         .session_id
         .as_ref()
-        .map(|id| id.chars().take(8).collect::<String>())
-        .unwrap_or_else(|| "—".to_string());
+        .map(|id| {
+            if id.len() > 20 {
+                format!("ses:{}", &id[4..24])
+            } else {
+                format!("ses:{}", id)
+            }
+        })
+        .unwrap_or_else(|| "no-ses".to_string());
 
     let (dep_icon, dep_style) =
         if bar_state.dep_status.contains("ready") || bar_state.dep_status.contains("All") {
@@ -58,7 +64,7 @@ pub fn render_status_bar(
         Span::styled(" │ ", muted()),
         Span::styled(&mem_count, memory_highlight()),
         Span::styled(" │ ", muted()),
-        Span::styled(&session_short, muted()),
+        Span::styled(&session_display, accent()),
         Span::styled(" │ ", muted()),
         Span::styled(status_icon, status_style),
         Span::styled(" ", status_style),

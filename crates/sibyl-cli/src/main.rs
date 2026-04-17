@@ -1,5 +1,6 @@
 use std::io;
 use std::sync::Arc;
+use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
 use sibyl_deps::DependencyManager;
@@ -30,7 +31,13 @@ enum Commands {
     },
     
     #[command(about = "Launch the terminal user interface")]
-    Tui,
+    Tui {
+        #[arg(short, long, help = "Write debug logs to /tmp/sibyl.log")]
+        log: bool,
+        
+        #[arg(long, help = "Write debug logs to specified file")]
+        log_file: Option<PathBuf>,
+    },
     
     #[command(about = "Query memory system")]
     Memory {
@@ -42,20 +49,42 @@ enum Commands {
     },
 }
 
-fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt::init();
+fn setup_logging(log_path: Option<PathBuf>) -> anyhow::Result<()> {
+    if let Some(path) = log_path {
+        let file = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&path)?;
+        let (non_blocking, _guard) = tracing_appender::non_blocking::NonBlocking::new(file);
+        tracing_subscriber::fmt()
+            .with_writer(non_blocking)
+            .with_max_level(tracing::Level::DEBUG)
+            .with_ansi(false)
+            .init();
+        tracing::info!("Logging to {}", path.display());
+    } else {
+        tracing_subscriber::fmt::init();
+    }
+    Ok(())
+}
 
+fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        None => run_tui(),
-        Some(Commands::Tui) => run_tui(),
+        None => run_tui(None),
+        Some(Commands::Tui { log, log_file }) => {
+            let path = log_file.or_else(|| if log { Some(PathBuf::from("/tmp/sibyl.log")) } else { None });
+            run_tui(path)
+        }
         Some(Commands::Run { prompt, stdin, json }) => run_headless(prompt, stdin, json),
         Some(Commands::Memory { query, json }) => run_memory_query(query, json),
     }
 }
 
-fn run_tui() -> anyhow::Result<()> {
+fn run_tui(log_path: Option<PathBuf>) -> anyhow::Result<()> {
+    setup_logging(log_path)?;
+    
     use crossterm::{
         event::{self, Event},
         execute,
@@ -80,6 +109,9 @@ fn run_tui() -> anyhow::Result<()> {
     use sibyl_ipc::client::IpcClient;
 
     let config = load_config();
+    tracing::info!("Starting Sibyl TUI - config loaded");
+    tracing::info!("OpenCode URL: {}, Model: {}", config.harness.opencode.url, config.harness.opencode.model);
+    tracing::info!("IPC socket: {}", config.ipc.socket_path);
     let deps = Arc::new(DependencyManager::new(config.dependencies.clone()));
     
     tracing::info!("Starting Sibyl TUI - ensuring dependencies are running");
