@@ -543,6 +543,27 @@ impl App {
             return;
         }
 
+        if text.to_lowercase().starts_with("remember that") {
+            let fact = text.trim_start_matches("Remember that").trim_start_matches("remember that").trim();
+            if !fact.is_empty() {
+                let rt = tokio::runtime::Runtime::new().unwrap();
+                let ipc_client = IpcClient::new(&self.config.ipc.socket_path);
+                let request = Request::new(
+                    Method::MemoryAddUserFact,
+                    serde_json::json!({ "fact": fact }),
+                );
+                let result = rt.block_on(ipc_client.send(request));
+                let message = match result {
+                    Ok(response) if response.error.is_none() => {
+                        format!("Remembered: {}", fact)
+                    }
+                    _ => format!("Failed to remember: {}", fact),
+                };
+                self.chat.add_message(Message::new(MessageRole::System, message));
+            }
+            return;
+        }
+
         let msg = Message::new(MessageRole::User, text.clone());
         self.chat.add_message(msg);
         self.status = AppStatus::Processing;
