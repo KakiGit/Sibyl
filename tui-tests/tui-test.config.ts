@@ -5,4 +5,7 @@ export default defineConfig({
   trace: true,
   timeout: 60000,
   workers: 1,
+  env: {
+    PYTHONPATH: "/home/kaki/Github/Sibyl/python",
+  },
 });

@@ -27,6 +27,24 @@ pub enum OpenCodeEvent {
         properties: SessionIdleProperties,
     },
 
+    #[serde(rename = "session.updated")]
+    SessionUpdated {
+        #[serde(rename = "properties")]
+        properties: SessionUpdatedProperties,
+    },
+
+    #[serde(rename = "session.diff")]
+    SessionDiff {
+        #[serde(rename = "properties")]
+        properties: SessionDiffProperties,
+    },
+
+    #[serde(rename = "sync")]
+    Sync {
+        #[serde(rename = "syncEvent")]
+        sync_event: SyncEvent,
+    },
+
     #[serde(rename = "message.updated")]
     MessageUpdated {
         #[serde(rename = "properties")]
@@ -115,6 +133,47 @@ pub enum SessionStatus {
 pub struct SessionIdleProperties {
     #[serde(rename = "sessionID")]
     pub session_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SessionUpdatedProperties {
+    #[serde(rename = "sessionID")]
+    pub session_id: String,
+    pub info: SessionInfo,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SessionInfo {
+    pub id: String,
+    #[serde(rename = "sessionID", default)]
+    pub session_id: Option<String>,
+    #[serde(default)]
+    pub title: Option<String>,
+    #[serde(default)]
+    pub directory: Option<String>,
+    #[serde(default)]
+    pub summary: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SessionDiffProperties {
+    #[serde(rename = "sessionID")]
+    pub session_id: String,
+    #[serde(default)]
+    pub diff: Vec<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SyncEvent {
+    #[serde(rename = "aggregateID")]
+    pub aggregate_id: String,
+    #[serde(default)]
+    pub data: serde_json::Value,
+    pub id: String,
+    #[serde(default)]
+    pub seq: u64,
+    #[serde(rename = "type")]
+    pub event_type: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
