@@ -65,15 +65,19 @@ dependencies:
   - Python IPC server (optimized version)
   - FalkorDB/Redis at localhost:6379
   - OpenCode harness at localhost:4096
-- TUI tests: 21/24 passed ✓ (2026-04-17, reconfirmed 2026-04-17)
+- TUI tests: 21/22 passed ✓ (2026-04-17, SSE fixes applied)
   - Basic tests: welcome screen, keybindings, help overlay, command palette, status bar
   - Message tests: send message, queue messages, queue panel display
   - Flow tests: nonblocking input, queue processing
-  - Note: full-flow tests (3) timeout due to LLM response latency (expected)
+  - Note: full-flow tests (2) timeout due to LLM response latency (expected)
   - Requires Node.js 20.X LTS via fnm
 - UX Optimization (2026-04-17): Animated spinner for streaming indicator ✓
 - Bug fix (2026-04-17): Added `session.created` SSE event handling ✓
 - Fixed MODULE_TYPELESS_PACKAGE_JSON warning by adding "type": "module" to tui-tests/package.json ✓
+- SSE Fix (2026-04-17): Refactored background task for concurrent SSE polling ✓
+  - Added Clone derive to OpenCodeClient
+  - Fixed Part enum to handle extra SSE event fields
+  - Separate SSE polling thread with shared session state
 
 ## TUI Testing
 - tui-test framework setup in `tui-tests/` directory
@@ -83,13 +87,13 @@ dependencies:
 - **Note**: Node.js 25.X is NOT supported. Use Node.js 20.X LTS.
   - Install fnm: `sudo pacman -S fnm` (Arch Linux)
   - Use Node 20: `eval "$(fnm env --shell bash)" && fnm use 20`
-- Tests verified (2026-04-17): 21/24 passed
+- Tests verified (2026-04-17): 21/22 passed
   - basic.test.ts: 6/6 passed - welcome screen, keybindings hint, command hints, help overlay, command palette, status bar
   - tests/single-message.test.ts: 3/3 passed - send message, queue messages, You indicator
   - tests/nonblocking.test.ts: 3/3 passed - typed text, responsive input, processing state
   - tests/queue-flow.test.ts: 4/4 passed - first message, queued messages, queue count, input clear
   - tests/messages.test.ts: 5/5 passed - send message, queue messages, queue panel, input field
-  - tests/full-flow.test.ts: 0/3 passed - timeout (LLM response latency, expected)
+  - tests/full-flow.test.ts: 0/2 passed - timeout (LLM response latency, expected)
 
 ## Feature Status (from DRAFT.md)
 ### Implemented ✓
