@@ -48,7 +48,7 @@ dependencies:
 - Total IPC runtime (excluding embedder init): ~0.24s
 - Embedder init: ~8s (one-time startup cost)
 
-## Baseline Verified (2026-04-17, re-verified 2026-04-17, tested 2026-04-17)
+## Baseline Verified (2026-04-17)
 - Config loaded from ~/.config/sibyl/config.yaml ✓
   - Harness: opencode (url: http://localhost:4096, model: glm-5)
   - IPC: /tmp/sibyl-ipc.sock
