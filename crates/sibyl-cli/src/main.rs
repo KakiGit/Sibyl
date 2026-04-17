@@ -36,6 +36,9 @@ enum Commands {
     Memory {
         #[arg(short, long, help = "Query text")]
         query: String,
+        
+        #[arg(short, long, help = "Output in JSON format")]
+        json: bool,
     },
 }
 
@@ -48,7 +51,7 @@ fn main() -> anyhow::Result<()> {
         None => run_tui(),
         Some(Commands::Tui) => run_tui(),
         Some(Commands::Run { prompt, stdin, json }) => run_headless(prompt, stdin, json),
-        Some(Commands::Memory { query }) => run_memory_query(query),
+        Some(Commands::Memory { query, json }) => run_memory_query(query, json),
     }
 }
 
@@ -244,7 +247,7 @@ fn run_headless(prompt: Option<String>, use_stdin: bool, json_output: bool) -> a
     Ok(())
 }
 
-fn run_memory_query(query: String) -> anyhow::Result<()> {
+fn run_memory_query(query: String, json_output: bool) -> anyhow::Result<()> {
     use sibyl_ipc::client::IpcClient;
     use sibyl_ipc::{Method, Request};
     use sibyl_deps::load_config;
@@ -270,26 +273,38 @@ fn run_memory_query(query: String) -> anyhow::Result<()> {
     match result {
         Ok(response) => {
             if let Some(result) = response.result {
-                println!("Memory Query Results:");
-                println!("───────────────────────");
-                if let Some(episodes) = result.get("episodes").and_then(|e| e.as_array()) {
-                    for (i, episode) in episodes.iter().enumerate() {
-                        if let Some(content) = episode.get("content").and_then(|c| c.as_str()) {
-                            println!("{}. {}", i + 1, content);
-                        }
-                    }
-                    if episodes.is_empty() {
-                        println!("No memories found.");
-                    }
+                if json_output {
+                    println!("{}", serde_json::to_string_pretty(&result)?);
                 } else {
-                    println!("No results returned.");
+                    println!("Memory Query Results:");
+                    println!("───────────────────────");
+                    if let Some(episodes) = result.get("episodes").and_then(|e| e.as_array()) {
+                        for (i, episode) in episodes.iter().enumerate() {
+                            if let Some(content) = episode.get("content").and_then(|c| c.as_str()) {
+                                println!("{}. {}", i + 1, content);
+                            }
+                        }
+                        if episodes.is_empty() {
+                            println!("No memories found.");
+                        }
+                    } else {
+                        println!("No results returned.");
+                    }
                 }
             } else {
-                println!("No response from memory system.");
+                if json_output {
+                    println!("{}", serde_json::json!({ "error": "No response from memory system" }));
+                } else {
+                    println!("No response from memory system.");
+                }
             }
         }
         Err(e) => {
-            eprintln!("Error querying memory: {}", e);
+            if json_output {
+                println!("{}", serde_json::json!({ "error": e.to_string() }));
+            } else {
+                eprintln!("Error querying memory: {}", e);
+            }
             std::process::exit(1);
         }
     }

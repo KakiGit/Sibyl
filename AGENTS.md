@@ -55,7 +55,8 @@ dependencies:
 - Response from OpenCode harness (glm-5 model at localhost:4096) ✓
 - Memory stored after conversation ✓
 - `./target/release/sibyl memory --query "math"` ✓
-- JSON output mode works ✓
+- `./target/release/sibyl memory --query "math" --json` ✓ (new)
+- JSON output mode works for both run and memory commands ✓
 - Dependencies auto-started (Python IPC, FalkorDB) ✓
 - TUI tests: 7/7 passed (Node 20.X via fnm required) ✓
 

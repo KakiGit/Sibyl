@@ -257,3 +257,30 @@ pub fn load_config() -> SibylConfig {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_load_config_from_file() {
+        let config = load_config();
+        assert_eq!(config.harness.default, "opencode");
+        assert_eq!(config.harness.opencode.url, "http://localhost:4096");
+        assert_eq!(config.dependencies.opencode.mode, DepMode::Attach);
+    }
+
+    #[test]
+    fn test_find_config_path() {
+        let path = find_config_path();
+        assert!(path.is_some());
+        assert!(path.unwrap().ends_with("config.yaml"));
+    }
+
+    #[test]
+    fn test_sibyl_config_defaults() {
+        let config = SibylConfig::default();
+        assert_eq!(config.harness.default, "opencode");
+        assert!(config.dependencies.auto_start);
+    }
+}
