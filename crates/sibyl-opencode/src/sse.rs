@@ -62,12 +62,13 @@ impl SseClient {
                         if event.event == "message" || event.event.is_empty() {
                             let data = event.data.trim();
                             if data.is_empty() {
+                                tracing::debug!("SSE data is empty, skipping");
                                 return None;
                             }
                             let event_json: serde_json::Value = match serde_json::from_str(data) {
                                 Ok(v) => v,
                                 Err(e) => {
-                                    tracing::warn!("JSON parse error: {} - data: {}", e, data);
+                                    tracing::error!("JSON parse error: {} - data: {}", e, data);
                                     return None;
                                 }
                             };
@@ -76,13 +77,13 @@ impl SseClient {
                             } else {
                                 event_json
                             };
-                            match serde_json::from_value::<OpenCodeEvent>(inner_event) {
+                            match serde_json::from_value::<OpenCodeEvent>(inner_event.clone()) {
                                 Ok(parsed) => {
                                     tracing::info!("Parsed SSE event: {:?}", parsed);
                                     Some(Ok(parsed))
                                 }
                                 Err(e) => {
-                                    tracing::warn!("Event parse error: {} - data: {}", e, data);
+                                    tracing::error!("Event parse error: {} - payload: {} - data: {}", e, inner_event, data);
                                     None
                                 }
                             }

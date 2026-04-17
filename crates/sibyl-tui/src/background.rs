@@ -76,10 +76,11 @@ impl BackgroundTask {
         tracing::info!("Background task started, SSE stream: {:?}", events_stream.is_some());
         
         loop {
+            tracing::debug!("Background loop tick, events_stream: {:?}", events_stream.is_some());
             tokio::select! {
                 cmd = self.rx.recv() => {
                     if let Some(event) = cmd {
-                        tracing::debug!("Background received command: {:?}", event);
+                        tracing::info!("Background received command: {:?}", event);
                         self.handle_command(event).await;
                     }
                 }
@@ -89,12 +90,17 @@ impl BackgroundTask {
                             use futures::StreamExt;
                             ev.next().await
                         }
-                        None => std::future::pending::<Option<Result<OpenCodeEvent, OpenCodeError>>>().await,
+                        None => {
+                            tracing::warn!("SSE stream is None, no events will be received");
+                            std::future::pending::<Option<Result<OpenCodeEvent, OpenCodeError>>>().await
+                        }
                     }
                 } => {
                     if let Some(Ok(event)) = event_result {
                         tracing::info!("Background received SSE event: {:?}", event);
                         self.handle_event(event).await;
+                    } else if let Some(Err(e)) = event_result {
+                        tracing::error!("SSE stream error: {:?}", e);
                     }
                 }
             }
@@ -327,24 +333,31 @@ pub async fn spawn_background_task_with_events(
     ipc: IpcClient,
     bg_rx: Receiver<BackgroundCommand>,
     ui_tx: Sender<UiEvent>,
+    ready_tx: tokio::sync::oneshot::Sender<bool>,
 ) -> tokio::task::JoinHandle<()> {
     let task = BackgroundTask::new(opencode, ipc, ui_tx, bg_rx);
     tokio::spawn(async move {
         let mut task = task;
-        tracing::info!("Attempting WebSocket connection to OpenCode events");
-        match task.opencode.connect_events().await {
+        tracing::info!("Attempting SSE connection to OpenCode events");
+        let connected = match task.opencode.connect_events().await {
             Ok(_) => {
-                tracing::info!("WebSocket connected successfully");
+                tracing::info!("SSE connected successfully");
                 let mut guard = task.opencode.event_stream.write().await;
                 if let Some(stream) = guard.take() {
                     task.events = Some(stream);
-                    tracing::info!("WebSocket stream attached to background task");
+                    tracing::info!("SSE stream attached to background task");
+                    true
+                } else {
+                    tracing::error!("SSE stream was None after connection");
+                    false
                 }
             }
             Err(e) => {
-                tracing::error!("WebSocket connection failed: {:?}", e);
+                tracing::error!("SSE connection failed: {:?}", e);
+                false
             }
-        }
+        };
+        let _ = ready_tx.send(connected);
         task.run().await
     })
 }

@@ -190,9 +190,23 @@ pub enum Part {
         state: ToolState,
     },
     #[serde(rename = "step-start")]
-    StepStart { id: String },
+    StepStart {
+        id: String,
+        #[serde(default)]
+        message_id: Option<String>,
+        #[serde(rename = "sessionID", default)]
+        session_id: Option<String>,
+    },
     #[serde(rename = "step-finish")]
-    StepFinish { id: String },
+    StepFinish {
+        id: String,
+        #[serde(default)]
+        reason: Option<String>,
+        #[serde(default)]
+        tokens: Option<serde_json::Value>,
+        #[serde(default)]
+        cost: Option<f64>,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

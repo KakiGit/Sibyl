@@ -162,9 +162,18 @@ fn main() -> anyhow::Result<()> {
     let ipc = IpcClient::new(&config.ipc.socket_path);
     
     tracing::info!("Spawning background task with SSE events");
+    let (ready_tx, ready_rx) = tokio::sync::oneshot::channel();
     let bg_handle = rt.spawn(async move {
-        spawn_background_task_with_events(opencode, ipc, bg_rx, ui_tx).await
+        spawn_background_task_with_events(opencode, ipc, bg_rx, ui_tx, ready_tx).await
     });
+    
+    tracing::info!("Waiting for SSE connection...");
+    match rt.block_on(ready_rx) {
+        Ok(true) => tracing::info!("SSE connected successfully"),
+        Ok(false) => tracing::warn!("SSE connection failed, continuing without SSE"),
+        Err(_) => tracing::warn!("Background task crashed before SSE connection"),
+    }
+    
     tracing::info!("Background task spawned, handle: {:?}", bg_handle);
     
     let app = App::new(deps.clone(), config, bg_tx, ui_rx);
