@@ -1,0 +1,345 @@
+use tokio::sync::mpsc::{Sender, Receiver, channel};
+use sibyl_opencode::websocket::EventStream;
+use sibyl_opencode::types::OpenCodeEvent;
+use sibyl_opencode::client::OpenCodeClient;
+use sibyl_opencode::types::UserMessage;
+use sibyl_ipc::client::IpcClient;
+use sibyl_ipc::{Method, Request};
+use sibyl_harness::Harness;
+use futures::StreamExt;
+
+#[derive(Debug, Clone)]
+pub enum UiEvent {
+    SessionIdle { session_id: String },
+    SessionBusy { session_id: String },
+    MessageCreated { session_id: String, message_id: String, role: String },
+    MessagePartDelta { session_id: String, message_id: String, part_id: String, delta: String },
+    MessagePartComplete { session_id: String, message_id: String, part_id: String, content: String },
+    MessageComplete { session_id: String, message_id: String },
+    ToolUse { session_id: String, tool: String, status: String },
+    Error { session_id: String, message: String },
+    MemoryRetrieved { memories: Vec<String> },
+    PromptBuilt { prompt: String },
+}
+
+#[derive(Debug, Clone)]
+pub enum BackgroundCommand {
+    SendMessage { text: String, session_id: Option<String> },
+    AbortSession { session_id: String },
+    CreateSession,
+}
+
+#[derive(Debug, Clone)]
+pub struct QueuedMessage {
+    pub text: String,
+    pub memories: Option<Vec<String>>,
+    pub prompt: Option<String>,
+}
+
+pub struct BackgroundTask {
+    events: Option<EventStream>,
+    opencode: OpenCodeClient,
+    ipc: IpcClient,
+    tx: Sender<UiEvent>,
+    rx: Receiver<BackgroundCommand>,
+    queue: Vec<QueuedMessage>,
+    session_id: Option<String>,
+    session_busy: bool,
+    current_message_id: Option<String>,
+    current_part_id: Option<String>,
+    streaming_text: String,
+}
+
+impl BackgroundTask {
+    pub fn new(
+        opencode: OpenCodeClient,
+        ipc: IpcClient,
+        tx: Sender<UiEvent>,
+        rx: Receiver<BackgroundCommand>,
+    ) -> Self {
+        Self {
+            events: None,
+            opencode,
+            ipc,
+            tx,
+            rx,
+            queue: Vec::new(),
+            session_id: None,
+            session_busy: false,
+            current_message_id: None,
+            current_part_id: None,
+            streaming_text: String::new(),
+        }
+    }
+
+    pub fn with_events(mut self, events: EventStream) -> Self {
+        self.events = Some(events);
+        self
+    }
+
+    pub async fn run(mut self) {
+        let mut events = self.events.take();
+        loop {
+            let cmd = self.rx.recv().await;
+            if let Some(event) = cmd {
+                self.handle_command(event).await;
+            }
+
+            if let Some(ref mut ev) = events {
+                match ev.next().await {
+                    Some(Ok(event)) => {
+                        self.handle_event(event).await;
+                    }
+                    Some(Err(_)) | None => {}
+                }
+            }
+
+            tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+
+            if !self.session_busy && !self.queue.is_empty() {
+                self.process_queue().await;
+            }
+        }
+    }
+
+    async fn handle_command(&mut self, cmd: BackgroundCommand) {
+        match cmd {
+            BackgroundCommand::SendMessage { text, session_id } => {
+                if self.session_busy {
+                    self.queue.push(QueuedMessage {
+                        text,
+                        memories: None,
+                        prompt: None,
+                    });
+                    let _ = self.tx.send(UiEvent::MessageCreated {
+                        session_id: self.session_id.clone().unwrap_or_default(),
+                        message_id: "pending".to_string(),
+                        role: "user".to_string(),
+                    });
+                } else {
+                    self.send_message(text, session_id).await;
+                }
+            }
+            BackgroundCommand::AbortSession { session_id } => {
+                let _ = self.opencode.abort_session(&session_id).await;
+                self.session_busy = false;
+                let _ = self.tx.send(UiEvent::SessionIdle { session_id });
+            }
+            BackgroundCommand::CreateSession => {
+                if self.session_id.is_none() {
+                    let cwd = std::env::current_dir().ok();
+                    if let Ok(info) = self.opencode.create_session(cwd.as_deref()).await {
+                        self.session_id = Some(info.id.clone());
+                        let _ = self.tx.send(UiEvent::SessionIdle { session_id: info.id });
+                    }
+                }
+            }
+        }
+    }
+
+    async fn handle_event(&mut self, event: OpenCodeEvent) {
+        match event {
+            OpenCodeEvent::SessionStatus { properties } => {
+                self.session_busy = match properties.status {
+                    sibyl_opencode::types::SessionStatus::Busy => true,
+                    sibyl_opencode::types::SessionStatus::Idle => false,
+                    sibyl_opencode::types::SessionStatus::Retry { .. } => true,
+                };
+                let _ = self.tx.send(if self.session_busy {
+                    UiEvent::SessionBusy { session_id: properties.session_id }
+                } else {
+                    UiEvent::SessionIdle { session_id: properties.session_id }
+                });
+            }
+            OpenCodeEvent::SessionIdle { properties } => {
+                self.session_busy = false;
+                self.session_id = Some(properties.session_id.clone());
+                let _ = self.tx.send(UiEvent::SessionIdle { session_id: properties.session_id });
+            }
+            OpenCodeEvent::MessageUpdated { properties } => {
+                let role_str = match properties.info.role {
+                    sibyl_opencode::types::MessageRole::User => "user",
+                    sibyl_opencode::types::MessageRole::Assistant => "assistant",
+                    sibyl_opencode::types::MessageRole::System => "system",
+                };
+                let _ = self.tx.send(UiEvent::MessageCreated {
+                    session_id: properties.session_id.clone(),
+                    message_id: properties.info.id.clone(),
+                    role: role_str.to_string(),
+                });
+                if role_str == "assistant" {
+                    self.current_message_id = Some(properties.info.id.clone());
+                    if properties.info.time.completed.is_some() {
+                        let _ = self.tx.send(UiEvent::MessageComplete {
+                            session_id: properties.session_id,
+                            message_id: properties.info.id,
+                        });
+                    }
+                }
+            }
+            OpenCodeEvent::MessagePartUpdated { properties, .. } => {
+                match properties.part {
+                    sibyl_opencode::types::Part::Text { id, text, time } => {
+                        if time.as_ref().and_then(|t| t.end).is_some() {
+                            let _ = self.tx.send(UiEvent::MessagePartComplete {
+                                session_id: properties.session_id,
+                                message_id: self.current_message_id.clone().unwrap_or_default(),
+                                part_id: id,
+                                content: text,
+                            });
+                        }
+                    }
+                    sibyl_opencode::types::Part::Tool { id: _, tool, state } => {
+                        let _ = self.tx.send(UiEvent::ToolUse {
+                            session_id: properties.session_id,
+                            tool,
+                            status: state.status,
+                        });
+                    }
+                    _ => {}
+                }
+            }
+            OpenCodeEvent::MessagePartDelta { properties } => {
+                self.streaming_text.push_str(&properties.delta);
+                let _ = self.tx.send(UiEvent::MessagePartDelta {
+                    session_id: properties.session_id,
+                    message_id: properties.message_id,
+                    part_id: properties.part_id,
+                    delta: properties.delta,
+                });
+            }
+            OpenCodeEvent::SessionError { properties } => {
+                let msg = properties.error.message.clone()
+                    .unwrap_or_else(|| properties.error.name.clone());
+                let _ = self.tx.send(UiEvent::Error {
+                    session_id: properties.session_id,
+                    message: msg,
+                });
+            }
+            OpenCodeEvent::PermissionAsked { properties } => {
+                let _ = self.tx.send(UiEvent::Error {
+                    session_id: properties.session_id,
+                    message: format!("Permission requested: {}", properties.permission),
+                });
+            }
+            _ => {}
+        }
+    }
+
+    async fn send_message(&mut self, text: String, session_id: Option<String>) {
+        let sid = match session_id.or(self.session_id.clone()) {
+            Some(id) => id,
+            None => {
+                let cwd = std::env::current_dir().ok();
+                match self.opencode.create_session(cwd.as_deref()).await {
+                    Ok(info) => {
+                        self.session_id = Some(info.id.clone());
+                        info.id
+                    }
+                    Err(_) => {
+                        let _ = self.tx.send(UiEvent::Error {
+                            session_id: "unknown".to_string(),
+                            message: "Failed to create session".to_string(),
+                        });
+                        return;
+                    }
+                }
+            }
+        };
+
+        let memories_result = self.retrieve_memories(&text, &sid).await;
+        let prompt = self.build_prompt(&text, &sid, &memories_result).await;
+
+        let user_msg = UserMessage::with_context(&text, &prompt);
+        let _ = self.opencode.send_user_message_async(&sid, &user_msg).await;
+        
+        self.session_busy = true;
+        self.streaming_text.clear();
+        let _ = self.tx.send(UiEvent::SessionBusy { session_id: sid });
+    }
+
+    async fn retrieve_memories(&self, text: &str, session_id: &str) -> Option<serde_json::Value> {
+        let query_request = Request::new(Method::MemoryQuery, serde_json::json!({ 
+            "query": text,
+            "session_id": session_id,
+            "num_results": 10
+        }));
+        self.ipc.send(query_request).await.ok().and_then(|r| r.result)
+    }
+
+    async fn build_prompt(&self, text: &str, session_id: &str, memories_result: &Option<serde_json::Value>) -> String {
+        let build_request = Request::new(Method::PromptBuild, serde_json::json!({
+            "session_id": session_id,
+            "project_path": std::env::current_dir().ok().map(|p| p.to_string_lossy().to_string()),
+            "user_query": text,
+            "conversation_history": [],
+            "memories": {
+                "episodes": memories_result.as_ref().and_then(|r| r.get("episodes")).cloned().unwrap_or(serde_json::json!([])),
+                "entities": memories_result.as_ref().and_then(|r| r.get("entities")).cloned().unwrap_or(serde_json::json!([])),
+                "facts": memories_result.as_ref().and_then(|r| r.get("facts")).cloned().unwrap_or(serde_json::json!([])),
+            },
+            "tools": ["bash", "read", "write", "edit", "glob", "grep"],
+            "harness_name": "opencode",
+            "max_tokens": 4000
+        }));
+        self.ipc.send(build_request).await
+            .ok()
+            .and_then(|r| r.result)
+            .and_then(|result| result.get("prompt").and_then(|p| p.as_str()).map(String::from))
+            .unwrap_or_default()
+    }
+
+    async fn process_queue(&mut self) {
+        if !self.queue.is_empty() && !self.session_busy {
+            let msg = self.queue.remove(0);
+            self.send_message(msg.text, self.session_id.clone()).await;
+        }
+    }
+
+    #[allow(dead_code)]
+    async fn store_memory(&self, session_id: &str, user_text: &str, assistant_text: &str) {
+        let full_conversation = format!("User: {}\nAssistant: {}", user_text, assistant_text);
+        let add_request = Request::new(Method::MemoryAddEpisode, serde_json::json!({
+            "name": "conversation",
+            "content": full_conversation,
+            "source_description": "user conversation",
+            "session_id": session_id
+        }));
+        let _ = self.ipc.send(add_request).await;
+    }
+}
+
+pub fn create_channels() -> (Sender<BackgroundCommand>, Receiver<BackgroundCommand>, Sender<UiEvent>, Receiver<UiEvent>) {
+    let (bg_tx, bg_rx) = channel::<BackgroundCommand>(32);
+    let (ui_tx, ui_rx) = channel::<UiEvent>(32);
+    (bg_tx, bg_rx, ui_tx, ui_rx)
+}
+
+pub async fn spawn_background_task(
+    opencode: OpenCodeClient,
+    ipc: IpcClient,
+    bg_rx: Receiver<BackgroundCommand>,
+    ui_tx: Sender<UiEvent>,
+) -> tokio::task::JoinHandle<()> {
+    let task = BackgroundTask::new(opencode, ipc, ui_tx, bg_rx);
+    tokio::spawn(task.run())
+}
+
+pub async fn spawn_background_task_with_events(
+    opencode: OpenCodeClient,
+    ipc: IpcClient,
+    bg_rx: Receiver<BackgroundCommand>,
+    ui_tx: Sender<UiEvent>,
+) -> tokio::task::JoinHandle<()> {
+    let task = BackgroundTask::new(opencode, ipc, ui_tx, bg_rx);
+    tokio::spawn(async move {
+        let mut task = task;
+        if task.opencode.connect_events().await.is_ok() {
+            let mut guard = task.opencode.event_stream.write().await;
+            if let Some(stream) = guard.take() {
+                task.events = Some(stream);
+            }
+        }
+        task.run().await
+    })
+}

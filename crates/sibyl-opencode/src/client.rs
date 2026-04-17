@@ -16,7 +16,7 @@ pub struct OpenCodeClient {
     http: Client,
     config: OpenCodeConfig,
     process: Option<Arc<OpenCodeProcess>>,
-    event_stream: Arc<RwLock<Option<EventStream>>>,
+    pub event_stream: Arc<RwLock<Option<EventStream>>>,
     sessions: Arc<RwLock<HashMap<String, String>>>,
 }
 
@@ -91,6 +91,17 @@ impl OpenCodeClient {
     
     pub async fn send_user_message(&self, session_id: &str, message: &UserMessage) -> crate::Result<()> {
         let url = format!("{}/session/{}/message", self.config.url, session_id);
+        self.http
+            .post(&url)
+            .json(message)
+            .send()
+            .await
+            .map_err(|e| Error::RequestFailed(e.to_string()))?;
+        Ok(())
+    }
+    
+    pub async fn send_user_message_async(&self, session_id: &str, message: &UserMessage) -> crate::Result<()> {
+        let url = format!("{}/session/{}/prompt_async", self.config.url, session_id);
         self.http
             .post(&url)
             .json(message)

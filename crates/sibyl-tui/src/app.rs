@@ -1,4 +1,5 @@
 use chrono::{DateTime, Utc};
+use tokio::sync::mpsc::{Receiver, Sender};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AppMode {
@@ -28,6 +29,7 @@ pub struct Message {
     pub content: String,
     pub timestamp: DateTime<Utc>,
     pub memories_injected: Vec<String>,
+    pub pending: bool,
 }
 
 impl Message {
@@ -37,11 +39,17 @@ impl Message {
             content,
             timestamp: Utc::now(),
             memories_injected: Vec::new(),
+            pending: false,
         }
     }
 
     pub fn with_memories(mut self, memories: Vec<String>) -> Self {
         self.memories_injected = memories;
+        self
+    }
+
+    pub fn pending(mut self) -> Self {
+        self.pending = true;
         self
     }
 }
@@ -84,6 +92,23 @@ impl ChatState {
         let max_offset = max_lines.saturating_sub(visible_lines);
         self.scroll_offset = (self.scroll_offset + amount).min(max_offset);
     }
+
+    pub fn start_streaming(&mut self) {
+        self.streaming = true;
+        self.current_response = Some(String::new());
+    }
+
+    pub fn append_stream(&mut self, delta: &str) {
+        if let Some(ref mut response) = self.current_response {
+            response.push_str(delta);
+        }
+    }
+
+    pub fn finish_stream(&mut self, content: String) {
+        self.streaming = false;
+        self.current_response = None;
+        self.add_message(Message::new(MessageRole::Assistant, content));
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -102,6 +127,70 @@ impl Default for MemoryPanelState {
             query: String::new(),
             scroll_offset: 0,
         }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct QueuePanelState {
+    pub messages: Vec<String>,
+    pub selected_index: Option<usize>,
+}
+
+impl Default for QueuePanelState {
+    fn default() -> Self {
+        Self {
+            messages: Vec::new(),
+            selected_index: None,
+        }
+    }
+}
+
+impl QueuePanelState {
+    pub fn add(&mut self, text: String) {
+        self.messages.push(text);
+    }
+
+    pub fn remove_selected(&mut self) -> Option<String> {
+        if let Some(idx) = self.selected_index {
+            if idx < self.messages.len() {
+                self.messages.remove(idx);
+                self.selected_index = if self.messages.is_empty() {
+                    None
+                } else {
+                    Some(idx.min(self.messages.len() - 1))
+                };
+            }
+        }
+        None
+    }
+
+    pub fn clear(&mut self) {
+        self.messages.clear();
+        self.selected_index = None;
+    }
+
+    pub fn select_up(&mut self) {
+        if !self.messages.is_empty() {
+            self.selected_index = Some(self.selected_index.map_or(0, |i| i.saturating_sub(1)));
+        }
+    }
+
+    pub fn select_down(&mut self) {
+        if !self.messages.is_empty() {
+            let max = self.messages.len() - 1;
+            self.selected_index = Some(
+                self.selected_index
+                    .map_or(0, |i| i.min(max).saturating_add(1)),
+            );
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.messages.is_empty()
+    }
+
+    pub fn count(&self) -> usize {
+        self.messages.len()
     }
 }
 
@@ -204,6 +293,8 @@ pub struct StatusBarState {
     pub session_id: Option<String>,
     pub memory_count: usize,
     pub dep_status: String,
+    pub queue_count: usize,
+    pub streaming: bool,
 }
 
 impl Default for StatusBarState {
@@ -213,55 +304,59 @@ impl Default for StatusBarState {
             session_id: None,
             memory_count: 0,
             dep_status: "Checking dependencies...".to_string(),
+            queue_count: 0,
+            streaming: false,
         }
     }
 }
 
-use std::sync::Arc;
 use crossterm::event::KeyEvent;
 use sibyl_deps::{DependencyManager, SibylConfig};
-use sibyl_harness::Harness;
 use sibyl_ipc::client::IpcClient;
 use sibyl_ipc::{Method, Request};
 use sibyl_opencode::client::OpenCodeClient;
 use sibyl_opencode::config::OpenCodeConfig;
-use sibyl_opencode::types::UserMessage;
+use std::sync::Arc;
 
-use crate::input::{handle_chat_key, handle_global_key, handle_memory_key, Command, InputComposer, HandleResult, should_handle_as_input, get_command_completions};
-use crate::widgets::{Spinner, SpinnerState, CompletionPopup};
+use crate::background::{BackgroundCommand, UiEvent};
+use crate::input::{
+    get_command_completions, handle_chat_key, handle_global_key, handle_memory_key,
+    should_handle_as_input, Command, HandleResult, InputComposer,
+};
+use crate::widgets::{CompletionPopup, Spinner, SpinnerState};
 
 pub struct App {
     mode: AppMode,
     status: AppStatus,
     chat: ChatState,
     memory: MemoryPanelState,
+    queue: QueuePanelState,
     input: InputState,
     status_bar: StatusBarState,
     composer: InputComposer,
     spinner: Spinner,
     completion: CompletionPopup,
-    opencode: OpenCodeClient,
-    ipc: IpcClient,
+    bg_tx: Sender<BackgroundCommand>,
+    ui_rx: Receiver<UiEvent>,
     session_id: Option<String>,
+    session_busy: bool,
     deps: Arc<DependencyManager>,
     config: SibylConfig,
 }
 
 impl App {
-    pub fn new(deps: Arc<DependencyManager>, config: SibylConfig) -> Self {
-        let opencode_config = OpenCodeConfig {
-            url: config.harness.opencode.url.clone(),
-            model: config.harness.opencode.model.clone(),
-            ..Default::default()
-        };
-        let opencode = OpenCodeClient::new(opencode_config);
-        let ipc = IpcClient::new(&config.ipc.socket_path);
-        
+    pub fn new(
+        deps: Arc<DependencyManager>,
+        config: SibylConfig,
+        bg_tx: Sender<BackgroundCommand>,
+        ui_rx: Receiver<UiEvent>,
+    ) -> Self {
         Self {
             mode: AppMode::Chat,
             status: AppStatus::Idle,
             chat: ChatState::default(),
             memory: MemoryPanelState::default(),
+            queue: QueuePanelState::default(),
             input: InputState::default(),
             status_bar: StatusBarState {
                 model: config.harness.opencode.model.clone(),
@@ -270,9 +365,10 @@ impl App {
             composer: InputComposer::new(),
             spinner: Spinner::new(),
             completion: CompletionPopup::new(),
-            opencode,
-            ipc,
+            bg_tx,
+            ui_rx,
             session_id: None,
+            session_busy: false,
             deps,
             config,
         }
@@ -292,6 +388,10 @@ impl App {
 
     pub fn memory(&self) -> &MemoryPanelState {
         &self.memory
+    }
+
+    pub fn queue(&self) -> &QueuePanelState {
+        &self.queue
     }
 
     pub fn memory_visible(&self) -> bool {
@@ -321,6 +421,87 @@ impl App {
 
     pub fn tick_spinner(&mut self) {
         self.spinner.tick();
+    }
+
+    pub fn process_events(&mut self) {
+        while let Ok(event) = self.ui_rx.try_recv() {
+            self.handle_ui_event(event);
+        }
+    }
+
+    fn handle_ui_event(&mut self, event: UiEvent) {
+        match event {
+            UiEvent::SessionIdle { session_id } => {
+                self.session_busy = false;
+                self.session_id = Some(session_id.clone());
+                self.status_bar.session_id = Some(session_id);
+                self.status_bar.streaming = false;
+                self.status = AppStatus::Idle;
+                self.spinner.stop();
+
+                if self.chat.streaming {
+                    let content = self.chat.current_response.clone().unwrap_or_default();
+                    self.chat.finish_stream(content);
+                }
+
+                if !self.queue.is_empty() && self.queue.messages.first().is_some() {
+                    let next_msg = self.queue.messages.remove(0);
+                    self.status_bar.queue_count = self.queue.count();
+                    let _ = self.bg_tx.send(BackgroundCommand::SendMessage {
+                        text: next_msg,
+                        session_id: self.session_id.clone(),
+                    });
+                    self.session_busy = true;
+                    self.chat.start_streaming();
+                    self.status_bar.streaming = true;
+                }
+            }
+            UiEvent::SessionBusy { session_id } => {
+                self.session_busy = true;
+                self.session_id = Some(session_id);
+                self.status = AppStatus::Processing;
+                self.spinner.start(SpinnerState::Processing);
+                if !self.chat.streaming {
+                    self.chat.start_streaming();
+                    self.status_bar.streaming = true;
+                }
+            }
+            UiEvent::MessageCreated { role, .. } => if role == "user" {},
+            UiEvent::MessagePartDelta { delta, .. } => {
+                self.chat.append_stream(&delta);
+            }
+            UiEvent::MessagePartComplete { content, .. } => {
+                self.chat.finish_stream(content.clone());
+                let _ = self.bg_tx.send(BackgroundCommand::SendMessage {
+                    text: content,
+                    session_id: self.session_id.clone(),
+                });
+            }
+            UiEvent::MessageComplete { .. } => {
+                self.chat.streaming = false;
+                self.status_bar.streaming = false;
+            }
+            UiEvent::ToolUse { tool, status, .. } => {
+                if status == "completed" {
+                    let msg =
+                        Message::new(MessageRole::System, format!("Tool '{}' completed", tool));
+                    self.chat.add_message(msg);
+                } else if status == "error" {
+                    let msg = Message::new(MessageRole::System, format!("Tool '{}' failed", tool));
+                    self.chat.add_message(msg);
+                }
+            }
+            UiEvent::Error { message, .. } => {
+                let msg = Message::new(MessageRole::System, format!("Error: {}", message));
+                self.chat.add_message(msg);
+                self.status = AppStatus::Error;
+            }
+            UiEvent::MemoryRetrieved { memories } => {
+                self.memory.results = memories.clone();
+                self.status_bar.memory_count = memories.len();
+            }
+            _ => {}
+        }
     }
 
     #[allow(dead_code)]
@@ -376,10 +557,6 @@ impl App {
     }
 
     fn handle_chat_mode(&mut self, key: KeyEvent) {
-        if self.status == AppStatus::Processing {
-            return;
-        }
-
         let result = handle_chat_key(key);
         match result {
             HandleResult::ScrollDown(n) => {
@@ -544,7 +721,10 @@ impl App {
         }
 
         if text.to_lowercase().starts_with("remember that") {
-            let fact = text.trim_start_matches("Remember that").trim_start_matches("remember that").trim();
+            let fact = text
+                .trim_start_matches("Remember that")
+                .trim_start_matches("remember that")
+                .trim();
             if !fact.is_empty() {
                 let rt = tokio::runtime::Runtime::new().unwrap();
                 let ipc_client = IpcClient::new(&self.config.ipc.socket_path);
@@ -559,125 +739,29 @@ impl App {
                     }
                     _ => format!("Failed to remember: {}", fact),
                 };
-                self.chat.add_message(Message::new(MessageRole::System, message));
+                self.chat
+                    .add_message(Message::new(MessageRole::System, message));
             }
             return;
         }
 
         let msg = Message::new(MessageRole::User, text.clone());
         self.chat.add_message(msg);
-        self.status = AppStatus::Processing;
-        self.spinner.start(SpinnerState::Processing);
 
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        
-        let session_id = self.session_id.clone();
-        let ipc_socket = self.config.ipc.socket_path.clone();
-        let ipc_client = IpcClient::new(&ipc_socket);
-        let opencode_url = self.config.harness.opencode.url.clone();
-        let opencode_model = self.config.harness.opencode.model.clone();
-        let opencode_config = OpenCodeConfig {
-            url: opencode_url,
-            model: opencode_model,
-            ..Default::default()
-        };
-        let opencode_client = OpenCodeClient::new(opencode_config);
-        
-        let result: (Option<String>, Option<serde_json::Value>, Option<String>) = rt.block_on(async {
-            let sid = match session_id {
-                Some(id) => id,
-                None => {
-                    let cwd = std::env::current_dir().ok();
-                    match opencode_client.create_session(cwd.as_deref()).await {
-                        Ok(info) => info.id,
-                        Err(_) => return (None, None, None),
-                    }
-                }
-            };
-            
-            let query_request = Request::new(Method::MemoryQuery, serde_json::json!({ 
-                "query": text,
-                "session_id": sid,
-                "num_results": 10
-            }));
-            let memories_result: Option<serde_json::Value> = ipc_client.send(query_request).await.ok().and_then(|r| r.result);
-            
-            let build_request = Request::new(Method::PromptBuild, serde_json::json!({
-                "session_id": sid,
-                "project_path": std::env::current_dir().ok().map(|p| p.to_string_lossy().to_string()),
-                "user_query": text,
-                "conversation_history": [],
-                "memories": {
-                    "episodes": memories_result.as_ref().and_then(|r| r.get("episodes")).cloned().unwrap_or(serde_json::json!([])),
-                    "entities": memories_result.as_ref().and_then(|r| r.get("entities")).cloned().unwrap_or(serde_json::json!([])),
-                    "facts": memories_result.as_ref().and_then(|r| r.get("facts")).cloned().unwrap_or(serde_json::json!([])),
-                },
-                "tools": ["bash", "read", "write", "edit", "glob", "grep"],
-                "harness_name": "opencode",
-                "max_tokens": 4000
-            }));
-            let built_prompt = ipc_client.send(build_request).await
-                .ok()
-                .and_then(|r| r.result)
-                .and_then(|result| result.get("prompt").and_then(|p| p.as_str()).map(String::from))
-                .unwrap_or_default();
-            
-            let user_msg = UserMessage::with_context(&text, &built_prompt);
-            let _ = opencode_client.send_user_message(&sid, &user_msg).await;
-            
-            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-            
-            let msgs: Option<Vec<serde_json::Value>> = opencode_client.get_messages_raw(&sid).await.ok();
-            let content: Option<String> = msgs.as_ref()
-                .and_then(|m: &Vec<serde_json::Value>| m.last())
-                .and_then(|m: &serde_json::Value| m.get("parts"))
-                .and_then(|p: &serde_json::Value| p.as_array())
-                .and_then(|parts: &Vec<serde_json::Value>| parts.iter().find(|p| p.get("type").and_then(|t| t.as_str()) == Some("text")))
-                .and_then(|p: &serde_json::Value| p.get("text").and_then(|t| t.as_str()).map(String::from));
-            
-            let full_conversation = format!("User: {}\nAssistant: {}", text, content.as_deref().unwrap_or(""));
-            let add_request = Request::new(Method::MemoryAddEpisode, serde_json::json!({
-                "name": "conversation",
-                "content": full_conversation,
-                "source_description": "user conversation",
-                "session_id": sid
-            }));
-            let _ = ipc_client.send(add_request).await;
-            
-            (Some(sid), memories_result, content)
-        });
-        
-        let (new_session_id, mem_result, assistant_content) = result;
-
-        if let Some(sid) = new_session_id {
-            self.session_id = Some(sid.clone());
-            self.status_bar.session_id = Some(sid);
+        if self.session_busy {
+            self.queue.add(text.clone());
+            self.status_bar.queue_count = self.queue.count();
+        } else {
+            let _ = self.bg_tx.send(BackgroundCommand::SendMessage {
+                text,
+                session_id: self.session_id.clone(),
+            });
+            self.session_busy = true;
+            self.status = AppStatus::Processing;
+            self.spinner.start(SpinnerState::Processing);
+            self.chat.start_streaming();
+            self.status_bar.streaming = true;
         }
-
-        if let Some(mem_result) = mem_result {
-            if let Some(episodes) = mem_result.get("episodes").and_then(|e| e.as_array()) {
-                self.memory.results = episodes
-                    .iter()
-                    .filter_map(|e| e.get("content").and_then(|c| c.as_str()).map(String::from))
-                    .collect();
-                self.status_bar.memory_count = self.memory.results.len();
-            }
-        }
-
-        let content = assistant_content.unwrap_or_else(|| {
-            if self.session_id.is_some() {
-                "Message sent to OpenCode. Waiting for response..."
-            } else {
-                "OpenCode not available. Memory system connected."
-            }.to_string()
-        });
-        
-        let assistant_msg = Message::new(MessageRole::Assistant, content)
-            .with_memories(self.memory.results.clone());
-        self.chat.add_message(assistant_msg);
-
-        self.status = AppStatus::Idle;
-        self.spinner.stop();
     }
 
     fn execute_command(&mut self, text: &str) {
@@ -695,7 +779,6 @@ impl App {
                 }
                 Command::MemoryQuery(query) => {
                     if !query.is_empty() {
-                        self.status = AppStatus::Processing;
                         let rt = tokio::runtime::Runtime::new().unwrap();
                         let ipc_client = IpcClient::new(&self.config.ipc.socket_path);
                         let request = Request::new(
@@ -722,12 +805,10 @@ impl App {
                                 }
                             }
                         }
-                        self.status = AppStatus::Idle;
                     }
                 }
                 Command::Remember(fact) => {
                     if !fact.is_empty() {
-                        self.status = AppStatus::Processing;
                         let rt = tokio::runtime::Runtime::new().unwrap();
                         let ipc_client = IpcClient::new(&self.config.ipc.socket_path);
                         let request = Request::new(
@@ -742,12 +823,9 @@ impl App {
                             }
                             _ => format!("Failed to remember: {}", fact),
                         };
-                        
-                        self.chat.add_message(Message::new(
-                            MessageRole::System,
-                            message,
-                        ));
-                        self.status = AppStatus::Idle;
+
+                        self.chat
+                            .add_message(Message::new(MessageRole::System, message));
                     }
                 }
                 Command::Skill(name) => {
@@ -758,10 +836,13 @@ impl App {
                         ..Default::default()
                     };
                     let opencode = OpenCodeClient::new(opencode_config);
-                    
+
                     if let Ok(skills) = rt.block_on(opencode.list_skills()) {
                         if let Some(skill) = skills.iter().find(|s| s.name == name) {
-                            let desc = skill.description.clone().unwrap_or_else(|| "No description".to_string());
+                            let desc = skill
+                                .description
+                                .clone()
+                                .unwrap_or_else(|| "No description".to_string());
                             self.chat.add_message(Message::new(
                                 MessageRole::System,
                                 format!("Skill '{}' loaded: {}", name, desc),

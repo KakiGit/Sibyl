@@ -1,4 +1,5 @@
 mod app;
+mod background;
 mod input;
 mod render;
 mod theme;
@@ -19,9 +20,13 @@ use ratatui::{
     Terminal, Frame,
 };
 use sibyl_deps::{DependencyManager, load_config};
+use sibyl_opencode::client::OpenCodeClient;
+use sibyl_opencode::config::OpenCodeConfig;
+use sibyl_ipc::client::IpcClient;
 
 use app::{App, AppMode, AppStatus};
-use render::{render_chat, render_command_input, render_input, render_memory_panel, render_status_bar};
+use background::{create_channels, spawn_background_task_with_events};
+use render::{render_chat, render_command_input, render_input, render_memory_panel, render_status_bar, render_queue_panel};
 use widgets::render_help_overlay;
 
 fn ui(f: &mut Frame, app: &App) {
@@ -37,13 +42,24 @@ fn ui(f: &mut Frame, app: &App) {
             .split(f.area())
     };
 
+    let queue_height = if app.queue().is_empty() { 0 } else { 3 };
+    
     let main_chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(1),
-            Constraint::Min(1),
-            Constraint::Length(3),
-        ])
+        .constraints(if queue_height > 0 {
+            vec![
+                Constraint::Length(1),
+                Constraint::Min(1),
+                Constraint::Length(queue_height),
+                Constraint::Length(3),
+            ]
+        } else {
+            vec![
+                Constraint::Length(1),
+                Constraint::Min(1),
+                Constraint::Length(3),
+            ]
+        })
         .split(chunks[0]);
 
     let mode_text = match app.mode() {
@@ -54,15 +70,22 @@ fn ui(f: &mut Frame, app: &App) {
     };
     render_status_bar(f, main_chunks[0], app.status(), app.status_bar(), mode_text);
 
-    render_chat(f, app.chat(), main_chunks[1], app.status() == AppStatus::Processing);
+    let chat_area = main_chunks[1];
+    render_chat(f, app.chat(), chat_area, app.status() == AppStatus::Processing);
+
+    let input_index = if queue_height > 0 { 3 } else { 2 };
+    
+    if queue_height > 0 {
+        render_queue_panel(f, app.queue(), main_chunks[2]);
+    }
 
     if app.mode() == AppMode::CommandPalette {
-        render_command_input(f, &app.input_state(), main_chunks[2]);
+        render_command_input(f, &app.input_state(), main_chunks[input_index]);
     } else {
         render_input(
             f,
             &app.input_state(),
-            main_chunks[2],
+            main_chunks[input_index],
             app.mode() == AppMode::Chat,
             app.status() == AppStatus::Processing,
         );
@@ -90,6 +113,8 @@ fn run_app<B: ratatui::backend::Backend>(
             app.set_dep_status(dep_status);
         }
 
+        app.process_events();
+        
         terminal.draw(|f| ui(f, &app))?;
 
         app.tick_spinner();
@@ -116,10 +141,6 @@ fn main() -> anyhow::Result<()> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let app = App::new(deps.clone(), config);
-    
-    terminal.draw(|f| ui(f, &app))?;
-
     tracing::info!("Starting Sibyl - ensuring dependencies are running");
     
     let rt = tokio::runtime::Runtime::new().unwrap();
@@ -128,6 +149,24 @@ fn main() -> anyhow::Result<()> {
             tracing::error!("Failed to start critical dependency: {}", e);
         }
     });
+
+    let (bg_tx, bg_rx, ui_tx, ui_rx) = create_channels();
+    
+    let opencode_config = OpenCodeConfig {
+        url: config.harness.opencode.url.clone(),
+        model: config.harness.opencode.model.clone(),
+        ..Default::default()
+    };
+    let opencode = OpenCodeClient::new(opencode_config);
+    let ipc = IpcClient::new(&config.ipc.socket_path);
+    
+    rt.spawn(async move {
+        spawn_background_task_with_events(opencode, ipc, bg_rx, ui_tx).await
+    });
+    
+    let app = App::new(deps.clone(), config, bg_tx, ui_rx);
+    
+    terminal.draw(|f| ui(f, &app))?;
 
     let result = run_app(&mut terminal, app);
 

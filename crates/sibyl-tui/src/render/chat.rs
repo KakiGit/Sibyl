@@ -11,7 +11,7 @@ use crate::theme::*;
 use crate::widgets::scrollbar::render_scrollbar;
 
 pub fn render_chat(f: &mut Frame, state: &ChatState, area: Rect, processing: bool) {
-    if state.messages.is_empty() && !processing {
+    if state.messages.is_empty() && !processing && !state.streaming {
         render_welcome(f, area);
         return;
     }
@@ -41,7 +41,34 @@ pub fn render_chat(f: &mut Frame, state: &ChatState, area: Rect, processing: boo
         .take(visible_lines)
         .collect();
 
-    if processing {
+    if state.streaming {
+        if let Some(ref response) = state.current_response {
+            if !response.is_empty() {
+                let streaming_lines = wrap_text_simple(response, list_area.width as usize - 6);
+                for line_text in streaming_lines {
+                    items.push(ListItem::new(Line::from(vec![
+                        Span::styled("Sibyl: ", assistant_message().add_modifier(Modifier::BOLD)),
+                        Span::styled(line_text, assistant_message()),
+                    ])));
+                }
+                items.push(ListItem::new(Line::from(vec![
+                    Span::styled("⠋ ", warning()),
+                    Span::styled(
+                        "Generating...",
+                        warning().add_modifier(Modifier::SLOW_BLINK),
+                    ),
+                ])));
+            } else {
+                items.push(ListItem::new(Line::from(vec![
+                    Span::styled("⠋ ", warning()),
+                    Span::styled(
+                        "Waiting for response...",
+                        warning().add_modifier(Modifier::SLOW_BLINK),
+                    ),
+                ])));
+            }
+        }
+    } else if processing {
         items.push(ListItem::new(Line::from(vec![
             Span::styled("⠋ ", warning()),
             Span::styled(

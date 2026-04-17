@@ -1,4 +1,5 @@
 pub mod app;
+pub mod background;
 pub mod input;
 pub mod render;
 pub mod theme;
@@ -7,7 +8,12 @@ pub mod session;
 
 pub use app::{
     App, AppMode, AppStatus, ChatState, InputState, MemoryPanelState, 
-    Message, MessageRole, StatusBarState,
+    Message, MessageRole, StatusBarState, QueuePanelState,
+};
+pub use background::{
+    UiEvent, BackgroundCommand, QueuedMessage,
+    create_channels, spawn_background_task, spawn_background_task_with_events,
+    BackgroundTask,
 };
 pub use input::{
     Command, InputComposer, HandleResult,
