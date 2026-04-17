@@ -1,4 +1,4 @@
-use sibyl_opencode::websocket::EventStream;
+use sibyl_opencode::sse::EventStream;
 use sibyl_opencode::types::OpenCodeEvent;
 use sibyl_opencode::client::OpenCodeClient;
 use sibyl_opencode::types::UserMessage;
@@ -74,10 +74,13 @@ impl BackgroundTask {
         let mut events_boxed: Option<futures::stream::BoxStream<'static, Result<OpenCodeEvent, OpenCodeError>>> = 
             events.map(|e| Box::pin(e) as futures::stream::BoxStream<'static, Result<OpenCodeEvent, OpenCodeError>>);
         
+        tracing::info!("Background task started, WebSocket stream: {:?}", events_boxed.is_some());
+        
         loop {
             tokio::select! {
                 cmd = self.rx.recv() => {
                     if let Some(event) = cmd {
+                        tracing::debug!("Background received command: {:?}", event);
                         self.handle_command(event).await;
                     }
                 }
@@ -88,6 +91,7 @@ impl BackgroundTask {
                     }
                 } => {
                     if let Some(Ok(event)) = event_result {
+                        tracing::info!("Background received WebSocket event: {:?}", event);
                         self.handle_event(event).await;
                     }
                 }
@@ -118,8 +122,10 @@ impl BackgroundTask {
     }
 
     async fn handle_event(&mut self, event: OpenCodeEvent) {
+        tracing::debug!("Handling WebSocket event: {:?}", event);
         match event {
             OpenCodeEvent::SessionStatus { properties } => {
+                tracing::info!("SessionStatus: session_id={}, status={:?}", properties.session_id, properties.status);
                 self.session_busy = match properties.status {
                     sibyl_opencode::types::SessionStatus::Busy => true,
                     sibyl_opencode::types::SessionStatus::Idle => false,
@@ -132,6 +138,7 @@ impl BackgroundTask {
                 });
             }
             OpenCodeEvent::SessionIdle { properties } => {
+                tracing::info!("SessionIdle: session_id={}", properties.session_id);
                 self.session_busy = false;
                 self.session_id = Some(properties.session_id.clone());
                 let _ = self.tx.send(UiEvent::SessionIdle { session_id: properties.session_id });
@@ -307,10 +314,18 @@ pub async fn spawn_background_task_with_events(
     let task = BackgroundTask::new(opencode, ipc, ui_tx, bg_rx);
     tokio::spawn(async move {
         let mut task = task;
-        if task.opencode.connect_events().await.is_ok() {
-            let mut guard = task.opencode.event_stream.write().await;
-            if let Some(stream) = guard.take() {
-                task.events = Some(stream);
+        tracing::info!("Attempting WebSocket connection to OpenCode events");
+        match task.opencode.connect_events().await {
+            Ok(_) => {
+                tracing::info!("WebSocket connected successfully");
+                let mut guard = task.opencode.event_stream.write().await;
+                if let Some(stream) = guard.take() {
+                    task.events = Some(stream);
+                    tracing::info!("WebSocket stream attached to background task");
+                }
+            }
+            Err(e) => {
+                tracing::error!("WebSocket connection failed: {:?}", e);
             }
         }
         task.run().await

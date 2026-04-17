@@ -1,7 +1,7 @@
 use crate::config::OpenCodeConfig;
 use crate::types::*;
 use crate::spawn::OpenCodeProcess;
-use crate::websocket::{WebSocketClient, EventStream};
+use crate::sse::{SseClient, EventStream};
 use crate::Error;
 use sibyl_harness::{Harness, SessionInfo, Message, HarnessCapabilities, Error as HarnessError};
 use async_trait::async_trait;
@@ -52,10 +52,12 @@ impl OpenCodeClient {
     }
     
     pub async fn connect_events(&self) -> crate::Result<()> {
-        let ws = WebSocketClient::new(self.config.ws_url() + "/event");
-        let stream = ws.connect().await?;
+        tracing::info!("Connecting to SSE events at: {}", self.config.url.clone() + "/event");
+        let sse = SseClient::new(self.config.url.clone() + "/event");
+        let stream = sse.connect().await?;
         let mut guard = self.event_stream.write().await;
         *guard = Some(stream);
+        tracing::info!("SSE connection established");
         Ok(())
     }
     

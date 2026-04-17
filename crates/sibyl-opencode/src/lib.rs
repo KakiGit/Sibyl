@@ -1,5 +1,5 @@
 pub mod client;
-pub mod websocket;
+pub mod sse;
 pub mod error;
 pub mod types;
 pub mod config;
@@ -12,3 +12,4 @@ pub use error::{Error, Result};
 pub use types::*;
 pub use config::*;
 pub use permissions::*;
+pub use sse::EventStream;
