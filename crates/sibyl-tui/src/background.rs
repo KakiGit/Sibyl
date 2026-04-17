@@ -1,4 +1,3 @@
-use tokio::sync::mpsc::{Sender, Receiver, channel};
 use sibyl_opencode::websocket::EventStream;
 use sibyl_opencode::types::OpenCodeEvent;
 use sibyl_opencode::client::OpenCodeClient;
@@ -6,7 +5,7 @@ use sibyl_opencode::types::UserMessage;
 use sibyl_ipc::client::IpcClient;
 use sibyl_ipc::{Method, Request};
 use sibyl_harness::Harness;
-use futures::StreamExt;
+use tokio::sync::mpsc::{Sender, Receiver, channel};
 
 #[derive(Debug, Clone)]
 pub enum UiEvent {
@@ -69,23 +68,30 @@ impl BackgroundTask {
     }
 
     pub async fn run(mut self) {
-        let mut events = self.events.take();
+        use futures::StreamExt;
+        use sibyl_opencode::Error as OpenCodeError;
+        let events = self.events.take();
+        let mut events_boxed: Option<futures::stream::BoxStream<'static, Result<OpenCodeEvent, OpenCodeError>>> = 
+            events.map(|e| Box::pin(e) as futures::stream::BoxStream<'static, Result<OpenCodeEvent, OpenCodeError>>);
+        
         loop {
-            let cmd = self.rx.recv().await;
-            if let Some(event) = cmd {
-                self.handle_command(event).await;
-            }
-
-            if let Some(ref mut ev) = events {
-                match ev.next().await {
-                    Some(Ok(event)) => {
+            tokio::select! {
+                cmd = self.rx.recv() => {
+                    if let Some(event) = cmd {
+                        self.handle_command(event).await;
+                    }
+                }
+                event_result = async {
+                    match &mut events_boxed {
+                        Some(ev) => ev.next().await,
+                        None => std::future::pending::<Option<Result<OpenCodeEvent, OpenCodeError>>>().await,
+                    }
+                } => {
+                    if let Some(Ok(event)) = event_result {
                         self.handle_event(event).await;
                     }
-                    Some(Err(_)) | None => {}
                 }
             }
-
-            tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
         }
     }
 
