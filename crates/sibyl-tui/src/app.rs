@@ -424,8 +424,14 @@ impl App {
     }
 
     pub fn process_events(&mut self) {
+        let mut count = 0;
         while let Ok(event) = self.ui_rx.try_recv() {
+            tracing::info!("Received UI event: {:?}", event);
             self.handle_ui_event(event);
+            count += 1;
+        }
+        if count > 0 {
+            tracing::info!("Processed {} UI events", count);
         }
     }
 
@@ -726,12 +732,12 @@ impl App {
                 .trim_start_matches("remember that")
                 .trim();
             if !fact.is_empty() {
-                let rt = tokio::runtime::Runtime::new().unwrap();
                 let ipc_client = IpcClient::new(&self.config.ipc.socket_path);
                 let request = Request::new(
                     Method::MemoryAddUserFact,
                     serde_json::json!({ "fact": fact }),
                 );
+                let rt = tokio::runtime::Runtime::new().unwrap();
                 let result = rt.block_on(ipc_client.send(request));
                 let message = match result {
                     Ok(response) if response.error.is_none() => {
@@ -748,10 +754,18 @@ impl App {
         let msg = Message::new(MessageRole::User, text.clone());
         self.chat.add_message(msg);
 
+        tracing::info!(
+            "submit_input: session_busy={}, text={}",
+            self.session_busy,
+            text
+        );
+
         if self.session_busy {
+            tracing::info!("Adding to queue: {}", text);
             self.queue.add(text.clone());
             self.status_bar.queue_count = self.queue.count();
         } else {
+            tracing::info!("Sending message immediately: {}", text);
             let _ = self.bg_tx.blocking_send(BackgroundCommand::SendMessage {
                 text,
                 session_id: self.session_id.clone(),

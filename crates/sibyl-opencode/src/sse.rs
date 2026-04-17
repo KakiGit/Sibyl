@@ -7,6 +7,7 @@ use reqwest::Client;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use eventsource_stream::Eventsource;
+use std::time::Duration;
 
 pub struct SseClient {
     url: String,
@@ -15,9 +16,20 @@ pub struct SseClient {
 
 impl SseClient {
     pub fn new(url: impl Into<String>) -> Self {
+        let http = Client::builder()
+            .timeout(Duration::from_secs(300))
+            .build()
+            .unwrap();
         Self {
             url: url.into(),
-            http: Client::new(),
+            http,
+        }
+    }
+    
+    pub fn with_client(url: impl Into<String>, http: Client) -> Self {
+        Self {
+            url: url.into(),
+            http,
         }
     }
     
@@ -27,9 +39,13 @@ impl SseClient {
             .get(&self.url)
             .header("Accept", "text/event-stream")
             .header("Cache-Control", "no-cache")
+            .header("Connection", "keep-alive")
             .send()
             .await
-            .map_err(|e| Error::ConnectionError(e.to_string()))?;
+            .map_err(|e| {
+                tracing::error!("SSE send error: {:?}", e);
+                Error::ConnectionError(e.to_string())
+            })?;
         
         if !response.status().is_success() {
             return Err(Error::ConnectionError(format!("SSE connection failed: {}", response.status())));
