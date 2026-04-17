@@ -48,7 +48,7 @@ dependencies:
 - Total IPC runtime (excluding embedder init): ~0.24s
 - Embedder init: ~8s (one-time startup cost)
 
-## Baseline Verified (2026-04-17)
+## Baseline Verified (2026-04-17 - Reconfirmed)
 - Config loaded from ~/.config/sibyl/config.yaml ✓
   - Harness: opencode (url: http://localhost:4096, model: glm-5)
   - IPC: /tmp/sibyl-ipc.sock
@@ -66,9 +66,13 @@ dependencies:
   - FalkorDB/Redis at localhost:6379
   - OpenCode harness at localhost:4096
 - TUI tests: 7/7 passed ✓
-  - Welcome screen, keybindings, command hints
-  - Help overlay, command palette
-  - Status bar with model name
+  - simple.test.ts: headless runs (17.7s)
+  - basic.test.ts: welcome screen (15.2s)
+  - basic.test.ts: keybindings hint (15.2s)
+  - basic.test.ts: command hints (15.1s)
+  - basic.test.ts: help overlay toggle (15.2s)
+  - basic.test.ts: command palette (15.2s)
+  - basic.test.ts: status bar with model (15.2s)
   - Note: Requires Node.js 20.X LTS via fnm
 
 ## TUI Testing
@@ -80,9 +84,13 @@ dependencies:
   - Install fnm: `sudo pacman -S fnm` (Arch Linux)
   - Use Node 20: `eval "$(fnm env --shell bash)" && fnm use 20`
 - Tests verified (2026-04-17): 7/7 passed
-  - welcome screen, keybindings hint, command hints
-  - help overlay toggle, command palette
-  - status bar with model name
+  - simple.test.ts:16:38 › sibyl headless runs (17.7s)
+  - basic.test.ts:15:49 › sibyl tui shows welcome screen (15.2s)
+  - basic.test.ts:19:51 › sibyl tui shows keybindings hint (15.2s)
+  - basic.test.ts:23:48 › sibyl tui shows command hints (15.1s)
+  - basic.test.ts:27:49 › sibyl tui toggles help overlay (15.2s)
+  - basic.test.ts:33:50 › sibyl tui opens command palette (15.2s)
+  - basic.test.ts:39:56 › sibyl tui shows status bar with model (15.2s)
 
 ## Test Commands
 ```bash
