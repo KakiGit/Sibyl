@@ -17,3 +17,5 @@ tui-tests/node_modules/
 tui-tests/.tui-test/
 tui-tests/tui-traces/
 tui-tests/package-lock.json
+node_modules/
+.tui-test/cache/
