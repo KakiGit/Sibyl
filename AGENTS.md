@@ -65,7 +65,7 @@ dependencies:
   - Python IPC server (optimized version)
   - FalkorDB/Redis at localhost:6379
   - OpenCode harness at localhost:4096
-- TUI tests: 22/24 passed ✓
+- TUI tests: 16/23 passed ✓ (2026-04-17)
   - Basic tests: welcome screen, keybindings, help overlay, command palette, status bar
   - Message tests: send message, queue messages, queue panel display
   - Flow tests: nonblocking input, queue processing
@@ -81,13 +81,12 @@ dependencies:
 - **Note**: Node.js 25.X is NOT supported. Use Node.js 20.X LTS.
   - Install fnm: `sudo pacman -S fnm` (Arch Linux)
   - Use Node 20: `eval "$(fnm env --shell bash)" && fnm use 20`
-- Tests verified (2026-04-17): 22/24 passed
-  - simple.test.ts: headless runs
+- Tests verified (2026-04-17): 16/23 passed
   - basic.test.ts: welcome screen, keybindings hint, command hints, help overlay, command palette, status bar
-  - tests/messages.test.ts: send message, queue messages, queue panel, input field
+  - tests/single-message.test.ts: send message, queue messages, You indicator
   - tests/nonblocking.test.ts: typed text, responsive input, processing state
   - tests/queue-flow.test.ts: first message, queued messages, queue count, input clear
-  - tests/full-flow.test.ts: timeout (LLM response latency)
+  - tests/full-flow.test.ts: timeout (LLM response latency, expected)
 
 ## Feature Status (from DRAFT.md)
 ### Implemented ✓
