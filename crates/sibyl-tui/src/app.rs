@@ -423,6 +423,10 @@ impl App {
         self.spinner.tick();
     }
 
+    pub fn spinner_char(&self) -> &'static str {
+        self.spinner.current_str()
+    }
+
     pub fn process_events(&mut self) {
         let mut count = 0;
         while let Ok(event) = self.ui_rx.try_recv() {

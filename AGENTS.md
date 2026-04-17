@@ -71,6 +71,7 @@ dependencies:
   - Flow tests: nonblocking input, queue processing
   - Note: full-flow tests timeout due to LLM response latency (expected)
   - Requires Node.js 20.X LTS via fnm
+- UX Optimization (2026-04-17): Animated spinner for streaming indicator ✓
 
 ## TUI Testing
 - tui-test framework setup in `tui-tests/` directory

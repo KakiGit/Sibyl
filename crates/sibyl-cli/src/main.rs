@@ -164,7 +164,8 @@ fn run_tui() -> anyhow::Result<()> {
             };
             render_status_bar(f, main_chunks[0], app.status(), app.status_bar(), mode_text);
 
-            render_chat(f, app.chat(), main_chunks[1], app.status() == AppStatus::Processing);
+            let spinner_char = app.spinner_char();
+            render_chat(f, app.chat(), main_chunks[1], app.status() == AppStatus::Processing, spinner_char);
 
             if queue_height > 0 {
                 render_queue_panel(f, app.queue(), main_chunks[2]);

@@ -71,7 +71,8 @@ fn ui(f: &mut Frame, app: &App) {
     render_status_bar(f, main_chunks[0], app.status(), app.status_bar(), mode_text);
 
     let chat_area = main_chunks[1];
-    render_chat(f, app.chat(), chat_area, app.status() == AppStatus::Processing);
+    let spinner_char = app.spinner_char();
+    render_chat(f, app.chat(), chat_area, app.status() == AppStatus::Processing, spinner_char);
 
     let input_index = if queue_height > 0 { 3 } else { 2 };
     

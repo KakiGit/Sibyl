@@ -10,7 +10,13 @@ use crate::app::{ChatState, Message, MessageRole};
 use crate::theme::*;
 use crate::widgets::scrollbar::render_scrollbar;
 
-pub fn render_chat(f: &mut Frame, state: &ChatState, area: Rect, processing: bool) {
+pub fn render_chat(
+    f: &mut Frame,
+    state: &ChatState,
+    area: Rect,
+    processing: bool,
+    spinner_char: &str,
+) {
     if state.messages.is_empty() && !processing && !state.streaming {
         render_welcome(f, area);
         return;
@@ -52,7 +58,7 @@ pub fn render_chat(f: &mut Frame, state: &ChatState, area: Rect, processing: boo
                     ])));
                 }
                 items.push(ListItem::new(Line::from(vec![
-                    Span::styled("⠋ ", warning()),
+                    Span::styled(format!("{} ", spinner_char), warning()),
                     Span::styled(
                         "Generating...",
                         warning().add_modifier(Modifier::SLOW_BLINK),
@@ -60,7 +66,7 @@ pub fn render_chat(f: &mut Frame, state: &ChatState, area: Rect, processing: boo
                 ])));
             } else {
                 items.push(ListItem::new(Line::from(vec![
-                    Span::styled("⠋ ", warning()),
+                    Span::styled(format!("{} ", spinner_char), warning()),
                     Span::styled(
                         "Waiting for response...",
                         warning().add_modifier(Modifier::SLOW_BLINK),
@@ -70,7 +76,7 @@ pub fn render_chat(f: &mut Frame, state: &ChatState, area: Rect, processing: boo
         }
     } else if processing {
         items.push(ListItem::new(Line::from(vec![
-            Span::styled("⠋ ", warning()),
+            Span::styled(format!("{} ", spinner_char), warning()),
             Span::styled(
                 "Processing...",
                 warning().add_modifier(Modifier::SLOW_BLINK),
