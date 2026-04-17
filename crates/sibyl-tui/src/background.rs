@@ -29,20 +29,12 @@ pub enum BackgroundCommand {
     CreateSession,
 }
 
-#[derive(Debug, Clone)]
-pub struct QueuedMessage {
-    pub text: String,
-    pub memories: Option<Vec<String>>,
-    pub prompt: Option<String>,
-}
-
 pub struct BackgroundTask {
     events: Option<EventStream>,
     opencode: OpenCodeClient,
     ipc: IpcClient,
     tx: Sender<UiEvent>,
     rx: Receiver<BackgroundCommand>,
-    queue: Vec<QueuedMessage>,
     session_id: Option<String>,
     session_busy: bool,
     current_message_id: Option<String>,
@@ -63,7 +55,6 @@ impl BackgroundTask {
             ipc,
             tx,
             rx,
-            queue: Vec::new(),
             session_id: None,
             session_busy: false,
             current_message_id: None,
@@ -95,30 +86,13 @@ impl BackgroundTask {
             }
 
             tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
-
-            if !self.session_busy && !self.queue.is_empty() {
-                self.process_queue().await;
-            }
         }
     }
 
     async fn handle_command(&mut self, cmd: BackgroundCommand) {
         match cmd {
             BackgroundCommand::SendMessage { text, session_id } => {
-                if self.session_busy {
-                    self.queue.push(QueuedMessage {
-                        text,
-                        memories: None,
-                        prompt: None,
-                    });
-                    let _ = self.tx.send(UiEvent::MessageCreated {
-                        session_id: self.session_id.clone().unwrap_or_default(),
-                        message_id: "pending".to_string(),
-                        role: "user".to_string(),
-                    });
-                } else {
-                    self.send_message(text, session_id).await;
-                }
+                self.send_message(text, session_id).await;
             }
             BackgroundCommand::AbortSession { session_id } => {
                 let _ = self.opencode.abort_session(&session_id).await;
@@ -287,13 +261,6 @@ impl BackgroundTask {
             .and_then(|r| r.result)
             .and_then(|result| result.get("prompt").and_then(|p| p.as_str()).map(String::from))
             .unwrap_or_default()
-    }
-
-    async fn process_queue(&mut self) {
-        if !self.queue.is_empty() && !self.session_busy {
-            let msg = self.queue.remove(0);
-            self.send_message(msg.text, self.session_id.clone()).await;
-        }
     }
 
     #[allow(dead_code)]
