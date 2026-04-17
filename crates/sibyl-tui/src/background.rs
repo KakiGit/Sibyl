@@ -11,6 +11,7 @@ use tokio::sync::RwLock;
 
 #[derive(Debug, Clone)]
 pub enum UiEvent {
+    SessionCreated { session_id: String },
     SessionIdle { session_id: String },
     SessionBusy { session_id: String },
     MessageCreated { session_id: String, message_id: String, role: String },
@@ -56,7 +57,7 @@ async fn handle_command_spawned(
                         Ok(info) => {
                             let mut guard = shared_session_id.write().await;
                             *guard = Some(info.id.clone());
-                            let _ = tx.send(UiEvent::SessionIdle { session_id: info.id.clone() });
+                            let _ = tx.send(UiEvent::SessionCreated { session_id: info.id.clone() });
                             info.id
                         }
                         Err(e) => {
@@ -170,6 +171,8 @@ impl BackgroundTask {
         
         let (sse_tx, mut sse_rx) = tokio::sync::mpsc::channel::<OpenCodeEvent>(100);
         
+        let mut sse_active = self.events.is_some();
+        
         if let Some(stream) = self.events.take() {
             tokio::spawn(async move {
                 use futures::StreamExt;
@@ -194,8 +197,6 @@ impl BackgroundTask {
                 }
             });
         }
-        
-        let mut sse_active = self.events.is_some();
         
         loop {
             tracing::debug!("Background loop tick, sse_active: {}", sse_active);
@@ -262,13 +263,12 @@ impl BackgroundTask {
                 });
             }
             OpenCodeEvent::SessionCreated { properties } => {
-                tracing::info!("SessionCreated: session_id={}", properties.session_id);
+                tracing::info!("SessionCreated SSE: session_id={}", properties.session_id);
                 {
                     let mut guard = self.shared_session_id.write().await;
                     *guard = Some(properties.session_id.clone());
                 }
-                self.session_busy = false;
-                let _ = self.tx.send(UiEvent::SessionIdle { session_id: properties.session_id });
+                let _ = self.tx.send(UiEvent::SessionCreated { session_id: properties.session_id });
             }
             OpenCodeEvent::ServerHeartbeat { .. } => {
                 tracing::debug!("SSE heartbeat received");

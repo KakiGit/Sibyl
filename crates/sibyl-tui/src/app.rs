@@ -441,6 +441,11 @@ impl App {
 
     fn handle_ui_event(&mut self, event: UiEvent) {
         match event {
+            UiEvent::SessionCreated { session_id } => {
+                tracing::info!("UI: SessionCreated {}", session_id);
+                self.session_id = Some(session_id.clone());
+                self.status_bar.session_id = Some(session_id);
+            }
             UiEvent::SessionIdle { session_id } => {
                 tracing::info!("UI: SessionIdle {}", session_id);
                 self.session_busy = false;
