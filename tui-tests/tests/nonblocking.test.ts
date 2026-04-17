@@ -34,7 +34,7 @@ test("sibyl can send message and input stays responsive", async ({ terminal }) =
   await expect(terminal.getByText("Second message")).toBeVisible({ timeout: 5000 });
 });
 
-test("sibyl shows conversation after sending message", async ({ terminal }) => {
+test("sibyl shows processing after sending message", async ({ terminal }) => {
   await expect(terminal.getByText("Welcome to Sibyl")).toBeVisible({ timeout: 5000 });
   
   terminal.write("Test conversation\r");
@@ -42,6 +42,6 @@ test("sibyl shows conversation after sending message", async ({ terminal }) => {
   // Should show user message
   await expect(terminal.getByText("You:")).toBeVisible({ timeout: 30000 });
   
-  // Should show status is ready (session active)
-  await expect(terminal.getByText("Ready")).toBeVisible({ timeout: 5000 });
+  // Should show processing indicator (streaming or waiting)
+  await expect(terminal.getByText("Processing")).toBeVisible({ timeout: 5000 });
 });

@@ -23,6 +23,6 @@ pub use input::{
 pub use widgets::{Spinner, SpinnerState, render_help_overlay, CompletionPopup};
 pub use render::{
     render_chat, render_input, render_memory_panel, render_status_bar,
-    render_command_input,
+    render_command_input, render_queue_panel,
 };
 pub use session::{SessionRunner, SessionResult, format_headless_output};

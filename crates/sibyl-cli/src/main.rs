@@ -71,9 +71,13 @@ fn run_tui() -> anyhow::Result<()> {
     use sibyl_tui::{
         App, AppMode, AppStatus,
         render_chat, render_input, render_memory_panel, render_status_bar,
-        render_command_input, render_help_overlay,
+        render_command_input, render_help_overlay, render_queue_panel,
+        create_channels, spawn_background_task_with_events,
     };
     use sibyl_deps::load_config;
+    use sibyl_opencode::client::OpenCodeClient;
+    use sibyl_opencode::config::OpenCodeConfig;
+    use sibyl_ipc::client::IpcClient;
 
     let config = load_config();
     let deps = Arc::new(DependencyManager::new(config.dependencies.clone()));
@@ -87,13 +91,27 @@ fn run_tui() -> anyhow::Result<()> {
         }
     });
 
+    let (bg_tx, bg_rx, ui_tx, ui_rx) = create_channels();
+    
+    let opencode_config = OpenCodeConfig {
+        url: config.harness.opencode.url.clone(),
+        model: config.harness.opencode.model.clone(),
+        ..Default::default()
+    };
+    let opencode = OpenCodeClient::new(opencode_config);
+    let ipc = IpcClient::new(&config.ipc.socket_path);
+    
+    rt.spawn(async move {
+        spawn_background_task_with_events(opencode, ipc, bg_rx, ui_tx).await
+    });
+
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen)?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let mut app = App::new(deps.clone(), config);
+    let mut app = App::new(deps.clone(), config, bg_tx, ui_rx);
 
     let result: io::Result<()> = loop {
         {
@@ -102,6 +120,8 @@ fn run_tui() -> anyhow::Result<()> {
             });
             app.set_dep_status(dep_status);
         }
+
+        app.process_events();
 
         terminal.draw(|f| {
             let chunks = if app.memory_visible() {
@@ -116,13 +136,24 @@ fn run_tui() -> anyhow::Result<()> {
                     .split(f.area())
             };
 
+            let queue_height = if app.queue().is_empty() { 0 } else { 3 };
+            
             let main_chunks = Layout::default()
                 .direction(Direction::Vertical)
-                .constraints([
-                    Constraint::Length(1),
-                    Constraint::Min(1),
-                    Constraint::Length(3),
-                ])
+                .constraints(if queue_height > 0 {
+                    vec![
+                        Constraint::Length(1),
+                        Constraint::Min(1),
+                        Constraint::Length(queue_height),
+                        Constraint::Length(3),
+                    ]
+                } else {
+                    vec![
+                        Constraint::Length(1),
+                        Constraint::Min(1),
+                        Constraint::Length(3),
+                    ]
+                })
                 .split(chunks[0]);
 
             let mode_text = match app.mode() {
@@ -135,14 +166,19 @@ fn run_tui() -> anyhow::Result<()> {
 
             render_chat(f, app.chat(), main_chunks[1], app.status() == AppStatus::Processing);
 
+            if queue_height > 0 {
+                render_queue_panel(f, app.queue(), main_chunks[2]);
+            }
+
+            let input_index = if queue_height > 0 { 3 } else { 2 };
+
             if app.mode() == AppMode::CommandPalette {
-                render_command_input(f, &app.input_state(), main_chunks[2]);
-                app.render_completion(f, main_chunks[2]);
+                render_command_input(f, &app.input_state(), main_chunks[input_index]);
             } else {
                 render_input(
                     f,
                     &app.input_state(),
-                    main_chunks[2],
+                    main_chunks[input_index],
                     app.mode() == AppMode::Chat,
                     app.status() == AppStatus::Processing,
                 );
