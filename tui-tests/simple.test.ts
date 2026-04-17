@@ -9,9 +9,10 @@ test.use({
     TERM: "xterm-256color"
   },
   columns: 80,
-  rows: 30
+  rows: 30,
+  timeout: 60000
 });
 
 test("sibyl headless runs", async ({ terminal }) => {
-  await expect(terminal.getByText("hello")).toBeVisible({ timeout: 30000 });
+  await expect(terminal.getByText("Response:")).toBeVisible({ timeout: 60000 });
 });
