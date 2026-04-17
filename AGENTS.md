@@ -48,7 +48,7 @@ dependencies:
 - Total IPC runtime (excluding embedder init): ~0.24s
 - Embedder init: ~8s (one-time startup cost)
 
-## Baseline Verified (2026-04-16)
+## Baseline Verified (2026-04-17)
 - `./target/release/sibyl run --prompt "What is 2+2?" --json` ✓
 - Config loaded from ~/.config/sibyl/config.yaml ✓
 - Memories retrieved (10 most relevant) and injected ✓
@@ -67,7 +67,7 @@ dependencies:
 - **Note**: Node.js 25.X is NOT supported. Use Node.js 20.X LTS.
   - Install fnm: `sudo pacman -S fnm` (Arch Linux)
   - Use Node 20: `eval "$(fnm env --shell bash)" && fnm use 20`
-- Tests verified (2026-04-16): 7/7 passed
+- Tests verified (2026-04-17): 7/7 passed
   - welcome screen, keybindings hint, command hints
   - help overlay toggle, command palette
   - status bar with model name
