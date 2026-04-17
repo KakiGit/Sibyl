@@ -65,7 +65,7 @@ dependencies:
   - Python IPC server (optimized version)
   - FalkorDB/Redis at localhost:6379
   - OpenCode harness at localhost:4096
-- TUI tests: 21/24 passed ✓ (2026-04-17)
+- TUI tests: 21/24 passed ✓ (2026-04-17, reconfirmed 2026-04-17)
   - Basic tests: welcome screen, keybindings, help overlay, command palette, status bar
   - Message tests: send message, queue messages, queue panel display
   - Flow tests: nonblocking input, queue processing
@@ -73,6 +73,7 @@ dependencies:
   - Requires Node.js 20.X LTS via fnm
 - UX Optimization (2026-04-17): Animated spinner for streaming indicator ✓
 - Bug fix (2026-04-17): Added `session.created` SSE event handling ✓
+- Fixed MODULE_TYPELESS_PACKAGE_JSON warning by adding "type": "module" to tui-tests/package.json ✓
 
 ## TUI Testing
 - tui-test framework setup in `tui-tests/` directory
