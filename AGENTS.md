@@ -119,6 +119,10 @@ dependencies:
 # Memory query
 ./target/release/sibyl memory --query "What programming languages does the user like?" --json
 
+# TUI with debug logging (useful for troubleshooting)
+./target/release/sibyl tui --log
+./target/release/sibyl tui --log-file /tmp/sibyl-debug.log
+
 # TUI tests (requires Node.js 20.X)
 cd tui-tests
 eval "$(fnm env --shell bash)" && fnm use 20
