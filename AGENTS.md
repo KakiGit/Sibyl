@@ -65,10 +65,11 @@ dependencies:
   - Python IPC server (optimized version)
   - FalkorDB/Redis at localhost:6379
   - OpenCode harness at localhost:4096
-- TUI tests: 21/22 passed ✓ (2026-04-17, SSE fixes applied)
+- TUI tests: 23/25 passed ✓ (2026-04-17)
   - Basic tests: welcome screen, keybindings, help overlay, command palette, status bar
   - Message tests: send message, queue messages, queue panel display
   - Flow tests: nonblocking input, queue processing
+  - SSE tests: connection established, deps visible
   - Note: full-flow tests (2) timeout due to LLM response latency (expected)
   - Requires Node.js 20.X LTS via fnm
 - UX Optimization (2026-04-17): Animated spinner for streaming indicator ✓
@@ -87,8 +88,9 @@ dependencies:
 - **Note**: Node.js 25.X is NOT supported. Use Node.js 20.X LTS.
   - Install fnm: `sudo pacman -S fnm` (Arch Linux)
   - Use Node 20: `eval "$(fnm env --shell bash)" && fnm use 20`
-- Tests verified (2026-04-17): 21/22 passed
+- Tests verified (2026-04-17): 23/25 passed
   - basic.test.ts: 6/6 passed - welcome screen, keybindings hint, command hints, help overlay, command palette, status bar
+  - tests/sse-events.test.ts: 2/2 passed - SSE connection, deps visible
   - tests/single-message.test.ts: 3/3 passed - send message, queue messages, You indicator
   - tests/nonblocking.test.ts: 3/3 passed - typed text, responsive input, processing state
   - tests/queue-flow.test.ts: 4/4 passed - first message, queued messages, queue count, input clear
