@@ -6,6 +6,8 @@ use sibyl_ipc::client::IpcClient;
 use sibyl_ipc::{Method, Request};
 use sibyl_harness::Harness;
 use tokio::sync::mpsc::{Sender, Receiver, channel};
+use std::sync::Arc;
+use tokio::sync::RwLock;
 
 #[derive(Debug, Clone)]
 pub enum UiEvent {
@@ -28,13 +30,108 @@ pub enum BackgroundCommand {
     CreateSession,
 }
 
+type SharedSessionId = Arc<RwLock<Option<String>>>;
+
+async fn handle_command_spawned(
+    opencode: OpenCodeClient,
+    ipc: IpcClient,
+    tx: Sender<UiEvent>,
+    cmd: BackgroundCommand,
+    shared_session_id: SharedSessionId,
+) {
+    match cmd {
+        BackgroundCommand::SendMessage { text, session_id } => {
+            tracing::info!("Spawned task sending message: {}", text);
+            
+            let sid = {
+                let guard = shared_session_id.read().await;
+                session_id.or(guard.clone())
+            };
+            
+            let sid = match sid {
+                Some(id) => id,
+                None => {
+                    let cwd = std::env::current_dir().ok();
+                    match opencode.create_session(cwd.as_deref()).await {
+                        Ok(info) => {
+                            let mut guard = shared_session_id.write().await;
+                            *guard = Some(info.id.clone());
+                            info.id
+                        }
+                        Err(e) => {
+                            tracing::error!("Failed to create session: {:?}", e);
+                            let _ = tx.send(UiEvent::Error {
+                                session_id: "unknown".to_string(),
+                                message: "Failed to create session".to_string(),
+                            });
+                            return;
+                        }
+                    }
+                }
+            };
+
+            tracing::info!("Retrieving memories for session {}", sid);
+            let memories_request = Request::new(Method::MemoryQuery, serde_json::json!({ 
+                "query": text,
+                "session_id": sid,
+                "num_results": 10
+            }));
+            let memories_result = ipc.send(memories_request).await.ok().and_then(|r| r.result);
+            
+            tracing::info!("Building prompt for session {}", sid);
+            let prompt_request = Request::new(Method::PromptBuild, serde_json::json!({
+                "session_id": sid,
+                "project_path": std::env::current_dir().ok().map(|p| p.to_string_lossy().to_string()),
+                "user_query": text,
+                "conversation_history": [],
+                "memories": {
+                    "episodes": memories_result.as_ref().and_then(|r| r.get("episodes")).cloned().unwrap_or(serde_json::json!([])),
+                    "entities": memories_result.as_ref().and_then(|r| r.get("entities")).cloned().unwrap_or(serde_json::json!([])),
+                    "facts": memories_result.as_ref().and_then(|r| r.get("facts")).cloned().unwrap_or(serde_json::json!([])),
+                },
+                "tools": ["bash", "read", "write", "edit", "glob", "grep"],
+                "harness_name": "opencode",
+                "max_tokens": 4000
+            }));
+            let prompt = ipc.send(prompt_request).await
+                .ok()
+                .and_then(|r| r.result)
+                .and_then(|result| result.get("prompt").and_then(|p| p.as_str()).map(String::from))
+                .unwrap_or_default();
+
+            let user_msg = UserMessage::with_context(&text, &prompt);
+            tracing::info!("Sending message to OpenCode session {}", sid);
+            if let Err(e) = opencode.send_user_message_async(&sid, &user_msg).await {
+                tracing::error!("Failed to send message: {:?}", e);
+                let _ = tx.send(UiEvent::Error {
+                    session_id: sid,
+                    message: "Failed to send message".to_string(),
+                });
+            }
+            tracing::info!("Message sent to OpenCode");
+        }
+        BackgroundCommand::AbortSession { session_id } => {
+            let _ = opencode.abort_session(&session_id).await;
+            let _ = tx.send(UiEvent::SessionIdle { session_id });
+        }
+        BackgroundCommand::CreateSession => {
+            let cwd = std::env::current_dir().ok();
+            if let Ok(info) = opencode.create_session(cwd.as_deref()).await {
+                let mut guard = shared_session_id.write().await;
+                *guard = Some(info.id.clone());
+                let _ = tx.send(UiEvent::SessionIdle { session_id: info.id });
+            }
+        }
+    }
+}
+
 pub struct BackgroundTask {
     events: Option<EventStream>,
     opencode: OpenCodeClient,
     ipc: IpcClient,
     tx: Sender<UiEvent>,
     rx: Receiver<BackgroundCommand>,
-    session_id: Option<String>,
+    shared_session_id: SharedSessionId,
     session_busy: bool,
     current_message_id: Option<String>,
     current_part_id: Option<String>,
@@ -54,7 +151,7 @@ impl BackgroundTask {
             ipc,
             tx,
             rx,
-            session_id: None,
+            shared_session_id: Arc::new(RwLock::new(None)),
             session_busy: false,
             current_message_id: None,
             current_part_id: None,
@@ -68,61 +165,57 @@ impl BackgroundTask {
     }
 
     pub async fn run(mut self) {
-        use futures::StreamExt;
-        use sibyl_opencode::Error as OpenCodeError;
-        let events = self.events.take();
-        let mut events_stream: Option<sibyl_opencode::sse::EventStream> = events;
+        tracing::info!("Background task started, SSE stream: {:?}", self.events.is_some());
         
-        tracing::info!("Background task started, SSE stream: {:?}", events_stream.is_some());
+        let (sse_tx, mut sse_rx) = tokio::sync::mpsc::channel::<OpenCodeEvent>(100);
         
-        loop {
-            tracing::debug!("Background loop tick, events_stream: {:?}", events_stream.is_some());
-            tokio::select! {
-                cmd = self.rx.recv() => {
-                    if let Some(event) = cmd {
-                        tracing::info!("Background received command: {:?}", event);
-                        self.handle_command(event).await;
-                    }
-                }
-                event_result = async {
-                    match &mut events_stream {
-                        Some(ev) => {
-                            use futures::StreamExt;
-                            ev.next().await
+        if let Some(stream) = self.events.take() {
+            tokio::spawn(async move {
+                use futures::StreamExt;
+                let mut stream = stream;
+                tracing::info!("SSE polling task started");
+                loop {
+                    match stream.next().await {
+                        Some(Ok(event)) => {
+                            if sse_tx.send(event).await.is_err() {
+                                tracing::error!("SSE channel closed, stopping polling");
+                                break;
+                            }
+                        }
+                        Some(Err(e)) => {
+                            tracing::error!("SSE error: {:?}", e);
                         }
                         None => {
-                            tracing::warn!("SSE stream is None, no events will be received");
-                            std::future::pending::<Option<Result<OpenCodeEvent, OpenCodeError>>>().await
+                            tracing::info!("SSE stream ended");
+                            break;
                         }
                     }
-                } => {
-                    if let Some(Ok(event)) = event_result {
-                        tracing::info!("Background received SSE event: {:?}", event);
+                }
+            });
+        }
+        
+        loop {
+            tracing::debug!("Background loop tick");
+            
+            tokio::select! {
+                biased;
+                event = sse_rx.recv() => {
+                    if let Some(event) = event {
+                        tracing::info!("SSE event: {:?}", event);
                         self.handle_event(event).await;
-                    } else if let Some(Err(e)) = event_result {
-                        tracing::error!("SSE stream error: {:?}", e);
                     }
                 }
-            }
-        }
-    }
-
-    async fn handle_command(&mut self, cmd: BackgroundCommand) {
-        match cmd {
-            BackgroundCommand::SendMessage { text, session_id } => {
-                self.send_message(text, session_id).await;
-            }
-            BackgroundCommand::AbortSession { session_id } => {
-                let _ = self.opencode.abort_session(&session_id).await;
-                self.session_busy = false;
-                let _ = self.tx.send(UiEvent::SessionIdle { session_id });
-            }
-            BackgroundCommand::CreateSession => {
-                if self.session_id.is_none() {
-                    let cwd = std::env::current_dir().ok();
-                    if let Ok(info) = self.opencode.create_session(cwd.as_deref()).await {
-                        self.session_id = Some(info.id.clone());
-                        let _ = self.tx.send(UiEvent::SessionIdle { session_id: info.id });
+                cmd = self.rx.recv() => {
+                    if let Some(c) = cmd {
+                        tracing::info!("Command received: {:?}", c);
+                        let opencode = self.opencode.clone();
+                        let ipc = self.ipc.clone();
+                        let tx = self.tx.clone();
+                        let shared_session_id = self.shared_session_id.clone();
+                        
+                        tokio::spawn(async move {
+                            handle_command_spawned(opencode, ipc, tx, c, shared_session_id).await;
+                        });
                     }
                 }
             }
@@ -137,7 +230,10 @@ impl BackgroundTask {
             }
             OpenCodeEvent::SessionCreated { properties } => {
                 tracing::info!("SessionCreated: session_id={}", properties.session_id);
-                self.session_id = Some(properties.session_id.clone());
+                {
+                    let mut guard = self.shared_session_id.write().await;
+                    *guard = Some(properties.session_id.clone());
+                }
                 self.session_busy = false;
                 let _ = self.tx.send(UiEvent::SessionIdle { session_id: properties.session_id });
             }
@@ -151,6 +247,10 @@ impl BackgroundTask {
                     sibyl_opencode::types::SessionStatus::Idle => false,
                     sibyl_opencode::types::SessionStatus::Retry { .. } => true,
                 };
+                {
+                    let mut guard = self.shared_session_id.write().await;
+                    *guard = Some(properties.session_id.clone());
+                }
                 if self.session_busy {
                     let _ = self.tx.send(UiEvent::SessionBusy { session_id: properties.session_id });
                 }
@@ -158,7 +258,10 @@ impl BackgroundTask {
             OpenCodeEvent::SessionIdle { properties } => {
                 tracing::info!("SessionIdle: session_id={}", properties.session_id);
                 self.session_busy = false;
-                self.session_id = Some(properties.session_id.clone());
+                {
+                    let mut guard = self.shared_session_id.write().await;
+                    *guard = Some(properties.session_id.clone());
+                }
                 let _ = self.tx.send(UiEvent::SessionIdle { session_id: properties.session_id });
             }
             OpenCodeEvent::MessageUpdated { properties } => {
@@ -184,7 +287,7 @@ impl BackgroundTask {
             }
             OpenCodeEvent::MessagePartUpdated { properties, .. } => {
                 match properties.part {
-                    sibyl_opencode::types::Part::Text { id, text, time } => {
+                    sibyl_opencode::types::Part::Text { id, text, time, .. } => {
                         if time.as_ref().and_then(|t| t.end).is_some() {
                             let _ = self.tx.send(UiEvent::MessagePartComplete {
                                 session_id: properties.session_id,
@@ -194,11 +297,12 @@ impl BackgroundTask {
                             });
                         }
                     }
-                    sibyl_opencode::types::Part::Tool { id: _, tool, state } => {
+                    sibyl_opencode::types::Part::Tool { id: _, tool, state, .. } => {
+                        let status = state.map(|s| s.status).unwrap_or_else(|| "unknown".to_string());
                         let _ = self.tx.send(UiEvent::ToolUse {
                             session_id: properties.session_id,
                             tool,
-                            status: state.status,
+                            status,
                         });
                     }
                     _ => {}
@@ -229,80 +333,6 @@ impl BackgroundTask {
             }
             _ => {}
         }
-    }
-
-    async fn send_message(&mut self, text: String, session_id: Option<String>) {
-        tracing::info!("send_message called with text: {}, session_id: {:?}", text, session_id);
-        let sid = match session_id.or(self.session_id.clone()) {
-            Some(id) => {
-                tracing::info!("Using existing session: {}", id);
-                id
-            }
-            None => {
-                tracing::info!("Creating new session");
-                let cwd = std::env::current_dir().ok();
-                match self.opencode.create_session(cwd.as_deref()).await {
-                    Ok(info) => {
-                        tracing::info!("Created session: {}", info.id);
-                        self.session_id = Some(info.id.clone());
-                        info.id
-                    }
-                    Err(e) => {
-                        tracing::error!("Failed to create session: {:?}", e);
-                        let _ = self.tx.send(UiEvent::Error {
-                            session_id: "unknown".to_string(),
-                            message: "Failed to create session".to_string(),
-                        });
-                        return;
-                    }
-                }
-            }
-        };
-
-        tracing::info!("Retrieving memories for session {}", sid);
-        let memories_result = self.retrieve_memories(&text, &sid).await;
-        tracing::info!("Building prompt for session {}", sid);
-        let prompt = self.build_prompt(&text, &sid, &memories_result).await;
-
-        let user_msg = UserMessage::with_context(&text, &prompt);
-        tracing::info!("Sending message to OpenCode session {}", sid);
-        let _ = self.opencode.send_user_message_async(&sid, &user_msg).await;
-        
-        self.session_busy = true;
-        self.streaming_text.clear();
-        tracing::info!("Setting session_busy=true, sending SessionBusy event");
-        let _ = self.tx.send(UiEvent::SessionBusy { session_id: sid });
-    }
-
-    async fn retrieve_memories(&self, text: &str, session_id: &str) -> Option<serde_json::Value> {
-        let query_request = Request::new(Method::MemoryQuery, serde_json::json!({ 
-            "query": text,
-            "session_id": session_id,
-            "num_results": 10
-        }));
-        self.ipc.send(query_request).await.ok().and_then(|r| r.result)
-    }
-
-    async fn build_prompt(&self, text: &str, session_id: &str, memories_result: &Option<serde_json::Value>) -> String {
-        let build_request = Request::new(Method::PromptBuild, serde_json::json!({
-            "session_id": session_id,
-            "project_path": std::env::current_dir().ok().map(|p| p.to_string_lossy().to_string()),
-            "user_query": text,
-            "conversation_history": [],
-            "memories": {
-                "episodes": memories_result.as_ref().and_then(|r| r.get("episodes")).cloned().unwrap_or(serde_json::json!([])),
-                "entities": memories_result.as_ref().and_then(|r| r.get("entities")).cloned().unwrap_or(serde_json::json!([])),
-                "facts": memories_result.as_ref().and_then(|r| r.get("facts")).cloned().unwrap_or(serde_json::json!([])),
-            },
-            "tools": ["bash", "read", "write", "edit", "glob", "grep"],
-            "harness_name": "opencode",
-            "max_tokens": 4000
-        }));
-        self.ipc.send(build_request).await
-            .ok()
-            .and_then(|r| r.result)
-            .and_then(|result| result.get("prompt").and_then(|p| p.as_str()).map(String::from))
-            .unwrap_or_default()
     }
 
     #[allow(dead_code)]

@@ -12,6 +12,7 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use std::time::Duration;
 
+#[derive(Clone)]
 pub struct OpenCodeClient {
     http: Client,
     config: OpenCodeConfig,

@@ -246,20 +246,38 @@ pub struct MessagePartDeltaProperties {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum Part {
+    #[serde(rename = "text")]
     Text {
         id: String,
+        #[serde(rename = "messageID", default)]
+        message_id: Option<String>,
+        #[serde(rename = "sessionID", default)]
+        session_id: Option<String>,
         text: String,
+        #[serde(default)]
         time: Option<PartTime>,
     },
+    #[serde(rename = "reasoning")]
     Reasoning {
         id: String,
+        #[serde(rename = "messageID", default)]
+        message_id: Option<String>,
+        #[serde(rename = "sessionID", default)]
+        session_id: Option<String>,
         text: String,
-        time: PartTime,
+        #[serde(default)]
+        time: Option<PartTime>,
     },
+    #[serde(rename = "tool")]
     Tool {
         id: String,
+        #[serde(rename = "messageID", default)]
+        message_id: Option<String>,
+        #[serde(rename = "sessionID", default)]
+        session_id: Option<String>,
         tool: String,
-        state: ToolState,
+        #[serde(default)]
+        state: Option<ToolState>,
     },
     #[serde(rename = "step-start")]
     StepStart {
@@ -272,6 +290,10 @@ pub enum Part {
     #[serde(rename = "step-finish")]
     StepFinish {
         id: String,
+        #[serde(rename = "messageID", default)]
+        message_id: Option<String>,
+        #[serde(rename = "sessionID", default)]
+        session_id: Option<String>,
         #[serde(default)]
         reason: Option<String>,
         #[serde(default)]

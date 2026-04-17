@@ -131,9 +131,13 @@ fn run_app<B: ratatui::backend::Backend>(
 }
 
 fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt::init();
+    tracing_subscriber::fmt()
+        .with_writer(std::io::stderr)
+        .with_max_level(tracing::Level::DEBUG)
+        .init();
 
     let config = load_config();
+    tracing::info!("Starting Sibyl - config loaded");
     let deps = Arc::new(DependencyManager::new(config.dependencies.clone()));
     
     enable_raw_mode()?;
