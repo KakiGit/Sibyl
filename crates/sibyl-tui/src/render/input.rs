@@ -16,9 +16,7 @@ pub fn render_input(
     focused: bool,
     processing: bool,
 ) {
-    let (style, border_style) = if processing {
-        (muted(), muted())
-    } else if focused {
+    let (style, border_style) = if focused {
         (default(), border_focused())
     } else {
         (muted(), border())
@@ -34,10 +32,10 @@ pub fn render_input(
         (state.buffer.as_str(), style)
     };
 
-    let prefix = if focused && !processing {
-        vec![Span::styled("▶ ", accent().add_modifier(Modifier::BOLD))]
-    } else if processing {
+    let prefix = if processing {
         vec![Span::styled("◐ ", warning())]
+    } else if focused {
+        vec![Span::styled("▶ ", accent().add_modifier(Modifier::BOLD))]
     } else {
         vec![Span::styled("○ ", muted())]
     };
@@ -61,7 +59,7 @@ pub fn render_input(
 
     f.render_widget(input, area);
 
-    if focused && !processing && !state.buffer.is_empty() {
+    if focused && !state.buffer.is_empty() {
         let cursor_x = area.x + 3 + state.cursor_position as u16;
         let cursor_y = area.y + 1;
         f.set_cursor_position((cursor_x, cursor_y));

@@ -447,7 +447,7 @@ impl App {
                 if !self.queue.is_empty() && self.queue.messages.first().is_some() {
                     let next_msg = self.queue.messages.remove(0);
                     self.status_bar.queue_count = self.queue.count();
-                    let _ = self.bg_tx.send(BackgroundCommand::SendMessage {
+                    let _ = self.bg_tx.blocking_send(BackgroundCommand::SendMessage {
                         text: next_msg,
                         session_id: self.session_id.clone(),
                     });
@@ -471,11 +471,7 @@ impl App {
                 self.chat.append_stream(&delta);
             }
             UiEvent::MessagePartComplete { content, .. } => {
-                self.chat.finish_stream(content.clone());
-                let _ = self.bg_tx.send(BackgroundCommand::SendMessage {
-                    text: content,
-                    session_id: self.session_id.clone(),
-                });
+                self.chat.finish_stream(content);
             }
             UiEvent::MessageComplete { .. } => {
                 self.chat.streaming = false;
@@ -752,7 +748,7 @@ impl App {
             self.queue.add(text.clone());
             self.status_bar.queue_count = self.queue.count();
         } else {
-            let _ = self.bg_tx.send(BackgroundCommand::SendMessage {
+            let _ = self.bg_tx.blocking_send(BackgroundCommand::SendMessage {
                 text,
                 session_id: self.session_id.clone(),
             });
