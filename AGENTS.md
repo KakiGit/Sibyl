@@ -162,3 +162,4 @@ Learn patterns from:
 
 * **ALWAYS** make a git commit after completing a feature.
 * **DO NOT** push the change.
+* **ALWAYS** make sure `cargo build` working before making a commit.
