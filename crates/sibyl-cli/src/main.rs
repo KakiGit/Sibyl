@@ -101,8 +101,9 @@ fn run_tui() -> anyhow::Result<()> {
     let opencode = OpenCodeClient::new(opencode_config);
     let ipc = IpcClient::new(&config.ipc.socket_path);
     
+    let (ready_tx, _ready_rx) = tokio::sync::oneshot::channel();
     rt.spawn(async move {
-        spawn_background_task_with_events(opencode, ipc, bg_rx, ui_tx).await
+        spawn_background_task_with_events(opencode, ipc, bg_rx, ui_tx, ready_tx).await
     });
 
     enable_raw_mode()?;
