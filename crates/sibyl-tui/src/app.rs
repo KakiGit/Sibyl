@@ -39,32 +39,51 @@ impl Message {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct ChatState {
     pub messages: Vec<Message>,
     pub scroll_offset: usize,
     pub streaming: bool,
     pub current_response: Option<String>,
+    pub auto_scroll: bool,
+}
+
+impl Default for ChatState {
+    fn default() -> Self {
+        Self {
+            messages: Vec::new(),
+            scroll_offset: 0,
+            streaming: false,
+            current_response: None,
+            auto_scroll: true,
+        }
+    }
 }
 
 impl ChatState {
     pub fn add_message(&mut self, message: Message) {
         self.messages.push(message);
+        self.auto_scroll = true;
     }
 
     pub fn clear(&mut self) {
         self.messages.clear();
         self.scroll_offset = 0;
         self.current_response = None;
+        self.auto_scroll = true;
     }
 
     pub fn scroll_up(&mut self, amount: usize) {
         self.scroll_offset = self.scroll_offset.saturating_sub(amount);
+        self.auto_scroll = false;
     }
 
-    pub fn scroll_down(&mut self, amount: usize, max_lines: usize, visible_lines: usize) {
-        let max_offset = max_lines.saturating_sub(visible_lines);
-        self.scroll_offset = (self.scroll_offset + amount).min(max_offset);
+    pub fn scroll_down(&mut self, amount: usize) {
+        self.scroll_offset = self.scroll_offset.saturating_add(amount);
+    }
+
+    pub fn scroll_to_bottom(&mut self) {
+        self.auto_scroll = true;
     }
 
     pub fn start_streaming(&mut self) {
@@ -148,6 +167,7 @@ use sibyl_ipc::{Method, Request};
 use sibyl_opencode::client::OpenCodeClient;
 use sibyl_opencode::config::OpenCodeConfig;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use crate::background::{BackgroundCommand, UiEvent};
 use crate::input::{
@@ -172,6 +192,7 @@ pub struct App {
     session_busy: bool,
     deps: Arc<DependencyManager>,
     config: SibylConfig,
+    last_esc_time: Option<Instant>,
 }
 
 impl App {
@@ -200,6 +221,7 @@ impl App {
             session_busy: false,
             deps,
             config,
+            last_esc_time: None,
         }
     }
 
@@ -272,6 +294,18 @@ impl App {
                 tracing::info!("UI: SessionCreated {}", session_id);
                 self.session_id = Some(session_id.clone());
                 self.status_bar.session_id = Some(session_id);
+            }
+            UiEvent::SessionCanceled { session_id } => {
+                tracing::info!("UI: SessionCanceled {}", session_id);
+                self.session_busy = false;
+                self.status = AppStatus::Idle;
+                self.spinner.stop();
+                self.chat.streaming = false;
+                self.chat.current_response = None;
+                self.status_bar.streaming = false;
+                self.queue.messages.clear();
+                self.status_bar.queue_count = 0;
+                self.chat.add_message(Message::new(MessageRole::System, "Session canceled.".to_string()));
             }
             UiEvent::SessionIdle { session_id } => {
                 tracing::info!("UI: SessionIdle {}", session_id);
@@ -428,7 +462,30 @@ impl App {
 
         let global_result = handle_global_key(key, self.mode);
         match global_result {
-            HandleResult::Quit => return false,
+            HandleResult::CancelSession => {
+                if self.session_busy {
+                    self.cancel_session();
+                } else {
+                    return false;
+                }
+                return true;
+            }
+            HandleResult::DoubleEsc => {
+                let now = Instant::now();
+                if let Some(last_esc) = self.last_esc_time {
+                    if now.duration_since(last_esc) < Duration::from_millis(500) {
+                        if self.session_busy {
+                            self.cancel_session();
+                        } else {
+                            return false;
+                        }
+                        self.last_esc_time = None;
+                        return true;
+                    }
+                }
+                self.last_esc_time = Some(now);
+                return true;
+            }
             HandleResult::SwitchMode(mode) => {
                 self.mode = mode;
                 return true;
@@ -471,17 +528,13 @@ impl App {
         let result = handle_chat_key(key);
         match result {
             HandleResult::ScrollDown(n) => {
-                let total: usize = self
-                    .chat
-                    .messages
-                    .iter()
-                    .map(|m| m.content.lines().count())
-                    .sum();
-                let visible = 20;
-                self.chat.scroll_down(n, total, visible);
+                self.chat.scroll_down(n);
             }
             HandleResult::ScrollUp(n) => {
                 self.chat.scroll_up(n);
+            }
+            HandleResult::ScrollToBottom => {
+                self.chat.scroll_to_bottom();
             }
             HandleResult::SubmitInput => {
                 self.submit_input();
@@ -679,6 +732,13 @@ impl App {
             self.spinner.start(SpinnerState::Processing);
             self.chat.start_streaming();
             self.status_bar.streaming = true;
+        }
+    }
+
+    fn cancel_session(&mut self) {
+        if let Some(session_id) = self.session_id.clone() {
+            tracing::info!("Requesting session cancel: {}", session_id);
+            let _ = self.bg_tx.blocking_send(BackgroundCommand::CancelSession { session_id });
         }
     }
 

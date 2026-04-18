@@ -5,21 +5,25 @@ use crate::app::AppMode;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HandleResult {
     Continue,
-    Quit,
     SwitchMode(AppMode),
     ToggleMemoryPanel,
     ScrollUp(usize),
     ScrollDown(usize),
+    ScrollToBottom,
     SubmitInput,
     #[allow(dead_code)]
     ClearChat,
     ShowHelp,
     HideHelp,
+    CancelSession,
+    DoubleEsc,
 }
 
 pub fn handle_global_key(key: KeyEvent, current_mode: AppMode) -> HandleResult {
     match key.code {
-        KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => HandleResult::Quit,
+        KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            HandleResult::CancelSession
+        }
         KeyCode::Tab => HandleResult::ToggleMemoryPanel,
         KeyCode::Char('?')
             if key.modifiers.contains(KeyModifiers::NONE) && current_mode != AppMode::Chat =>
@@ -30,6 +34,8 @@ pub fn handle_global_key(key: KeyEvent, current_mode: AppMode) -> HandleResult {
         KeyCode::Esc => {
             if current_mode == AppMode::HelpOverlay || current_mode == AppMode::CommandPalette {
                 HandleResult::SwitchMode(AppMode::Chat)
+            } else if current_mode == AppMode::Chat {
+                HandleResult::DoubleEsc
             } else {
                 HandleResult::HideHelp
             }
@@ -43,8 +49,7 @@ pub fn handle_global_key(key: KeyEvent, current_mode: AppMode) -> HandleResult {
 
 pub fn handle_chat_key(key: KeyEvent) -> HandleResult {
     match key.code {
-        KeyCode::Down if key.modifiers.contains(KeyModifiers::NONE) => HandleResult::ScrollDown(1),
-        KeyCode::Up if key.modifiers.contains(KeyModifiers::NONE) => HandleResult::ScrollUp(1),
+        KeyCode::End => HandleResult::ScrollToBottom,
         KeyCode::Char('j') if key.modifiers.contains(KeyModifiers::ALT) => {
             HandleResult::ScrollDown(1)
         }
@@ -57,6 +62,9 @@ pub fn handle_chat_key(key: KeyEvent) -> HandleResult {
         KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
             HandleResult::ScrollUp(10)
         }
+        KeyCode::Char('g') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            HandleResult::ScrollToBottom
+        }
         KeyCode::Enter if key.modifiers.contains(KeyModifiers::NONE) => HandleResult::SubmitInput,
         _ => HandleResult::Continue,
     }
@@ -64,8 +72,6 @@ pub fn handle_chat_key(key: KeyEvent) -> HandleResult {
 
 pub fn handle_memory_key(key: KeyEvent) -> HandleResult {
     match key.code {
-        KeyCode::Down if key.modifiers.contains(KeyModifiers::NONE) => HandleResult::ScrollDown(1),
-        KeyCode::Up if key.modifiers.contains(KeyModifiers::NONE) => HandleResult::ScrollUp(1),
         KeyCode::Char('j') if key.modifiers.contains(KeyModifiers::ALT) => {
             HandleResult::ScrollDown(1)
         }
@@ -91,5 +97,7 @@ pub fn should_handle_as_input(key: KeyEvent, mode: AppMode) -> bool {
             | KeyCode::Right
             | KeyCode::Home
             | KeyCode::End
+            | KeyCode::Up
+            | KeyCode::Down
     ) && !key.modifiers.contains(KeyModifiers::CONTROL)
 }

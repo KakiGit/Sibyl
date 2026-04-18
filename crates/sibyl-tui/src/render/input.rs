@@ -15,6 +15,7 @@ pub fn render_input(
     area: Rect,
     focused: bool,
     processing: bool,
+    spinner_char: &str,
 ) {
     let (style, border_style) = if focused {
         (default(), border_focused())
@@ -33,7 +34,7 @@ pub fn render_input(
     };
 
     let prefix = if processing {
-        vec![Span::styled("◐ ", warning())]
+        vec![Span::styled(format!("{} ", spinner_char), warning().add_modifier(Modifier::BOLD))]
     } else if focused {
         vec![Span::styled("▶ ", accent().add_modifier(Modifier::BOLD))]
     } else {

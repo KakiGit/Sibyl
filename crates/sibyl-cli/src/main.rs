@@ -279,6 +279,7 @@ fn run_tui(log_path: Option<PathBuf>) -> anyhow::Result<()> {
                     main_chunks[input_index],
                     app.mode() == AppMode::Chat,
                     app.status() == AppStatus::Processing,
+                    app.spinner_char(),
                 );
             }
 

@@ -98,6 +98,7 @@ fn ui(f: &mut Frame, app: &App) {
             main_chunks[input_index],
             app.mode() == AppMode::Chat,
             app.status() == AppStatus::Processing,
+            app.spinner_char(),
         );
     }
 

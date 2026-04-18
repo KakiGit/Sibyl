@@ -16,6 +16,9 @@ pub enum UiEvent {
     SessionIdle {
         session_id: String,
     },
+    SessionCanceled {
+        session_id: String,
+    },
     SessionBusy {
         session_id: String,
     },
@@ -61,6 +64,9 @@ pub enum BackgroundCommand {
         session_id: Option<String>,
     },
     LoadInitialMemories,
+    CancelSession {
+        session_id: String,
+    },
 }
 
 type SharedSessionId = Arc<RwLock<Option<String>>>;
@@ -226,6 +232,21 @@ async fn handle_command_spawned(
             if !memories.is_empty() {
                 tracing::info!("Found {} initial memories, sending to UI", memories.len());
                 let _ = tx.send(UiEvent::MemoriesRetrieved { memories }).await;
+            }
+        }
+        BackgroundCommand::CancelSession { session_id } => {
+            tracing::info!("Canceling session {}", session_id);
+            if let Err(e) = opencode.abort_session(&session_id).await {
+                tracing::error!("Failed to cancel session: {:?}", e);
+                let _ = tx
+                    .send(UiEvent::Error {
+                        session_id,
+                        message: "Failed to cancel session".to_string(),
+                    })
+                    .await;
+            } else {
+                tracing::info!("Session canceled successfully");
+                let _ = tx.send(UiEvent::SessionCanceled { session_id }).await;
             }
         }
     }

@@ -33,11 +33,30 @@ pub fn render_chat(
     };
 
     let total_lines = calculate_total_lines(state, list_area.width as usize);
+    let streaming_extra_lines = if state.streaming {
+        if let Some(ref response) = state.current_response {
+            if !response.is_empty() {
+                wrap_text_simple(response, list_area.width as usize - 6).len() + 1
+            } else {
+                1
+            }
+        } else {
+            1
+        }
+    } else if processing {
+        1
+    } else {
+        0
+    };
+    let total_lines_with_streaming = total_lines + streaming_extra_lines;
     let visible_lines = (list_area.height as usize).saturating_sub(2);
 
-    let scroll_offset = state
-        .scroll_offset
-        .min(total_lines.saturating_sub(visible_lines));
+    let max_offset = total_lines_with_streaming.saturating_sub(visible_lines);
+    let scroll_offset = if state.auto_scroll {
+        max_offset
+    } else {
+        state.scroll_offset.min(max_offset)
+    };
 
     let mut items: Vec<ListItem> = state
         .messages
@@ -94,7 +113,7 @@ pub fn render_chat(
     f.render_widget(chat, list_area);
 
     if has_scrollbar {
-        render_scrollbar(f, area, scroll_offset, total_lines, visible_lines);
+        render_scrollbar(f, area, scroll_offset, total_lines_with_streaming, visible_lines);
     }
 }
 
