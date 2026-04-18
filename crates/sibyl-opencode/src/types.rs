@@ -81,6 +81,12 @@ pub enum OpenCodeEvent {
         properties: PermissionAskedProperties,
     },
 
+    #[serde(rename = "file.watcher.updated")]
+    FileWatcherUpdated {
+        #[serde(default)]
+        properties: serde_json::Value,
+    },
+
     #[serde(rename = "message")]
     Message { content: String, role: String },
 
