@@ -602,6 +602,17 @@ impl BackgroundTask {
                     .await;
             }
             OpenCodeEvent::SessionError { properties } => {
+                if properties.error.name == "MessageAbortedError" {
+                    tracing::info!("Session aborted successfully");
+                    let _ = self
+                        .tx
+                        .send(UiEvent::SessionCanceled {
+                            session_id: properties.session_id,
+                        })
+                        .await;
+                    self.session_busy = false;
+                    return;
+                }
                 tracing::error!("SessionError: {:?}", properties.error);
                 let msg = properties
                     .error
