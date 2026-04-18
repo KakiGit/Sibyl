@@ -290,7 +290,7 @@ impl App {
                 self.status = AppStatus::Idle;
                 self.spinner.stop();
 
-                if self.chat.streaming {
+                if self.chat.streaming && self.chat.current_response.is_some() {
                     let content = self.chat.current_response.clone().unwrap_or_default();
                     if content.is_empty() {
                         self.chat.add_message(Message::new(MessageRole::System, "No response received".to_string()));
@@ -298,6 +298,8 @@ impl App {
                         self.chat.finish_stream(content);
                     }
                 }
+                self.chat.streaming = false;
+                self.chat.current_response = None;
 
                 tracing::info!("Session idle, queue count: {}", self.queue.count());
                 if !self.queue.messages.is_empty() {

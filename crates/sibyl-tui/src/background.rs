@@ -269,13 +269,7 @@ impl BackgroundTask {
                 }
             }
             OpenCodeEvent::SessionIdle { properties } => {
-                tracing::info!("SessionIdle: session_id={}", properties.session_id);
-                self.session_busy = false;
-                {
-                    let mut guard = self.shared_session_id.write().await;
-                    *guard = Some(properties.session_id.clone());
-                }
-                let _ = self.tx.send(UiEvent::SessionIdle { session_id: properties.session_id }).await;
+                tracing::info!("SessionIdle (duplicate): session_id={}", properties.session_id);
             }
             OpenCodeEvent::MessageUpdated { properties } => {
                 let role_str = match properties.info.role {
