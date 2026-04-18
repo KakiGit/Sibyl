@@ -217,23 +217,19 @@ async def main():
     print("SIBYL OPTIMIZED IPC SERVER (SimpleMemoryStore)")
     print("=" * 60)
 
-    print("\n[1/4] Connecting to Redis/FalkorDB...")
+    print("\n[1/3] Connecting to Redis/FalkorDB...")
     r = redis.Redis(host="localhost", port=6379, decode_responses=False)
     await r.ping()
     print("  Connected to Redis")
 
-    print("\n[2/4] Initializing embedder (all-MiniLM-L6-v2)...")
+    print("\n[2/3] Creating SimpleMemoryStore with lazy embedder...")
     embedder_config = EmbedderConfig(model_name="all-MiniLM-L6-v2")
     embedder = LocalEmbedder(embedder_config)
-    _ = embedder.model
-    print("  Embedder ready")
-
-    print("\n[3/4] Creating SimpleMemoryStore...")
     store = SimpleMemoryStore(r)
     store.set_embedder(embedder)
-    print("  Store ready")
+    print("  Store ready (embedder will load on first use)")
 
-    print("\n[4/4] Initializing prompt builder...")
+    print("\n[3/3] Initializing prompt builder...")
     prompt_builder = TemplatePromptBuilder()
 
     relevance_evaluator = None

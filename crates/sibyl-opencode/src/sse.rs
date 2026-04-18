@@ -17,7 +17,7 @@ pub struct SseClient {
 impl SseClient {
     pub fn new(url: impl Into<String>) -> Self {
         let http = Client::builder()
-            .timeout(Duration::from_secs(300))
+            .connect_timeout(Duration::from_secs(30))
             .build()
             .unwrap();
         Self {

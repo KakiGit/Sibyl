@@ -13,13 +13,23 @@ logger = logging.getLogger(__name__)
 class SimpleMemoryStore:
     """Simple memory store using FalkorDB/Redis directly without LLM extraction."""
 
+    ALL_EPISODES_SET = "all:episodes:set"
+    SESSION_SET_PREFIX = "session:"
+    SESSION_SET_SUFFIX = ":episodes:set"
+
     def __init__(self, redis_client):
         self.redis = redis_client
         self._embedder = None
         self._embedding_cache: dict = {}
+        self._embedder_loaded = False
 
     def set_embedder(self, embedder):
         self._embedder = embedder
+
+    async def _ensure_embedder(self):
+        if self._embedder and not self._embedder_loaded:
+            _ = self._embedder.model
+            self._embedder_loaded = True
 
     async def add_episode(
         self,
@@ -32,6 +42,7 @@ class SimpleMemoryStore:
         if reference_time is None:
             reference_time = datetime.utcnow()
 
+        await self._ensure_embedder()
         episode_id = str(uuid4())
         episode_data = {
             "uuid": episode_id,
@@ -52,11 +63,10 @@ class SimpleMemoryStore:
             self._embedding_cache[episode_id] = embeddings[0]
 
         if session_id:
-            session_key = f"session:{session_id}:episodes"
-            await self.redis.rpush(session_key, episode_id)
+            session_set_key = f"{self.SESSION_SET_PREFIX}{session_id}{self.SESSION_SET_SUFFIX}"
+            await self.redis.sadd(session_set_key, episode_id)
 
-        all_episodes_key = "all:episodes"
-        await self.redis.rpush(all_episodes_key, episode_id)
+        await self.redis.sadd(self.ALL_EPISODES_SET, episode_id)
 
         logger.info(f"Stored episode: {episode_id}")
         return episode_id
@@ -92,11 +102,10 @@ class SimpleMemoryStore:
             self._embedding_cache[episode_id] = embedding
 
         if session_id:
-            session_key = f"session:{session_id}:episodes"
-            await self.redis.rpush(session_key, episode_id)
+            session_set_key = f"{self.SESSION_SET_PREFIX}{session_id}{self.SESSION_SET_SUFFIX}"
+            await self.redis.sadd(session_set_key, episode_id)
 
-        all_episodes_key = "all:episodes"
-        await self.redis.rpush(all_episodes_key, episode_id)
+        await self.redis.sadd(self.ALL_EPISODES_SET, episode_id)
 
         logger.info(f"Stored episode: {episode_id}")
         return episode_id
@@ -131,28 +140,25 @@ class SimpleMemoryStore:
 
         episode_ids = []
         if session_id:
-            session_key = f"session:{session_id}:episodes"
+            session_set_key = f"{self.SESSION_SET_PREFIX}{session_id}{self.SESSION_SET_SUFFIX}"
             try:
-                ids = await self.redis.lrange(session_key, 0, -1)
+                ids = await self.redis.smembers(session_set_key)
                 episode_ids = [i.decode() if isinstance(i, bytes) else i for i in ids]
             except Exception:
                 pass
 
         if len(episode_ids) < 50:
             try:
-                all_ids = await self.redis.lrange("all:episodes", -100, -1)
+                all_ids = await self.redis.smembers(self.ALL_EPISODES_SET)
                 episode_ids.extend(
                     [i.decode() if isinstance(i, bytes) else i for i in all_ids]
                 )
                 episode_ids = list(set(episode_ids))
             except Exception:
-                keys = await self.redis.keys("episode:*")
-                episode_ids = [
-                    k.decode().split(":")[1]
-                    if isinstance(k, bytes)
-                    else k.split(":")[1]
-                    for k in keys
-                ]
+                async for key in self.redis.scan_iter(match="episode:*"):
+                    key_str = key.decode() if isinstance(key, bytes) else key
+                    ep_id = key_str.split(":")[1]
+                    episode_ids.append(ep_id)
 
         if not episode_ids:
             return scored
@@ -196,9 +202,9 @@ class SimpleMemoryStore:
         results = []
 
         if session_id:
-            session_key = f"session:{session_id}:episodes"
+            session_set_key = f"{self.SESSION_SET_PREFIX}{session_id}{self.SESSION_SET_SUFFIX}"
             try:
-                episode_ids = await self.redis.lrange(session_key, 0, -1)
+                episode_ids = await self.redis.smembers(session_set_key)
                 for ep_id in episode_ids:
                     ep_id = ep_id.decode() if isinstance(ep_id, bytes) else ep_id
                     key = f"episode:{ep_id}"
@@ -214,8 +220,10 @@ class SimpleMemoryStore:
 
         if len(results) < num_results:
             try:
-                keys = await self.redis.keys("episode:*")
-                for key in keys[:100]:
+                count = 0
+                async for key in self.redis.scan_iter(match="episode:*"):
+                    if count >= 100:
+                        break
                     key_str = key.decode() if isinstance(key, bytes) else key
                     data = await self.redis.get(key_str)
                     if data:
@@ -225,6 +233,7 @@ class SimpleMemoryStore:
                         if query.lower() in episode.get("content", "").lower():
                             if episode not in results:
                                 results.append(episode)
+                    count += 1
             except Exception as e:
                 logger.warning(f"Global search failed: {e}")
 
