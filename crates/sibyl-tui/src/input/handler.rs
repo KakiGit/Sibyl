@@ -13,7 +13,6 @@ pub enum HandleResult {
     SubmitInput,
     #[allow(dead_code)]
     ClearChat,
-    ShowHelp,
     HideHelp,
     CancelSession,
     DoubleEsc,
@@ -25,11 +24,12 @@ pub fn handle_global_key(key: KeyEvent, current_mode: AppMode) -> HandleResult {
             HandleResult::CancelSession
         }
         KeyCode::Tab => HandleResult::ToggleMemoryPanel,
-        KeyCode::Char('?')
-            if key.modifiers.contains(KeyModifiers::NONE)
-                && current_mode != AppMode::CommandPalette =>
-        {
-            HandleResult::ShowHelp
+        KeyCode::Char('?') if key.modifiers.contains(KeyModifiers::NONE) => {
+            if current_mode == AppMode::HelpOverlay {
+                HandleResult::HideHelp
+            } else {
+                HandleResult::Continue
+            }
         }
         KeyCode::Esc => {
             if current_mode == AppMode::HelpOverlay || current_mode == AppMode::CommandPalette {

@@ -212,6 +212,15 @@ class OptimizedPromptHandler:
         return {"content": str(fact)}
 
 
+async def preload_embedder(embedder: LocalEmbedder):
+    """Preload embedder model in background."""
+    import time
+    start = time.time()
+    _ = embedder.model
+    elapsed = time.time() - start
+    logger.info(f"Embedder preloaded in {elapsed:.2f}s")
+
+
 async def main():
     print("=" * 60)
     print("SIBYL OPTIMIZED IPC SERVER (SimpleMemoryStore)")
@@ -222,12 +231,12 @@ async def main():
     await r.ping()
     print("  Connected to Redis")
 
-    print("\n[2/3] Creating SimpleMemoryStore with lazy embedder...")
+    print("\n[2/3] Creating SimpleMemoryStore...")
     embedder_config = EmbedderConfig(model_name="all-MiniLM-L6-v2")
     embedder = LocalEmbedder(embedder_config)
     store = SimpleMemoryStore(r)
     store.set_embedder(embedder)
-    print("  Store ready (embedder will load on first use)")
+    print("  Store ready")
 
     print("\n[3/3] Initializing prompt builder...")
     prompt_builder = TemplatePromptBuilder()
@@ -242,7 +251,7 @@ async def main():
             threshold=0.25,
             use_llm=False,
         )
-        print("  Relevance evaluator ready (embedding-based)")
+        print("  Relevance evaluator ready")
     except Exception as e:
         print(f"  Relevance evaluator skipped: {e}")
 
@@ -265,6 +274,8 @@ async def main():
     print(f"Socket: /tmp/sibyl-ipc.sock")
     print("=" * 60)
     print("\nListening for connections...")
+
+    asyncio.create_task(preload_embedder(embedder))
 
     try:
         await server.start()

@@ -63,7 +63,6 @@ pub enum BackgroundCommand {
         text: String,
         session_id: Option<String>,
     },
-    LoadInitialMemories,
     CancelSession {
         session_id: String,
     },
@@ -206,33 +205,6 @@ async fn handle_command_spawned(
                     .await;
             }
             tracing::info!("Message sent to OpenCode");
-        }
-        BackgroundCommand::LoadInitialMemories => {
-            tracing::info!("Loading initial memories");
-            let memories_request = Request::new(
-                Method::MemoryQuery,
-                serde_json::json!({
-                    "query": "show me all memories",
-                    "num_results": 20
-                }),
-            );
-            let memories_result = ipc.send(memories_request).await.ok().and_then(|r| r.result);
-
-            let memories: Vec<String> = memories_result
-                .as_ref()
-                .and_then(|r| r.get("episodes").and_then(|e| e.as_array()))
-                .map(|episodes| {
-                    episodes
-                        .iter()
-                        .filter_map(|e| e.get("content").and_then(|c| c.as_str()).map(String::from))
-                        .collect()
-                })
-                .unwrap_or_default();
-
-            if !memories.is_empty() {
-                tracing::info!("Found {} initial memories, sending to UI", memories.len());
-                let _ = tx.send(UiEvent::MemoriesRetrieved { memories }).await;
-            }
         }
         BackgroundCommand::CancelSession { session_id } => {
             tracing::info!("Canceling session {}", session_id);

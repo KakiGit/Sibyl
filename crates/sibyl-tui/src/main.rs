@@ -171,6 +171,11 @@ fn main() -> anyhow::Result<()> {
 
     tracing::info!("Background task spawned, handle: {:?}", bg_handle);
 
+    let mut app = App::new(deps.clone(), config, bg_tx, ui_rx);
+    app.load_history();
+
+    terminal.draw(|f| ui(f, &app))?;
+
     {
         let deps_clone = deps.clone();
         let _guard = rt.enter();
@@ -182,13 +187,6 @@ fn main() -> anyhow::Result<()> {
             tracing::info!("Dependency check complete");
         });
     }
-
-    let _ = bg_tx.blocking_send(background::BackgroundCommand::LoadInitialMemories);
-
-    let mut app = App::new(deps.clone(), config, bg_tx, ui_rx);
-    app.load_history();
-
-    terminal.draw(|f| ui(f, &app))?;
 
     let app = run_app(&mut terminal, app, &rt);
 

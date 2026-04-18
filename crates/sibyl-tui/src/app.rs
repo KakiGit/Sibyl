@@ -1,3 +1,4 @@
+use crossterm::event::{KeyCode, KeyModifiers};
 use tokio::sync::mpsc::{Receiver, Sender};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -507,10 +508,6 @@ impl App {
                 }
                 return true;
             }
-            HandleResult::ShowHelp => {
-                self.mode = AppMode::HelpOverlay;
-                return true;
-            }
             HandleResult::HideHelp => {
                 self.mode = AppMode::Chat;
                 return true;
@@ -551,6 +548,12 @@ impl App {
                 self.mode = mode;
             }
             _ => {
+                if let KeyCode::Char('?') = key.code {
+                    if key.modifiers.contains(KeyModifiers::NONE) && self.composer.is_empty() {
+                        self.mode = AppMode::HelpOverlay;
+                        return;
+                    }
+                }
                 if should_handle_as_input(key, self.mode) {
                     let action = self.composer.handle_key(key);
                     match action {
