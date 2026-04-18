@@ -80,6 +80,7 @@ dependencies:
   - FalkorDB/Redis at localhost:6379
   - OpenCode harness at localhost:4096
 - UX Optimization: Animated spinner for streaming indicator ✓
+- Queue count: Displayed in status bar when messages are queued ✓
 - SSE handling: Refactored background task for concurrent polling ✓
   - Added Clone derive to OpenCodeClient
   - Fixed Part enum to handle extra SSE event fields
