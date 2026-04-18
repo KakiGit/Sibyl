@@ -87,6 +87,12 @@ pub enum OpenCodeEvent {
         properties: serde_json::Value,
     },
 
+    #[serde(rename = "file.edited")]
+    FileEdited {
+        #[serde(default)]
+        properties: serde_json::Value,
+    },
+
     #[serde(rename = "message")]
     Message { content: String, role: String },
 
