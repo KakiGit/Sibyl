@@ -15,7 +15,7 @@ impl ConfigLoader {
     }
 
     pub fn config_path(&self) -> PathBuf {
-        self.config_dir.join("sibyl.yaml")
+        self.config_dir.join("config.yaml")
     }
 
     pub async fn load(&self) -> Result<Config> {

@@ -370,7 +370,6 @@ fn run_headless(prompt: Option<String>, use_stdin: bool, json_output: bool) -> a
 
 fn run_memory_command(memory_cmd: MemoryCommands) -> anyhow::Result<()> {
     use sibyl_ipc::client::IpcClient;
-    use sibyl_ipc::{Method, Request};
     use sibyl_deps::load_config;
     
     let config = load_config();
