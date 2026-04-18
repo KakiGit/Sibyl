@@ -392,7 +392,7 @@ pub fn create_channels() -> (Sender<BackgroundCommand>, Receiver<BackgroundComma
     (bg_tx, bg_rx, ui_tx, ui_rx)
 }
 
-pub async fn spawn_background_task_with_events(
+pub fn spawn_background_task_with_events(
     opencode: OpenCodeClient,
     ipc: IpcClient,
     bg_rx: Receiver<BackgroundCommand>,
