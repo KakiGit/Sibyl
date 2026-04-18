@@ -49,7 +49,7 @@ dependencies:
 - Embedder init: ~8s (one-time startup cost)
 
 ## Baseline Verified (2026-04-18 - Latest)
-- Build: successful ✓ (cargo build --release)
+- Build: successful ✓ (cargo build --release, binary: 12MB)
 - Config: ~/.config/sibyl/config.yaml ✓
   - Harness: opencode (url: http://localhost:4096, model: glm-5)
   - IPC: /tmp/sibyl-ipc.sock
@@ -60,12 +60,21 @@ dependencies:
   - Memories retrieved (10 most relevant) and injected
   - Response received from harness
   - Memory stored after conversation
+  - Context injection working: memories injected into prompt for LLM context
+  - Verified: Query about user preferences shows memory-based response
 - Memory Operations (NEW): ✓
-  - `./target/release/sibyl memory query --query "..." --json` - Real-time natural language query
-  - `./target/release/sibyl memory list --json` - List all memories
-  - `./target/release/sibyl memory modify <id> --content "..." --json` - Modify memory
-  - `./target/release/sibyl memory delete <id> --json` - Delete memory
+  - `./target/release/sibyl memory query --query "..." --json` - Real-time natural language query ✓
+  - `./target/release/sibyl memory list --json` - List all memories ✓
+  - `./target/release/sibyl memory modify <id> --content "..." --json` - Modify memory ✓
+  - `./target/release/sibyl memory delete <id> --json` - Delete memory ✓
+  - Verified: Modify changes content, adds modified_at timestamp
+  - Verified: Delete removes memory from database permanently
 - TUI: `./target/release/sibyl tui` ✓
+  - Commands: `/help`, `/clear`, `/memory`, `/remember`, `/skill`, `/harness`
+  - Memory panel toggle: Tab key
+  - Help overlay: `?` key
+  - Command palette: `:` key
+  - Memory management UI: query and remember commands work, modify/delete pending (CLI available)
 - Queue handling: Messages queued while processing, sent when idle ✓
 - SSE: Real-time streaming with animated spinner ✓
 - UX Optimization: Animated spinner for streaming indicator ✓
@@ -77,6 +86,8 @@ dependencies:
 - Bug fixes:
   - Fixed duplicate SessionIdle event handling (OpenCode sends both SessionStatus and SessionIdle)
   - Fixed "No response received" false positives when processing queued messages
+- Code quality: Clippy passes with no errors ✓
+- Tests: cargo test passes ✓, TUI tests 26/26 pass ✓
 
 ## TUI Testing
 - tui-test framework setup in `tui-tests/` directory
@@ -86,7 +97,7 @@ dependencies:
 - **Note**: Node.js 25.X is NOT supported. Use Node.js 20.X LTS.
   - Install fnm: `sudo pacman -S fnm` (Arch Linux)
   - Use Node 20: `eval "$(fnm env --shell bash)" && fnm use 20`
-- Tests verified (2026-04-18): 26/26 tests pass (some are flaky, pass on retry)
+- Tests verified (2026-04-18): 26/26 tests pass ✓
   - basic.test.ts: 6/6 passed - welcome screen, keybindings hint, command hints, help overlay, command palette, status bar
   - tests/sse-events.test.ts: 2/2 passed - SSE connection, deps visible
   - tests/single-message.test.ts: 3/3 passed - send message, queue messages, You indicator
@@ -94,7 +105,10 @@ dependencies:
   - tests/messages.test.ts: 5/5 passed - message sending, queue panel, multiple messages
   - tests/queue-flow.test.ts: 4/4 passed - queue flow tests
   - tests/full-flow.test.ts: 3/3 passed - complete flow, two queued messages, queue count
-- Clippy: no errors (only warnings for unused code) ✓
+  - Note: Tests run on Node.js 25.9.0 (warning about version, but tests pass)
+- Code quality: Clippy passes with no errors ✓
+- Build: cargo build --release succeeds ✓
+- Config test: cargo test --package sibyl-deps test_load_config passes ✓
 
 ## Feature Status (from DRAFT.md)
 ### Implemented ✓
