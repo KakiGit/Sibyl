@@ -12,7 +12,7 @@ pub use app::{
 };
 pub use background::{
     UiEvent, BackgroundCommand,
-    create_channels, spawn_background_task, spawn_background_task_with_events,
+    create_channels, spawn_background_task_with_events,
     BackgroundTask,
 };
 pub use input::{

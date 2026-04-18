@@ -7,7 +7,6 @@ use sibyl_harness::{Harness, SessionInfo, Message, HarnessCapabilities, Error as
 use async_trait::async_trait;
 use reqwest::Client;
 use std::path::Path;
-use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use std::time::Duration;
@@ -18,7 +17,6 @@ pub struct OpenCodeClient {
     config: OpenCodeConfig,
     process: Option<Arc<OpenCodeProcess>>,
     pub event_stream: Arc<RwLock<Option<EventStream>>>,
-    sessions: Arc<RwLock<HashMap<String, String>>>,
 }
 
 impl OpenCodeClient {
@@ -33,7 +31,6 @@ impl OpenCodeClient {
             config,
             process: None,
             event_stream: Arc::new(RwLock::new(None)),
-            sessions: Arc::new(RwLock::new(HashMap::new())),
         }
     }
     

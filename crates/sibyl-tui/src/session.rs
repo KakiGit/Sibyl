@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use sibyl_deps::{DependencyManager, SibylConfig};
+use sibyl_deps::DependencyManager;
 use sibyl_harness::Harness;
 use sibyl_ipc::client::IpcClient;
 use sibyl_ipc::{Method, Request};
@@ -13,7 +13,6 @@ pub struct SessionRunner {
     ipc: IpcClient,
     session_id: Option<String>,
     deps: Arc<DependencyManager>,
-    config: SibylConfig,
 }
 
 pub struct SessionResult {
@@ -23,21 +22,20 @@ pub struct SessionResult {
 }
 
 impl SessionRunner {
-    pub fn new(deps: Arc<DependencyManager>, config: SibylConfig) -> Self {
+    pub fn new(deps: Arc<DependencyManager>, ipc_socket_path: &str, opencode_url: &str, opencode_model: &str) -> Self {
         let opencode_config = OpenCodeConfig {
-            url: config.harness.opencode.url.clone(),
-            model: config.harness.opencode.model.clone(),
+            url: opencode_url.to_string(),
+            model: opencode_model.to_string(),
             ..Default::default()
         };
         let opencode = OpenCodeClient::new(opencode_config);
-        let ipc = IpcClient::new(&config.ipc.socket_path);
+        let ipc = IpcClient::new(ipc_socket_path);
         
         Self {
             opencode,
             ipc,
             session_id: None,
             deps,
-            config,
         }
     }
 

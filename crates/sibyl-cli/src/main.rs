@@ -282,7 +282,12 @@ fn run_headless(prompt: Option<String>, use_stdin: bool, json_output: bool) -> a
         std::process::exit(1);
     }
 
-    let mut runner = SessionRunner::new(deps.clone(), config);
+    let mut runner = SessionRunner::new(
+        deps.clone(),
+        &config.ipc.socket_path,
+        &config.harness.opencode.url,
+        &config.harness.opencode.model
+    );
     
     let result = rt.block_on(async {
         runner.run(&prompt_text).await

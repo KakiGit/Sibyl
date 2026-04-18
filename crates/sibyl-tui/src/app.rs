@@ -1,4 +1,3 @@
-use chrono::{DateTime, Utc};
 use tokio::sync::mpsc::{Receiver, Sender};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -27,9 +26,7 @@ pub enum MessageRole {
 pub struct Message {
     pub role: MessageRole,
     pub content: String,
-    pub timestamp: DateTime<Utc>,
     pub memories_injected: Vec<String>,
-    pub pending: bool,
 }
 
 impl Message {
@@ -37,20 +34,8 @@ impl Message {
         Self {
             role,
             content,
-            timestamp: Utc::now(),
             memories_injected: Vec::new(),
-            pending: false,
         }
-    }
-
-    pub fn with_memories(mut self, memories: Vec<String>) -> Self {
-        self.memories_injected = memories;
-        self
-    }
-
-    pub fn pending(mut self) -> Self {
-        self.pending = true;
-        self
     }
 }
 
@@ -115,7 +100,6 @@ impl ChatState {
 pub struct MemoryPanelState {
     pub visible: bool,
     pub results: Vec<String>,
-    pub query: String,
     pub scroll_offset: usize,
 }
 
@@ -124,7 +108,6 @@ impl Default for MemoryPanelState {
         Self {
             visible: false,
             results: Vec::new(),
-            query: String::new(),
             scroll_offset: 0,
         }
     }
@@ -150,41 +133,6 @@ impl QueuePanelState {
         self.messages.push(text);
     }
 
-    pub fn remove_selected(&mut self) -> Option<String> {
-        if let Some(idx) = self.selected_index {
-            if idx < self.messages.len() {
-                self.messages.remove(idx);
-                self.selected_index = if self.messages.is_empty() {
-                    None
-                } else {
-                    Some(idx.min(self.messages.len() - 1))
-                };
-            }
-        }
-        None
-    }
-
-    pub fn clear(&mut self) {
-        self.messages.clear();
-        self.selected_index = None;
-    }
-
-    pub fn select_up(&mut self) {
-        if !self.messages.is_empty() {
-            self.selected_index = Some(self.selected_index.map_or(0, |i| i.saturating_sub(1)));
-        }
-    }
-
-    pub fn select_down(&mut self) {
-        if !self.messages.is_empty() {
-            let max = self.messages.len() - 1;
-            self.selected_index = Some(
-                self.selected_index
-                    .map_or(0, |i| i.min(max).saturating_add(1)),
-            );
-        }
-    }
-
     pub fn is_empty(&self) -> bool {
         self.messages.is_empty()
     }
@@ -198,8 +146,6 @@ impl QueuePanelState {
 pub struct InputState {
     pub buffer: String,
     pub cursor_position: usize,
-    pub history: Vec<String>,
-    pub history_index: Option<usize>,
 }
 
 impl Default for InputState {
@@ -207,82 +153,6 @@ impl Default for InputState {
         Self {
             buffer: String::new(),
             cursor_position: 0,
-            history: Vec::new(),
-            history_index: None,
-        }
-    }
-}
-
-impl InputState {
-    pub fn insert_char(&mut self, c: char) {
-        self.buffer.insert(self.cursor_position, c);
-        self.cursor_position += c.len_utf8();
-    }
-
-    pub fn delete_char(&mut self) {
-        if self.cursor_position > 0 {
-            self.cursor_position -= 1;
-            self.buffer.remove(self.cursor_position);
-        }
-    }
-
-    pub fn move_cursor_left(&mut self) {
-        if self.cursor_position > 0 {
-            self.cursor_position -= 1;
-        }
-    }
-
-    pub fn move_cursor_right(&mut self) {
-        if self.cursor_position < self.buffer.len() {
-            self.cursor_position += 1;
-        }
-    }
-
-    pub fn move_cursor_home(&mut self) {
-        self.cursor_position = 0;
-    }
-
-    pub fn move_cursor_end(&mut self) {
-        self.cursor_position = self.buffer.len();
-    }
-
-    pub fn clear(&mut self) {
-        self.buffer.clear();
-        self.cursor_position = 0;
-    }
-
-    pub fn submit(&mut self) -> String {
-        let content = self.buffer.clone();
-        if !content.is_empty() {
-            self.history.push(content.clone());
-        }
-        self.clear();
-        self.history_index = None;
-        content
-    }
-
-    pub fn history_up(&mut self) {
-        if self.history.is_empty() {
-            return;
-        }
-        let idx = self.history_index.unwrap_or(self.history.len());
-        if idx > 0 {
-            self.history_index = Some(idx - 1);
-            self.buffer = self.history[idx - 1].clone();
-            self.cursor_position = self.buffer.len();
-        }
-    }
-
-    pub fn history_down(&mut self) {
-        if let Some(idx) = self.history_index {
-            if idx + 1 < self.history.len() {
-                self.history_index = Some(idx + 1);
-                self.buffer = self.history[idx + 1].clone();
-                self.cursor_position = self.buffer.len();
-            } else {
-                self.history_index = None;
-                self.clear();
-            }
         }
     }
 }
@@ -331,7 +201,6 @@ pub struct App {
     chat: ChatState,
     memory: MemoryPanelState,
     queue: QueuePanelState,
-    input: InputState,
     status_bar: StatusBarState,
     composer: InputComposer,
     spinner: Spinner,
@@ -357,7 +226,6 @@ impl App {
             chat: ChatState::default(),
             memory: MemoryPanelState::default(),
             queue: QueuePanelState::default(),
-            input: InputState::default(),
             status_bar: StatusBarState {
                 model: config.harness.opencode.model.clone(),
                 ..Default::default()
@@ -402,8 +270,6 @@ impl App {
         InputState {
             buffer: self.composer.buffer().to_string(),
             cursor_position: self.composer.cursor(),
-            history: self.input.history.clone(),
-            history_index: self.input.history_index,
         }
     }
 
@@ -492,24 +358,24 @@ impl App {
                     self.status_bar.streaming = true;
                 }
             }
-            UiEvent::MessageCreated { role, .. } => {
-                tracing::info!("UI: MessageCreated role={}", role);
+            UiEvent::MessageCreated { session_id, message_id, role } => {
+                tracing::info!("UI: MessageCreated session={} msg={} role={}", session_id, message_id, role);
             }
-            UiEvent::MessagePartDelta { delta, .. } => {
-                tracing::debug!("UI: MessagePartDelta delta={}", delta);
+            UiEvent::MessagePartDelta { session_id, message_id, part_id, delta } => {
+                tracing::debug!("UI: MessagePartDelta session={} msg={} part={} delta={}", session_id, message_id, part_id, delta);
                 self.chat.append_stream(&delta);
             }
-            UiEvent::MessagePartComplete { content, .. } => {
-                tracing::info!("UI: MessagePartComplete content={}", content);
+            UiEvent::MessagePartComplete { session_id, message_id, part_id, content } => {
+                tracing::info!("UI: MessagePartComplete session={} msg={} part={} content={}", session_id, message_id, part_id, content);
                 self.chat.finish_stream(content);
             }
-            UiEvent::MessageComplete { .. } => {
-                tracing::info!("UI: MessageComplete");
+            UiEvent::MessageComplete { session_id, message_id } => {
+                tracing::info!("UI: MessageComplete session={} msg={}", session_id, message_id);
                 self.chat.streaming = false;
                 self.status_bar.streaming = false;
             }
-            UiEvent::ToolUse { tool, status, .. } => {
-                tracing::info!("UI: ToolUse tool={} status={}", tool, status);
+            UiEvent::ToolUse { session_id, tool, status } => {
+                tracing::info!("UI: ToolUse session={} tool={} status={}", session_id, tool, status);
                 if status == "completed" {
                     let msg =
                         Message::new(MessageRole::System, format!("Tool '{}' completed", tool));
@@ -519,19 +385,11 @@ impl App {
                     self.chat.add_message(msg);
                 }
             }
-            UiEvent::Error { message, .. } => {
-                tracing::error!("UI: Error {}", message);
+            UiEvent::Error { session_id, message } => {
+                tracing::error!("UI: Error session={} message={}", session_id, message);
                 let msg = Message::new(MessageRole::System, format!("Error: {}", message));
                 self.chat.add_message(msg);
                 self.status = AppStatus::Error;
-            }
-            UiEvent::MemoryRetrieved { memories } => {
-                tracing::info!("UI: MemoryRetrieved {} memories", memories.len());
-                self.memory.results = memories.clone();
-                self.status_bar.memory_count = memories.len();
-            }
-            UiEvent::PromptBuilt { prompt } => {
-                tracing::info!("UI: PromptBuilt len={}", prompt.len());
             }
         }
     }
@@ -763,8 +621,7 @@ impl App {
                     Method::MemoryAddUserFact,
                     serde_json::json!({ "fact": fact }),
                 );
-                let rt = tokio::runtime::Runtime::new().unwrap();
-                let result = rt.block_on(ipc_client.send(request));
+                let result = ipc_client.send_blocking(request);
                 let message = match result {
                     Ok(response) if response.error.is_none() => {
                         format!("Remembered: {}", fact)
@@ -819,14 +676,13 @@ impl App {
                 }
                 Command::MemoryQuery(query) => {
                     if !query.is_empty() {
-                        let rt = tokio::runtime::Runtime::new().unwrap();
                         let ipc_client = IpcClient::new(&self.config.ipc.socket_path);
                         let request = Request::new(
                             Method::MemoryQuery,
                             serde_json::json!({ "query": query }),
                         );
 
-                        if let Ok(response) = rt.block_on(ipc_client.send(request)) {
+                        if let Ok(response) = ipc_client.send_blocking(request) {
                             if let Some(result) = response.result {
                                 if let Some(episodes) =
                                     result.get("episodes").and_then(|e| e.as_array())
@@ -849,14 +705,13 @@ impl App {
                 }
                 Command::Remember(fact) => {
                     if !fact.is_empty() {
-                        let rt = tokio::runtime::Runtime::new().unwrap();
                         let ipc_client = IpcClient::new(&self.config.ipc.socket_path);
                         let request = Request::new(
                             Method::MemoryAddUserFact,
                             serde_json::json!({ "fact": fact }),
                         );
 
-                        let result = rt.block_on(ipc_client.send(request));
+                        let result = ipc_client.send_blocking(request);
                         let message = match result {
                             Ok(response) if response.error.is_none() => {
                                 format!("Remembered: {}", fact)

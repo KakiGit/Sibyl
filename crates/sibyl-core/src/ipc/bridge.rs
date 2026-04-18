@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::path::PathBuf;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::UnixStream;
@@ -115,27 +114,9 @@ pub struct RelevanceEvaluateResult {
     pub reasoning: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SessionSyncParams {
-    pub session_id: String,
-    pub state: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct EventEmitParams {
-    pub event_type: String,
-    pub data: serde_json::Value,
-}
-
 pub struct IpcBridge {
     socket_path: PathBuf,
     timeout_ms: u64,
-    pending_requests: HashMap<u64, PendingRequest>,
-}
-
-struct PendingRequest {
-    method: String,
-    created_at: std::time::Instant,
 }
 
 impl IpcBridge {
@@ -143,7 +124,6 @@ impl IpcBridge {
         Self {
             socket_path: socket_path.into(),
             timeout_ms: 30000,
-            pending_requests: HashMap::new(),
         }
     }
 
@@ -154,13 +134,6 @@ impl IpcBridge {
 
     pub async fn call(&mut self, method: &str, params: serde_json::Value) -> Result<serde_json::Value> {
         let request = JsonRpcRequest::new(method, params);
-        self.pending_requests.insert(
-            request.id,
-            PendingRequest {
-                method: method.to_string(),
-                created_at: std::time::Instant::now(),
-            },
-        );
         
         debug!("IPC call: {} (id={})", method, request.id);
         

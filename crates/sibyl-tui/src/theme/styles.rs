@@ -62,10 +62,3 @@ pub fn header() -> Style {
         .bg(BACKGROUND)
         .add_modifier(Modifier::BOLD)
 }
-
-pub fn selected() -> Style {
-    Style::default()
-        .fg(FOREGROUND)
-        .bg(ACCENT)
-        .add_modifier(Modifier::BOLD)
-}

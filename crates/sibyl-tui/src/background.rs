@@ -20,15 +20,11 @@ pub enum UiEvent {
     MessageComplete { session_id: String, message_id: String },
     ToolUse { session_id: String, tool: String, status: String },
     Error { session_id: String, message: String },
-    MemoryRetrieved { memories: Vec<String> },
-    PromptBuilt { prompt: String },
 }
 
 #[derive(Debug, Clone)]
 pub enum BackgroundCommand {
     SendMessage { text: String, session_id: Option<String> },
-    AbortSession { session_id: String },
-    CreateSession,
 }
 
 type SharedSessionId = Arc<RwLock<Option<String>>>;
@@ -112,18 +108,6 @@ async fn handle_command_spawned(
             }
             tracing::info!("Message sent to OpenCode");
         }
-        BackgroundCommand::AbortSession { session_id } => {
-            let _ = opencode.abort_session(&session_id).await;
-            let _ = tx.send(UiEvent::SessionIdle { session_id });
-        }
-        BackgroundCommand::CreateSession => {
-            let cwd = std::env::current_dir().ok();
-            if let Ok(info) = opencode.create_session(cwd.as_deref()).await {
-                let mut guard = shared_session_id.write().await;
-                *guard = Some(info.id.clone());
-                let _ = tx.send(UiEvent::SessionIdle { session_id: info.id });
-            }
-        }
     }
 }
 
@@ -136,7 +120,6 @@ pub struct BackgroundTask {
     shared_session_id: SharedSessionId,
     session_busy: bool,
     current_message_id: Option<String>,
-    current_part_id: Option<String>,
     streaming_text: String,
 }
 
@@ -156,14 +139,8 @@ impl BackgroundTask {
             shared_session_id: Arc::new(RwLock::new(None)),
             session_busy: false,
             current_message_id: None,
-            current_part_id: None,
             streaming_text: String::new(),
         }
-    }
-
-    pub fn with_events(mut self, events: EventStream) -> Self {
-        self.events = Some(events);
-        self
     }
 
     pub async fn run(mut self) {
@@ -413,16 +390,6 @@ pub fn create_channels() -> (Sender<BackgroundCommand>, Receiver<BackgroundComma
     let (bg_tx, bg_rx) = channel::<BackgroundCommand>(32);
     let (ui_tx, ui_rx) = channel::<UiEvent>(32);
     (bg_tx, bg_rx, ui_tx, ui_rx)
-}
-
-pub async fn spawn_background_task(
-    opencode: OpenCodeClient,
-    ipc: IpcClient,
-    bg_rx: Receiver<BackgroundCommand>,
-    ui_tx: Sender<UiEvent>,
-) -> tokio::task::JoinHandle<()> {
-    let task = BackgroundTask::new(opencode, ipc, ui_tx, bg_rx);
-    tokio::spawn(task.run())
 }
 
 pub async fn spawn_background_task_with_events(
