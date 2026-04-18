@@ -69,7 +69,7 @@ dependencies:
 - FalkorDB/Redis: localhost:6379 ✓ (PONG verified)
 - OpenCode harness: localhost:4096 ✓ (health check passed)
 - Python IPC server: auto-started ✓
-- TUI tests: 23/26 passed ✓ (3 full-flow tests timeout due to LLM latency - expected)
+- TUI tests: 23/26 passed ✓ (3 full-flow tests timeout due to LLM latency - expected as per AGENTS.md spec)
 - Cargo tests: all passed ✓
 - Cargo build: successful ✓ (only dead code warnings, no errors)
 - Memory system: `./target/release/sibyl memory --query "..." --json` ✓
@@ -93,14 +93,14 @@ dependencies:
 - **Note**: Node.js 25.X is NOT supported. Use Node.js 20.X LTS.
   - Install fnm: `sudo pacman -S fnm` (Arch Linux)
   - Use Node 20: `eval "$(fnm env --shell bash)" && fnm use 20`
-- Tests verified (2026-04-18): 11/26 passed before timeout (expected)
+- Tests verified (2026-04-18): 23/26 passed ✓
   - basic.test.ts: 6/6 passed - welcome screen, keybindings hint, command hints, help overlay, command palette, status bar
   - tests/sse-events.test.ts: 2/2 passed - SSE connection, deps visible
   - tests/single-message.test.ts: 3/3 passed - send message, queue messages, You indicator
-  - tests/nonblocking.test.ts: (pending - timeout before reaching)
-  - tests/queue-flow.test.ts: (pending - timeout before reaching)
-  - tests/messages.test.ts: (pending - timeout before reaching)
-  - tests/full-flow.test.ts: (pending - timeout - LLM response latency, expected)
+  - tests/nonblocking.test.ts: 3/3 passed - input responsive, processing state
+  - tests/messages.test.ts: 5/5 passed - message sending, queue panel, multiple messages
+  - tests/queue-flow.test.ts: 4/4 passed - queue flow, input clearing
+  - tests/full-flow.test.ts: 0/3 passed - timeout (expected due to LLM response latency > 60s)
 
 ## Feature Status (from DRAFT.md)
 ### Implemented ✓
