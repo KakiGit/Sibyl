@@ -26,11 +26,12 @@ pub fn handle_global_key(key: KeyEvent, current_mode: AppMode) -> HandleResult {
         }
         KeyCode::Tab => HandleResult::ToggleMemoryPanel,
         KeyCode::Char('?')
-            if key.modifiers.contains(KeyModifiers::NONE) && current_mode != AppMode::Chat =>
+            if key.modifiers.contains(KeyModifiers::NONE)
+                && current_mode != AppMode::Chat
+                && current_mode != AppMode::CommandPalette =>
         {
-            HandleResult::HideHelp
+            HandleResult::ShowHelp
         }
-        KeyCode::Char('?') if key.modifiers.contains(KeyModifiers::NONE) => HandleResult::ShowHelp,
         KeyCode::Esc => {
             if current_mode == AppMode::HelpOverlay || current_mode == AppMode::CommandPalette {
                 HandleResult::SwitchMode(AppMode::Chat)
