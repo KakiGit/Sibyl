@@ -1,5 +1,7 @@
 use crate::error::{Error, Result};
-use crate::workflow::{Action, Workflow, WorkflowContext, WorkflowResult, WorkflowStep, StepResult};
+use crate::workflow::{
+    Action, StepResult, Workflow, WorkflowContext, WorkflowResult, WorkflowStep,
+};
 use std::collections::HashMap;
 
 pub struct WorkflowExecutor {
@@ -40,7 +42,9 @@ impl WorkflowExecutor {
         workflow_name: &str,
         variables: HashMap<String, serde_json::Value>,
     ) -> Result<WorkflowResult> {
-        let workflow = self.workflows.get(workflow_name)
+        let workflow = self
+            .workflows
+            .get(workflow_name)
             .ok_or_else(|| Error::WorkflowNotFound(workflow_name.to_string()))?;
 
         self.validate_variables(workflow, &variables)?;
@@ -50,7 +54,10 @@ impl WorkflowExecutor {
         for step in &workflow.steps {
             match self.execute_step(step, &context).await {
                 Ok(result) => {
-                    context.set_result(&step.name, serde_json::to_value(&result).unwrap_or_default());
+                    context.set_result(
+                        &step.name,
+                        serde_json::to_value(&result).unwrap_or_default(),
+                    );
                 }
                 Err(e) => {
                     return Ok(WorkflowResult {
@@ -71,23 +78,36 @@ impl WorkflowExecutor {
         })
     }
 
-    fn validate_variables(&self, workflow: &Workflow, variables: &HashMap<String, serde_json::Value>) -> Result<()> {
+    fn validate_variables(
+        &self,
+        workflow: &Workflow,
+        variables: &HashMap<String, serde_json::Value>,
+    ) -> Result<()> {
         for var_def in &workflow.variables {
             if var_def.required
-                && !variables.contains_key(&var_def.name) && var_def.default.is_none() {
-                    return Err(Error::MissingVariable(var_def.name.clone()));
-                }
+                && !variables.contains_key(&var_def.name)
+                && var_def.default.is_none()
+            {
+                return Err(Error::MissingVariable(var_def.name.clone()));
+            }
         }
         Ok(())
     }
 
-    async fn execute_step(&self, step: &WorkflowStep, context: &WorkflowContext) -> Result<StepResult> {
+    async fn execute_step(
+        &self,
+        step: &WorkflowStep,
+        context: &WorkflowContext,
+    ) -> Result<StepResult> {
         match step.action {
             Action::Prompt => {
                 let rendered = context.render_template(&step.template);
-                Ok(StepResult::success(&step.name, serde_json::json!({
-                    "prompt": rendered
-                })))
+                Ok(StepResult::success(
+                    &step.name,
+                    serde_json::json!({
+                        "prompt": rendered
+                    }),
+                ))
             }
             Action::Tool => {
                 if step.tool.is_empty() {
@@ -96,11 +116,14 @@ impl WorkflowExecutor {
 
                 let rendered_args = context.render_args(&step.args);
 
-                Ok(StepResult::success(&step.name, serde_json::json!({
-                    "tool": step.tool,
-                    "args": rendered_args,
-                    "message": "Tool execution requires ToolRegistry integration"
-                })))
+                Ok(StepResult::success(
+                    &step.name,
+                    serde_json::json!({
+                        "tool": step.tool,
+                        "args": rendered_args,
+                        "message": "Tool execution requires ToolRegistry integration"
+                    }),
+                ))
             }
         }
     }

@@ -87,7 +87,16 @@ impl DependencyManager {
         let mut any_critical_failed = false;
 
         self.update_state("opencode", ServiceStatus::Checking, None).await;
-        match self.opencode.ensure_running().await {
+        self.update_state("falkordb", ServiceStatus::Checking, None).await;
+        self.update_state("python_ipc", ServiceStatus::Checking, None).await;
+
+        let (opencode_res, falkordb_res, python_ipc_res) = tokio::join!(
+            self.opencode.ensure_running(),
+            self.falkordb.ensure_running(),
+            self.python_ipc.ensure_running()
+        );
+
+        match opencode_res {
             Ok(_) => self.update_state("opencode", ServiceStatus::Running, None).await,
             Err(e) => {
                 any_critical_failed = true;
@@ -96,8 +105,7 @@ impl DependencyManager {
             }
         }
 
-        self.update_state("falkordb", ServiceStatus::Checking, None).await;
-        match self.falkordb.ensure_running().await {
+        match falkordb_res {
             Ok(_) => self.update_state("falkordb", ServiceStatus::Running, None).await,
             Err(e) => {
                 warn!("FalkorDB failed to start, continuing in degraded mode: {}", e);
@@ -106,8 +114,7 @@ impl DependencyManager {
             }
         }
 
-        self.update_state("python_ipc", ServiceStatus::Checking, None).await;
-        match self.python_ipc.ensure_running().await {
+        match python_ipc_res {
             Ok(_) => self.update_state("python_ipc", ServiceStatus::Running, None).await,
             Err(e) => {
                 warn!("Python IPC failed to start, continuing in degraded mode: {}", e);

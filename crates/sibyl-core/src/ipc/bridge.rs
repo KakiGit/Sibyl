@@ -132,19 +132,23 @@ impl IpcBridge {
         self
     }
 
-    pub async fn call(&mut self, method: &str, params: serde_json::Value) -> Result<serde_json::Value> {
+    pub async fn call(
+        &mut self,
+        method: &str,
+        params: serde_json::Value,
+    ) -> Result<serde_json::Value> {
         let request = JsonRpcRequest::new(method, params);
-        
+
         debug!("IPC call: {} (id={})", method, request.id);
-        
+
         let response = self.send_request(&request).await?;
-        
+
         if let Some(error) = response.error {
             return Err(crate::Error::IpcError(sibyl_ipc::Error::ProtocolError(
-                format!("{}: {}", error.code, error.message)
+                format!("{}: {}", error.code, error.message),
             )));
         }
-        
+
         Ok(response.result.unwrap_or(serde_json::Value::Null))
     }
 
@@ -152,48 +156,56 @@ impl IpcBridge {
         let mut stream = UnixStream::connect(&self.socket_path)
             .await
             .map_err(|e| sibyl_ipc::Error::ConnectionError(e.to_string()))?;
-        
+
         let request_bytes = serde_json::to_vec(request)?;
         let len = request_bytes.len() as u32;
-        
+
         let mut buf = len.to_be_bytes().to_vec();
         buf.extend(request_bytes);
-        
-        stream.write_all(&buf)
+
+        stream
+            .write_all(&buf)
             .await
             .map_err(|e| sibyl_ipc::Error::ConnectionError(e.to_string()))?;
-        
+
         let mut len_buf = [0u8; 4];
-        stream.read_exact(&mut len_buf)
+        stream
+            .read_exact(&mut len_buf)
             .await
             .map_err(|e| sibyl_ipc::Error::ConnectionError(e.to_string()))?;
-        
+
         let len = u32::from_be_bytes(len_buf) as usize;
         let mut response_buf = vec![0u8; len];
-        stream.read_exact(&mut response_buf)
+        stream
+            .read_exact(&mut response_buf)
             .await
             .map_err(|e| sibyl_ipc::Error::ConnectionError(e.to_string()))?;
-        
+
         let response: JsonRpcResponse = serde_json::from_slice(&response_buf)?;
         Ok(response)
     }
 
-    pub async fn memory_query(&mut self, query: &str, session_id: Option<&str>, limit: Option<usize>) -> Result<MemoryQueryResult> {
+    pub async fn memory_query(
+        &mut self,
+        query: &str,
+        session_id: Option<&str>,
+        limit: Option<usize>,
+    ) -> Result<MemoryQueryResult> {
         let params = serde_json::to_value(MemoryQueryParams {
             query: query.to_string(),
             session_id: session_id.map(String::from),
             limit,
         })?;
-        
+
         let result = self.call("memory.query", params).await?;
-        
+
         if result.is_null() {
             return Ok(MemoryQueryResult {
                 facts: Vec::new(),
                 entities: Vec::new(),
             });
         }
-        
+
         serde_json::from_value(result)
             .map_err(|e| sibyl_ipc::Error::ProtocolError(e.to_string()).into())
     }
@@ -203,12 +215,12 @@ impl IpcBridge {
             content: content.to_string(),
             session_id: session_id.to_string(),
         })?;
-        
+
         let result = self.call("memory.add_episode", params).await?;
-        
+
         let episode: AddEpisodeResult = serde_json::from_value(result)
             .map_err(|e| sibyl_ipc::Error::ProtocolError(e.to_string()))?;
-        
+
         Ok(episode.episode_id)
     }
 
@@ -217,26 +229,30 @@ impl IpcBridge {
             fact: fact.to_string(),
             session_id: session_id.to_string(),
         })?;
-        
+
         let result = self.call("memory.add_user_fact", params).await?;
-        
+
         let episode: AddEpisodeResult = serde_json::from_value(result)
             .map_err(|e| sibyl_ipc::Error::ProtocolError(e.to_string()))?;
-        
+
         Ok(episode.episode_id)
     }
 
-    pub async fn prompt_build(&mut self, session_id: &str, context: Option<&str>) -> Result<String> {
+    pub async fn prompt_build(
+        &mut self,
+        session_id: &str,
+        context: Option<&str>,
+    ) -> Result<String> {
         let params = serde_json::to_value(PromptBuildParams {
             session_id: session_id.to_string(),
             context: context.map(String::from),
         })?;
-        
+
         let result = self.call("prompt.build", params).await?;
-        
+
         let prompt: PromptBuildResult = serde_json::from_value(result)
             .map_err(|e| sibyl_ipc::Error::ProtocolError(e.to_string()))?;
-        
+
         Ok(prompt.prompt)
     }
 
@@ -245,12 +261,12 @@ impl IpcBridge {
             memory_id: memory_id.to_string(),
             context: context.to_string(),
         })?;
-        
+
         let result = self.call("relevance.evaluate", params).await?;
-        
+
         let relevance: RelevanceEvaluateResult = serde_json::from_value(result)
             .map_err(|e| sibyl_ipc::Error::ProtocolError(e.to_string()))?;
-        
+
         Ok(relevance.relevance)
     }
 }

@@ -1,6 +1,6 @@
 use crate::error::{Error, Result};
-use crate::tool::{ToolSpec, ToolSource, ToolResult, ToolCall};
 use crate::tool::ToolExecutor;
+use crate::tool::{ToolCall, ToolResult, ToolSource, ToolSpec};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -41,7 +41,9 @@ impl ToolRegistry {
 
     pub fn register_mcp_tool(&mut self, tool: ToolSpec, server: String) {
         let mut tool = tool;
-        tool.source = ToolSource::Mcp { server: server.clone() };
+        tool.source = ToolSource::Mcp {
+            server: server.clone(),
+        };
         self.mcp_tools.insert(tool.name.clone(), (server, tool));
     }
 
@@ -50,7 +52,8 @@ impl ToolRegistry {
     }
 
     pub fn get(&self, name: &str) -> Option<&ToolSpec> {
-        self.harness_tools.get(name)
+        self.harness_tools
+            .get(name)
             .or_else(|| self.sibyl_tools.get(name))
             .or_else(|| self.mcp_tools.get(name).map(|(_, spec)| spec))
     }
@@ -81,7 +84,9 @@ impl ToolRegistry {
     }
 
     pub fn find_mcp_server(&self, tool_name: &str) -> Option<&str> {
-        self.mcp_tools.get(tool_name).map(|(server, _)| server.as_str())
+        self.mcp_tools
+            .get(tool_name)
+            .map(|(server, _)| server.as_str())
     }
 
     pub async fn execute(&self, call: ToolCall) -> Result<ToolResult> {

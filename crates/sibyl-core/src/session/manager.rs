@@ -25,18 +25,23 @@ impl SessionManager {
 
     pub async fn create_session(&self, project_path: Option<PathBuf>) -> Result<Session> {
         let session = Session::new(project_path.clone());
-        
-        self.storage.append_event(
-            &session.id,
-            &SessionEvent::SessionCreated {
-                id: session.id.clone(),
-                timestamp: session.created_at,
-                harness: session.harness,
-            },
-        ).await?;
-        
-        self.sessions.write().await.insert(session.id.clone(), session.clone());
-        
+
+        self.storage
+            .append_event(
+                &session.id,
+                &SessionEvent::SessionCreated {
+                    id: session.id.clone(),
+                    timestamp: session.created_at,
+                    harness: session.harness,
+                },
+            )
+            .await?;
+
+        self.sessions
+            .write()
+            .await
+            .insert(session.id.clone(), session.clone());
+
         info!("Created session: {}", session.id.as_str());
         Ok(session)
     }
@@ -47,14 +52,14 @@ impl SessionManager {
 
     pub async fn set_active(&self, id: &SessionId) -> Result<()> {
         let mut active = self.active_session.write().await;
-        
+
         if self.sessions.read().await.contains_key(id) {
             *active = Some(id.clone());
             debug!("Set active session: {}", id.as_str());
         } else {
             return Err(crate::Error::SessionNotFound(id.as_str().to_string()));
         }
-        
+
         Ok(())
     }
 
@@ -69,30 +74,32 @@ impl SessionManager {
 
     pub async fn update_state(&self, id: &SessionId, state: SessionState) -> Result<()> {
         let mut sessions = self.sessions.write().await;
-        
+
         if let Some(session) = sessions.get_mut(id) {
             session.set_state(state);
-            
-            self.storage.append_event(
-                id,
-                &SessionEvent::StateChanged {
-                    state,
-                    session: id.clone(),
-                    timestamp: chrono::Utc::now(),
-                },
-            ).await?;
-            
+
+            self.storage
+                .append_event(
+                    id,
+                    &SessionEvent::StateChanged {
+                        state,
+                        session: id.clone(),
+                        timestamp: chrono::Utc::now(),
+                    },
+                )
+                .await?;
+
             debug!("Updated session {} state to {:?}", id.as_str(), state);
         } else {
             return Err(crate::Error::SessionNotFound(id.as_str().to_string()));
         }
-        
+
         Ok(())
     }
 
     pub async fn add_message(&self, id: &SessionId, event: SessionEvent) -> Result<()> {
         let mut sessions = self.sessions.write().await;
-        
+
         if let Some(session) = sessions.get_mut(id) {
             if let SessionEvent::Message { role, content, .. } = &event {
                 use super::types::{Message, Role};
@@ -103,12 +110,12 @@ impl SessionManager {
                 };
                 session.messages.push(msg);
             }
-            
+
             self.storage.append_event(id, &event).await?;
         } else {
             return Err(crate::Error::SessionNotFound(id.as_str().to_string()));
         }
-        
+
         Ok(())
     }
 
@@ -119,24 +126,24 @@ impl SessionManager {
     pub async fn remove_session(&self, id: &SessionId) -> Result<()> {
         self.sessions.write().await.remove(id);
         self.storage.delete_session(id).await?;
-        
+
         let mut active = self.active_session.write().await;
         if active.as_ref() == Some(id) {
             *active = None;
         }
-        
+
         info!("Removed session: {}", id.as_str());
         Ok(())
     }
 
     pub async fn load_from_storage(&self) -> Result<()> {
         let session_ids = self.storage.list_sessions().await?;
-        
+
         for id in session_ids {
             let events = self.storage.read_events(&id).await?;
             let mut session = Session::new(None);
             session.id = id.clone();
-            
+
             for event in events {
                 match event {
                     SessionEvent::SessionCreated { harness, .. } => {
@@ -157,10 +164,10 @@ impl SessionManager {
                     _ => {}
                 }
             }
-            
+
             self.sessions.write().await.insert(id, session);
         }
-        
+
         Ok(())
     }
 }

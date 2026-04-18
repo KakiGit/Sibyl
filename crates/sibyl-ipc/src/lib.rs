@@ -1,7 +1,7 @@
-pub mod protocol;
 pub mod client;
-pub mod server;
 pub mod error;
+pub mod protocol;
+pub mod server;
 
-pub use protocol::{Request, Response, Method};
 pub use error::{Error, Result};
+pub use protocol::{Method, Request, Response};

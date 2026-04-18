@@ -4,8 +4,7 @@ use std::path::PathBuf;
 use crate::ipc::IpcConfig;
 use crate::session::HarnessType;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Config {
     #[serde(default)]
     pub harness: HarnessConfigWrapper,
@@ -140,4 +139,3 @@ impl Default for PluginConfig {
         }
     }
 }
-

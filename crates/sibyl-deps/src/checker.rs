@@ -10,7 +10,7 @@ pub struct HealthChecker {
 impl HealthChecker {
     pub fn new() -> Self {
         let client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(5))
+            .timeout(Duration::from_secs(1))
             .build()
             .unwrap_or_else(|_| reqwest::Client::new());
         Self { client }
@@ -83,7 +83,7 @@ impl HealthChecker {
         self.wait_with_retry(
             || self.check_http(url, service),
             timeout,
-            Duration::from_millis(500),
+            Duration::from_millis(100),
             service,
         )
         .await
@@ -108,7 +108,7 @@ impl HealthChecker {
         self.wait_with_retry(
             || self.check_tcp_port_on_host(host, port, service),
             timeout,
-            Duration::from_millis(500),
+            Duration::from_millis(100),
             service,
         )
         .await
@@ -123,7 +123,7 @@ impl HealthChecker {
         self.wait_with_retry(
             || self.check_unix_socket(path, service),
             timeout,
-            Duration::from_millis(200),
+            Duration::from_millis(50),
             service,
         )
         .await

@@ -1,15 +1,15 @@
 use crate::config::OpenCodeConfig;
-use crate::types::*;
 use crate::spawn::OpenCodeProcess;
-use crate::sse::{SseClient, EventStream};
+use crate::sse::{EventStream, SseClient};
+use crate::types::*;
 use crate::Error;
-use sibyl_harness::{Harness, SessionInfo, Message, HarnessCapabilities, Error as HarnessError};
 use async_trait::async_trait;
 use reqwest::Client;
+use sibyl_harness::{Error as HarnessError, Harness, HarnessCapabilities, Message, SessionInfo};
 use std::path::Path;
 use std::sync::Arc;
-use tokio::sync::RwLock;
 use std::time::Duration;
+use tokio::sync::RwLock;
 
 #[derive(Clone)]
 pub struct OpenCodeClient {
@@ -25,7 +25,7 @@ impl OpenCodeClient {
             .timeout(Duration::from_secs(120))
             .build()
             .unwrap();
-        
+
         Self {
             http,
             config,
@@ -33,12 +33,12 @@ impl OpenCodeClient {
             event_stream: Arc::new(RwLock::new(None)),
         }
     }
-    
+
     pub fn with_process(mut self, process: OpenCodeProcess) -> Self {
         self.process = Some(Arc::new(process));
         self
     }
-    
+
     pub async fn health_check(&self) -> crate::Result<()> {
         let url = format!("{}/global/health", self.config.url);
         self.http
@@ -48,7 +48,7 @@ impl OpenCodeClient {
             .map_err(|e| Error::RequestFailed(e.to_string()))?;
         Ok(())
     }
-    
+
     pub async fn connect_events(&self) -> crate::Result<()> {
         let url = self.config.url.clone() + "/global/event";
         tracing::info!("Connecting to SSE events at: {}", url);
@@ -59,38 +59,49 @@ impl OpenCodeClient {
         tracing::info!("SSE connection established");
         Ok(())
     }
-    
-    pub async fn create_session_raw(&self, config: &SessionConfig) -> crate::Result<SessionResponse> {
+
+    pub async fn create_session_raw(
+        &self,
+        config: &SessionConfig,
+    ) -> crate::Result<SessionResponse> {
         let mut url = format!("{}/session", self.config.url);
         if let Some(dir) = &config.working_directory {
             url = format!("{}?directory={}", url, urlencoding::encode(dir));
         }
-        let response = self.http
+        let response = self
+            .http
             .post(&url)
             .json(&serde_json::json!({}))
             .send()
             .await
             .map_err(|e| Error::RequestFailed(e.to_string()))?;
-        
-        response.json()
+
+        response
+            .json()
             .await
             .map_err(|e| Error::InvalidResponse(e.to_string()))
     }
-    
+
     pub async fn get_session(&self, session_id: &str) -> crate::Result<SessionInfo> {
         let url = format!("{}/session/{}", self.config.url, session_id);
-        let response = self.http
+        let response = self
+            .http
             .get(&url)
             .send()
             .await
             .map_err(|e| Error::RequestFailed(e.to_string()))?;
-        
-        response.json()
+
+        response
+            .json()
             .await
             .map_err(|e| Error::InvalidResponse(e.to_string()))
     }
-    
-    pub async fn send_user_message(&self, session_id: &str, message: &UserMessage) -> crate::Result<()> {
+
+    pub async fn send_user_message(
+        &self,
+        session_id: &str,
+        message: &UserMessage,
+    ) -> crate::Result<()> {
         let url = format!("{}/session/{}/message", self.config.url, session_id);
         self.http
             .post(&url)
@@ -100,8 +111,12 @@ impl OpenCodeClient {
             .map_err(|e| Error::RequestFailed(e.to_string()))?;
         Ok(())
     }
-    
-    pub async fn send_user_message_async(&self, session_id: &str, message: &UserMessage) -> crate::Result<()> {
+
+    pub async fn send_user_message_async(
+        &self,
+        session_id: &str,
+        message: &UserMessage,
+    ) -> crate::Result<()> {
         let url = format!("{}/session/{}/prompt_async", self.config.url, session_id);
         self.http
             .post(&url)
@@ -111,20 +126,25 @@ impl OpenCodeClient {
             .map_err(|e| Error::RequestFailed(e.to_string()))?;
         Ok(())
     }
-    
-    pub async fn get_messages_raw(&self, session_id: &str) -> crate::Result<Vec<serde_json::Value>> {
+
+    pub async fn get_messages_raw(
+        &self,
+        session_id: &str,
+    ) -> crate::Result<Vec<serde_json::Value>> {
         let url = format!("{}/session/{}/message", self.config.url, session_id);
-        let response = self.http
+        let response = self
+            .http
             .get(&url)
             .send()
             .await
             .map_err(|e| Error::RequestFailed(e.to_string()))?;
-        
-        response.json()
+
+        response
+            .json()
             .await
             .map_err(|e| Error::InvalidResponse(e.to_string()))
     }
-    
+
     pub async fn abort_session(&self, session_id: &str) -> crate::Result<()> {
         let url = format!("{}/session/{}/abort", self.config.url, session_id);
         self.http
@@ -134,20 +154,22 @@ impl OpenCodeClient {
             .map_err(|e| Error::RequestFailed(e.to_string()))?;
         Ok(())
     }
-    
+
     pub async fn fork_session(&self, session_id: &str) -> crate::Result<ForkResponse> {
         let url = format!("{}/session/{}/fork", self.config.url, session_id);
-        let response = self.http
+        let response = self
+            .http
             .post(&url)
             .send()
             .await
             .map_err(|e| Error::RequestFailed(e.to_string()))?;
-        
-        response.json()
+
+        response
+            .json()
             .await
             .map_err(|e| Error::InvalidResponse(e.to_string()))
     }
-    
+
     pub async fn delete_session(&self, session_id: &str) -> crate::Result<()> {
         let url = format!("{}/session/{}", self.config.url, session_id);
         self.http
@@ -157,46 +179,52 @@ impl OpenCodeClient {
             .map_err(|e| Error::RequestFailed(e.to_string()))?;
         Ok(())
     }
-    
+
     pub async fn list_agents(&self) -> crate::Result<Vec<AgentInfo>> {
         let url = format!("{}/agent", self.config.url);
-        let response = self.http
+        let response = self
+            .http
             .get(&url)
             .send()
             .await
             .map_err(|e| Error::RequestFailed(e.to_string()))?;
-        
-        response.json()
+
+        response
+            .json()
             .await
             .map_err(|e| Error::InvalidResponse(e.to_string()))
     }
-    
+
     pub async fn list_skills(&self) -> crate::Result<Vec<SkillInfo>> {
         let url = format!("{}/skill", self.config.url);
-        let response = self.http
+        let response = self
+            .http
             .get(&url)
             .send()
             .await
             .map_err(|e| Error::RequestFailed(e.to_string()))?;
-        
-        response.json()
+
+        response
+            .json()
             .await
             .map_err(|e| Error::InvalidResponse(e.to_string()))
     }
-    
+
     pub async fn list_mcp_servers(&self) -> crate::Result<Vec<McpServerInfo>> {
         let url = format!("{}/mcp", self.config.url);
-        let response = self.http
+        let response = self
+            .http
             .get(&url)
             .send()
             .await
             .map_err(|e| Error::RequestFailed(e.to_string()))?;
-        
-        response.json()
+
+        response
+            .json()
             .await
             .map_err(|e| Error::InvalidResponse(e.to_string()))
     }
-    
+
     pub async fn start_mcp_server(&self, name: &str) -> crate::Result<()> {
         let url = format!("{}/mcp/{}/start", self.config.url, name);
         self.http
@@ -206,7 +234,7 @@ impl OpenCodeClient {
             .map_err(|e| Error::RequestFailed(e.to_string()))?;
         Ok(())
     }
-    
+
     pub async fn stop_mcp_server(&self, name: &str) -> crate::Result<()> {
         let url = format!("{}/mcp/{}/stop", self.config.url, name);
         self.http
@@ -216,16 +244,28 @@ impl OpenCodeClient {
             .map_err(|e| Error::RequestFailed(e.to_string()))?;
         Ok(())
     }
-    
+
     pub fn list_tools(&self) -> Vec<ToolSpec> {
         vec![
-            ToolSpec { name: "read_file".to_string(), description: "Read file contents".to_string() },
-            ToolSpec { name: "write_file".to_string(), description: "Write to file".to_string() },
-            ToolSpec { name: "bash".to_string(), description: "Execute bash command".to_string() },
-            ToolSpec { name: "grep".to_string(), description: "Search files".to_string() },
+            ToolSpec {
+                name: "read_file".to_string(),
+                description: "Read file contents".to_string(),
+            },
+            ToolSpec {
+                name: "write_file".to_string(),
+                description: "Write to file".to_string(),
+            },
+            ToolSpec {
+                name: "bash".to_string(),
+                description: "Execute bash command".to_string(),
+            },
+            ToolSpec {
+                name: "grep".to_string(),
+                description: "Search files".to_string(),
+            },
         ]
     }
-    
+
     pub fn is_available(&self) -> bool {
         let url = format!("{}/health", self.config.url);
         self.http.get(&url).build().is_ok()
@@ -258,15 +298,18 @@ impl Harness for OpenCodeClient {
         }
     }
 
-    async fn create_session(&self, project_path: Option<&Path>) -> sibyl_harness::Result<SessionInfo> {
+    async fn create_session(
+        &self,
+        project_path: Option<&Path>,
+    ) -> sibyl_harness::Result<SessionInfo> {
         let config = SessionConfig {
             model: Some(self.config.model.clone()),
             working_directory: project_path.map(|p| p.to_string_lossy().to_string()),
             skills: None,
         };
-        
+
         let response = self.create_session_raw(&config).await.map_err(map_error)?;
-        
+
         Ok(SessionInfo {
             id: response.id,
             project_path: project_path.map(|p| p.to_string_lossy().to_string()),
@@ -274,15 +317,21 @@ impl Harness for OpenCodeClient {
         })
     }
 
-    async fn send_message(&self, session_id: &str, message: &Message) -> sibyl_harness::Result<String> {
+    async fn send_message(
+        &self,
+        session_id: &str,
+        message: &Message,
+    ) -> sibyl_harness::Result<String> {
         let user_msg = UserMessage::new(&message.content);
-        self.send_user_message(session_id, &user_msg).await.map_err(map_error)?;
+        self.send_user_message(session_id, &user_msg)
+            .await
+            .map_err(map_error)?;
         Ok(format!("Message sent to session {}", session_id))
     }
 
     async fn get_messages(&self, session_id: &str) -> sibyl_harness::Result<Vec<Message>> {
         let raw = self.get_messages_raw(session_id).await.map_err(map_error)?;
-        
+
         let messages: Vec<Message> = raw
             .into_iter()
             .filter_map(|v| {
@@ -301,7 +350,7 @@ impl Harness for OpenCodeClient {
                 })
             })
             .collect();
-        
+
         Ok(messages)
     }
 

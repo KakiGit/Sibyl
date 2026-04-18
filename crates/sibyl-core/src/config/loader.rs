@@ -20,27 +20,27 @@ impl ConfigLoader {
 
     pub async fn load(&self) -> Result<Config> {
         let path = self.config_path();
-        
+
         if !path.exists() {
             return Ok(Config::default());
         }
-        
+
         let contents = tokio::fs::read_to_string(&path).await?;
         let config: Config = serde_yaml::from_str(&contents)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-        
+
         Ok(config)
     }
 
     pub async fn save(&self, config: &Config) -> Result<()> {
         tokio::fs::create_dir_all(&self.config_dir).await?;
-        
+
         let contents = serde_yaml::to_string(config)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-        
+
         let path = self.config_path();
         tokio::fs::write(&path, contents).await?;
-        
+
         Ok(())
     }
 

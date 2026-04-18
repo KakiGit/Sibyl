@@ -51,9 +51,11 @@ impl HarnessRouter {
     }
 
     pub async fn create_session(&self, config: SessionConfig) -> Result<SessionId, String> {
-        let harness = self.get(&config.harness).await
+        let harness = self
+            .get(&config.harness)
+            .await
             .ok_or_else(|| format!("Harness {:?} not found", config.harness))?;
-        
+
         harness.create_session(config).await
     }
 

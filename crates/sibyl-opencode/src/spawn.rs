@@ -1,11 +1,11 @@
 use crate::config::SpawnConfig;
-use crate::Result;
 use crate::Error;
-use std::process::{Command, Child};
+use crate::Result;
+use reqwest::Client;
+use std::process::{Child, Command};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio::time::{sleep, Duration};
-use reqwest::Client;
 
 pub struct OpenCodeProcess {
     child: Arc<Mutex<Option<Child>>>,
@@ -22,38 +22,40 @@ impl OpenCodeProcess {
                 "Empty command",
             )));
         }
-        
+
         let program = parts[0];
         let mut args: Vec<String> = parts[1..].iter().map(|s| s.to_string()).collect();
         args.push("--port".to_string());
         args.push(config.port.to_string());
-        
+
         let child = Command::new(program)
             .args(&args)
             .spawn()
             .map_err(Error::IoError)?;
-        
+
         Ok(Self {
             child: Arc::new(Mutex::new(Some(child))),
             port: config.port,
             client: Client::new(),
         })
     }
-    
+
     pub async fn wait_for_ready(&self, timeout: Duration) -> Result<()> {
         let url = format!("http://localhost:{}/health", self.port);
         let iterations = timeout.as_millis() / 100;
-        
+
         for _ in 0..iterations as u32 {
             if self.client.get(&url).send().await.is_ok() {
                 return Ok(());
             }
             sleep(Duration::from_millis(100)).await;
         }
-        
-        Err(Error::ConnectionError("OpenCode server did not start within timeout".to_string()))
+
+        Err(Error::ConnectionError(
+            "OpenCode server did not start within timeout".to_string(),
+        ))
     }
-    
+
     pub async fn stop(&self) -> Result<()> {
         let mut guard = self.child.lock().await;
         if let Some(mut child) = guard.take() {
@@ -61,7 +63,7 @@ impl OpenCodeProcess {
         }
         Ok(())
     }
-    
+
     pub fn port(&self) -> u16 {
         self.port
     }

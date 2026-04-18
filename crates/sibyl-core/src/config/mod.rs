@@ -1,5 +1,5 @@
-mod types;
 mod loader;
+mod types;
 
-pub use types::{Config, MemoryConfig, PluginConfig, UiConfig};
 pub use loader::ConfigLoader;
+pub use types::{Config, MemoryConfig, PluginConfig, UiConfig};

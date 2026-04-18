@@ -32,13 +32,11 @@ pub enum SessionState {
     Error,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 pub enum HarnessType {
     #[default]
     OpenCode,
 }
-
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Session {

@@ -1,6 +1,6 @@
-use async_trait::async_trait;
 use crate::error::Result;
-use crate::tool::{ToolResult, ToolCall};
+use crate::tool::{ToolCall, ToolResult};
+use async_trait::async_trait;
 use std::sync::Arc;
 
 #[async_trait]
@@ -26,10 +26,12 @@ impl MemoryQueryTool {
 #[async_trait]
 impl ToolExecutor for MemoryQueryTool {
     async fn execute(&self, call: ToolCall) -> Result<ToolResult> {
-        let query = call.arguments.get("query")
+        let query = call
+            .arguments
+            .get("query")
             .and_then(|v| v.as_str())
             .unwrap_or("");
-        
+
         Ok(ToolResult::success(serde_json::json!({
             "query": query,
             "results": [],
@@ -59,10 +61,12 @@ impl MemoryAddTool {
 #[async_trait]
 impl ToolExecutor for MemoryAddTool {
     async fn execute(&self, call: ToolCall) -> Result<ToolResult> {
-        let content = call.arguments.get("content")
+        let content = call
+            .arguments
+            .get("content")
             .and_then(|v| v.as_str())
             .unwrap_or("");
-        
+
         Ok(ToolResult::success(serde_json::json!({
             "content": content,
             "message": "Memory add tool not yet connected to Python backend"

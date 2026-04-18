@@ -1,25 +1,30 @@
-use async_trait::async_trait;
-use crate::session::SessionId;
 use super::types::SessionConfig;
+use crate::session::SessionId;
+use async_trait::async_trait;
 
-pub type ResponseStream = std::pin::Pin<Box<dyn futures::Stream<Item = Result<String, String>> + Send>>;
+pub type ResponseStream =
+    std::pin::Pin<Box<dyn futures::Stream<Item = Result<String, String>> + Send>>;
 
 #[async_trait]
 pub trait Harness: Send + Sync {
     fn name(&self) -> &str;
-    
+
     async fn create_session(&self, config: SessionConfig) -> Result<SessionId, String>;
-    
-    async fn send_message(&self, session_id: &str, prompt: String) -> Result<ResponseStream, String>;
-    
+
+    async fn send_message(
+        &self,
+        session_id: &str,
+        prompt: String,
+    ) -> Result<ResponseStream, String>;
+
     async fn get_events(&self, session_id: &str) -> Result<ResponseStream, String>;
-    
+
     async fn abort(&self, session_id: &str) -> Result<(), String>;
-    
+
     async fn fork_session(&self, session_id: &str) -> Result<SessionId, String>;
-    
+
     fn list_tools(&self) -> Vec<ToolSpec>;
-    
+
     fn is_available(&self) -> bool;
 }
 

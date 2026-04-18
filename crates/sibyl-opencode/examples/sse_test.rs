@@ -1,11 +1,11 @@
-use sibyl_opencode::sse::SseClient;
 use futures::StreamExt;
+use sibyl_opencode::sse::SseClient;
 
 #[tokio::main]
 async fn main() {
     let url = "http://localhost:4096/global/event";
     println!("Testing SSE connection to {}", url);
-    
+
     let sse = SseClient::new(url);
     match sse.connect().await {
         Ok(stream) => {

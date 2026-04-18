@@ -121,6 +121,7 @@ class SimpleMemoryStore:
         results = []
 
         if use_embedding and self._embedder:
+            await self._ensure_embedder()
             query_embeddings = await self._embedder.embed([query])
             query_embedding = query_embeddings[0]
             scored_episodes = await self._embedding_search(query_embedding, session_id)
@@ -246,14 +247,16 @@ class SimpleMemoryStore:
     ) -> List[dict]:
         """Get all episodes for a session."""
         results = []
-        session_key = f"session:{session_id}:episodes"
+        session_set_key = f"{self.SESSION_SET_PREFIX}{session_id}{self.SESSION_SET_SUFFIX}"
 
         try:
-            episode_ids = await self.redis.lrange(session_key, 0, limit)
-            for ep_id in episode_ids:
-                ep_id = ep_id.decode() if isinstance(ep_id, bytes) else ep_id
-                key = f"episode:{ep_id}"
-                data = await self.redis.get(key)
+            episode_ids = await self.redis.smembers(session_set_key)
+            episode_list = [i.decode() if isinstance(i, bytes) else i for i in list(episode_ids)[:limit]]
+            
+            keys = [f"episode:{ep_id}" for ep_id in episode_list]
+            values = await self.redis.mget(keys)
+            
+            for data in values:
                 if data:
                     results.append(
                         json.loads(data.decode() if isinstance(data, bytes) else data)
@@ -265,15 +268,20 @@ class SimpleMemoryStore:
 
     async def clear_session(self, session_id: str) -> bool:
         """Clear all episodes for a session."""
-        session_key = f"session:{session_id}:episodes"
+        session_set_key = f"{self.SESSION_SET_PREFIX}{session_id}{self.SESSION_SET_SUFFIX}"
 
         try:
-            episode_ids = await self.redis.lrange(session_key, 0, -1)
-            for ep_id in episode_ids:
-                ep_id = ep_id.decode() if isinstance(ep_id, bytes) else ep_id
-                await self.redis.delete(f"episode:{ep_id}")
-                await self.redis.delete(f"embedding:{ep_id}")
-            await self.redis.delete(session_key)
+            episode_ids = await self.redis.smembers(session_set_key)
+            episode_list = [i.decode() if isinstance(i, bytes) else i for i in episode_ids]
+            
+            async with self.redis.pipeline() as pipe:
+                for ep_id in episode_list:
+                    pipe.delete(f"episode:{ep_id}")
+                    pipe.delete(f"embedding:{ep_id}")
+                    pipe.srem(self.ALL_EPISODES_SET, ep_id)
+                pipe.delete(session_set_key)
+                await pipe.execute()
+            
             logger.info(f"Cleared session: {session_id}")
             return True
         except Exception as e:
@@ -301,6 +309,7 @@ class SimpleMemoryStore:
                 episode["modified_at"] = datetime.utcnow().isoformat()
                 
                 if self._embedder:
+                    await self._ensure_embedder()
                     embeddings = await self._embedder.embed([content])
                     embedding_key = f"embedding:{episode_id}"
                     await self.redis.set(embedding_key, json.dumps(embeddings[0]))
@@ -317,7 +326,7 @@ class SimpleMemoryStore:
             return None
 
     async def delete_episode(self, episode_id: str) -> bool:
-        """Delete an episode."""
+        """Delete an episode with pipelined Redis operations."""
         try:
             episode_key = f"episode:{episode_id}"
             embedding_key = f"embedding:{episode_id}"
@@ -330,15 +339,16 @@ class SimpleMemoryStore:
             episode = json.loads(data.decode() if isinstance(data, bytes) else data)
             session_id = episode.get("session_id")
             
-            await self.redis.delete(episode_key)
-            await self.redis.delete(embedding_key)
-            
-            if session_id:
-                session_key = f"session:{session_id}:episodes"
-                await self.redis.lrem(session_key, 0, episode_id)
-            
-            all_episodes_key = "all:episodes"
-            await self.redis.lrem(all_episodes_key, 0, episode_id)
+            async with self.redis.pipeline() as pipe:
+                pipe.delete(episode_key)
+                pipe.delete(embedding_key)
+                
+                if session_id:
+                    session_set_key = f"{self.SESSION_SET_PREFIX}{session_id}{self.SESSION_SET_SUFFIX}"
+                    pipe.srem(session_set_key, episode_id)
+                
+                pipe.srem(self.ALL_EPISODES_SET, episode_id)
+                await pipe.execute()
             
             if episode_id in self._embedding_cache:
                 del self._embedding_cache[episode_id]
@@ -359,15 +369,20 @@ class SimpleMemoryStore:
         
         try:
             if session_id:
-                session_key = f"session:{session_id}:episodes"
-                episode_ids = await self.redis.lrange(session_key, 0, limit)
+                session_set_key = f"{self.SESSION_SET_PREFIX}{session_id}{self.SESSION_SET_SUFFIX}"
+                episode_ids = await self.redis.smembers(session_set_key)
+                episode_list = [i.decode() if isinstance(i, bytes) else i for i in list(episode_ids)[:limit]]
             else:
-                episode_ids = await self.redis.lrange("all:episodes", -limit, -1)
+                episode_ids = await self.redis.smembers(self.ALL_EPISODES_SET)
+                episode_list = [i.decode() if isinstance(i, bytes) else i for i in list(episode_ids)[-limit:]]
             
-            for ep_id in episode_ids:
-                ep_id = ep_id.decode() if isinstance(ep_id, bytes) else ep_id
-                key = f"episode:{ep_id}"
-                data = await self.redis.get(key)
+            if not episode_list:
+                return results
+            
+            keys = [f"episode:{ep_id}" for ep_id in episode_list]
+            values = await self.redis.mget(keys)
+            
+            for data in values:
                 if data:
                     episode = json.loads(
                         data.decode() if isinstance(data, bytes) else data

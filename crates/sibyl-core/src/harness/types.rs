@@ -39,10 +39,8 @@ pub enum OpenCodeMode {
     Auto,
 }
 
-#[derive(Debug, Clone)]
-#[derive(Default)]
+#[derive(Debug, Clone, Default)]
 pub struct SessionConfig {
     pub project_path: Option<std::path::PathBuf>,
     pub harness: HarnessType,
 }
-

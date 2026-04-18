@@ -1,12 +1,12 @@
 use crate::types::OpenCodeEvent;
-use crate::Result;
 use crate::Error;
+use crate::Result;
+use eventsource_stream::Eventsource;
 use futures::Stream;
 use futures::StreamExt;
 use reqwest::Client;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use eventsource_stream::Eventsource;
 use std::time::Duration;
 
 pub struct SseClient {
@@ -25,17 +25,18 @@ impl SseClient {
             http,
         }
     }
-    
+
     pub fn with_client(url: impl Into<String>, http: Client) -> Self {
         Self {
             url: url.into(),
             http,
         }
     }
-    
+
     pub async fn connect(&self) -> Result<EventStream> {
         tracing::info!("Connecting to SSE at: {}", self.url);
-        let response = self.http
+        let response = self
+            .http
             .get(&self.url)
             .header("Accept", "text/event-stream")
             .header("Cache-Control", "no-cache")
@@ -46,14 +47,18 @@ impl SseClient {
                 tracing::error!("SSE send error: {:?}", e);
                 Error::ConnectionError(e.to_string())
             })?;
-        
+
         if !response.status().is_success() {
-            return Err(Error::ConnectionError(format!("SSE connection failed: {}", response.status())));
+            return Err(Error::ConnectionError(format!(
+                "SSE connection failed: {}",
+                response.status()
+            )));
         }
-        
+
         tracing::info!("SSE HTTP connection established, starting stream");
-        
-        let stream = response.bytes_stream()
+
+        let stream = response
+            .bytes_stream()
             .eventsource()
             .filter_map(|result| async move {
                 match result {
@@ -83,7 +88,12 @@ impl SseClient {
                                     Some(Ok(parsed))
                                 }
                                 Err(e) => {
-                                    tracing::error!("Event parse error: {} - payload: {} - data: {}", e, inner_event, data);
+                                    tracing::error!(
+                                        "Event parse error: {} - payload: {} - data: {}",
+                                        e,
+                                        inner_event,
+                                        data
+                                    );
                                     None
                                 }
                             }
@@ -98,7 +108,7 @@ impl SseClient {
                     }
                 }
             });
-        
+
         Ok(EventStream::new(stream))
     }
 }
@@ -117,7 +127,7 @@ impl EventStream {
 
 impl Stream for EventStream {
     type Item = Result<OpenCodeEvent>;
-    
+
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         self.inner.as_mut().poll_next(cx)
     }

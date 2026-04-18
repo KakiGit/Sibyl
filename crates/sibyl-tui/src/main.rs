@@ -150,14 +150,7 @@ fn main() -> anyhow::Result<()> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    tracing::info!("Starting Sibyl - ensuring dependencies are running");
-
     let rt = tokio::runtime::Runtime::new().unwrap();
-    rt.block_on(async {
-        if let Err(e) = deps.ensure_all().await {
-            tracing::error!("Failed to start critical dependency: {}", e);
-        }
-    });
 
     let (bg_tx, bg_rx, ui_tx, ui_rx) = create_channels();
 
@@ -176,6 +169,18 @@ fn main() -> anyhow::Result<()> {
     };
 
     tracing::info!("Background task spawned, handle: {:?}", bg_handle);
+
+    {
+        let deps_clone = deps.clone();
+        let _guard = rt.enter();
+        tokio::spawn(async move {
+            tracing::info!("Checking dependencies in background");
+            if let Err(e) = deps_clone.ensure_all().await {
+                tracing::error!("Failed to start critical dependency: {}", e);
+            }
+            tracing::info!("Dependency check complete");
+        });
+    }
 
     let _ = bg_tx.blocking_send(background::BackgroundCommand::LoadInitialMemories);
 

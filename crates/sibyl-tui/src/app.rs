@@ -39,15 +39,13 @@ impl Message {
     }
 }
 
-#[derive(Debug, Clone)]
-#[derive(Default)]
+#[derive(Debug, Clone, Default)]
 pub struct ChatState {
     pub messages: Vec<Message>,
     pub scroll_offset: usize,
     pub streaming: bool,
     pub current_response: Option<String>,
 }
-
 
 impl ChatState {
     pub fn add_message(&mut self, message: Message) {
@@ -87,22 +85,18 @@ impl ChatState {
     }
 }
 
-#[derive(Debug, Clone)]
-#[derive(Default)]
+#[derive(Debug, Clone, Default)]
 pub struct MemoryPanelState {
     pub visible: bool,
     pub results: Vec<String>,
     pub scroll_offset: usize,
 }
 
-
-#[derive(Debug, Clone)]
-#[derive(Default)]
+#[derive(Debug, Clone, Default)]
 pub struct QueuePanelState {
     pub messages: Vec<String>,
     pub selected_index: Option<usize>,
 }
-
 
 impl QueuePanelState {
     pub fn add(&mut self, text: String) {
@@ -118,13 +112,11 @@ impl QueuePanelState {
     }
 }
 
-#[derive(Debug, Clone)]
-#[derive(Default)]
+#[derive(Debug, Clone, Default)]
 pub struct InputState {
     pub buffer: String,
     pub cursor_position: usize,
 }
-
 
 #[derive(Debug, Clone)]
 pub struct StatusBarState {
@@ -296,7 +288,9 @@ impl App {
                         tracing::info!("SessionIdle: finishing stream with content");
                         self.chat.finish_stream(content);
                     } else {
-                        tracing::info!("SessionIdle: stream still empty, waiting for MessagePartComplete");
+                        tracing::info!(
+                            "SessionIdle: stream still empty, waiting for MessagePartComplete"
+                        );
                     }
                 }
                 self.chat.streaming = false;
@@ -330,24 +324,71 @@ impl App {
                     self.status_bar.streaming = true;
                 }
             }
-            UiEvent::MessageCreated { session_id, message_id, role } => {
-                tracing::info!("UI: MessageCreated session={} msg={} role={}", session_id, message_id, role);
+            UiEvent::MessageCreated {
+                session_id,
+                message_id,
+                role,
+            } => {
+                tracing::info!(
+                    "UI: MessageCreated session={} msg={} role={}",
+                    session_id,
+                    message_id,
+                    role
+                );
             }
-            UiEvent::MessagePartDelta { session_id, message_id, part_id, delta } => {
-                tracing::debug!("UI: MessagePartDelta session={} msg={} part={} delta={}", session_id, message_id, part_id, delta);
+            UiEvent::MessagePartDelta {
+                session_id,
+                message_id,
+                part_id,
+                delta,
+            } => {
+                tracing::debug!(
+                    "UI: MessagePartDelta session={} msg={} part={} delta={}",
+                    session_id,
+                    message_id,
+                    part_id,
+                    delta
+                );
                 self.chat.append_stream(&delta);
             }
-            UiEvent::MessagePartComplete { session_id, message_id, part_id, content } => {
-                tracing::info!("UI: MessagePartComplete session={} msg={} part={} content={}", session_id, message_id, part_id, content);
+            UiEvent::MessagePartComplete {
+                session_id,
+                message_id,
+                part_id,
+                content,
+            } => {
+                tracing::info!(
+                    "UI: MessagePartComplete session={} msg={} part={} content={}",
+                    session_id,
+                    message_id,
+                    part_id,
+                    content
+                );
                 self.chat.finish_stream(content);
             }
-            UiEvent::MessageComplete { session_id, message_id } => {
-                tracing::info!("UI: MessageComplete session={} msg={}", session_id, message_id);
+            UiEvent::MessageComplete {
+                session_id,
+                message_id,
+            } => {
+                tracing::info!(
+                    "UI: MessageComplete session={} msg={}",
+                    session_id,
+                    message_id
+                );
                 self.chat.streaming = false;
                 self.status_bar.streaming = false;
             }
-            UiEvent::ToolUse { session_id, tool, status } => {
-                tracing::info!("UI: ToolUse session={} tool={} status={}", session_id, tool, status);
+            UiEvent::ToolUse {
+                session_id,
+                tool,
+                status,
+            } => {
+                tracing::info!(
+                    "UI: ToolUse session={} tool={} status={}",
+                    session_id,
+                    tool,
+                    status
+                );
                 if status == "completed" {
                     let msg =
                         Message::new(MessageRole::System, format!("Tool '{}' completed", tool));
@@ -357,7 +398,10 @@ impl App {
                     self.chat.add_message(msg);
                 }
             }
-            UiEvent::Error { session_id, message } => {
+            UiEvent::Error {
+                session_id,
+                message,
+            } => {
                 tracing::error!("UI: Error session={} message={}", session_id, message);
                 let msg = Message::new(MessageRole::System, format!("Error: {}", message));
                 self.chat.add_message(msg);

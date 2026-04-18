@@ -1,7 +1,7 @@
-mod types;
-mod registry;
 mod memory_tools;
+mod registry;
+mod types;
 
-pub use types::{ToolSpec, ToolSource, ToolResult, ToolCall};
+pub use memory_tools::{sibyl_memory_tools, MemoryAddTool, MemoryQueryTool, ToolExecutor};
 pub use registry::ToolRegistry;
-pub use memory_tools::{ToolExecutor, MemoryQueryTool, MemoryAddTool, sibyl_memory_tools};
+pub use types::{ToolCall, ToolResult, ToolSource, ToolSpec};

@@ -61,7 +61,7 @@ impl PluginManager {
         self.register_memory_tools();
         self.load_workflows()?;
         self.start_mcp_servers().await?;
-        
+
         Ok(())
     }
 
@@ -71,13 +71,16 @@ impl PluginManager {
         }
 
         let loader = SkillLoader::with_paths(
-            self.config.skills.search_paths.iter()
+            self.config
+                .skills
+                .search_paths
+                .iter()
                 .map(PathBuf::from)
-                .collect()
+                .collect(),
         );
 
         let skills = loader.discover_skills()?;
-        
+
         for skill in skills {
             tracing::info!("Loaded skill: {}", skill.name);
             self.skill_registry.register(skill);
@@ -100,7 +103,7 @@ impl PluginManager {
                         }
                     },
                     "required": ["query"]
-                })
+                }),
             );
             self.tool_registry.register_sibyl_tool(spec);
             self.tool_registry.register_executor(executor);
@@ -113,13 +116,16 @@ impl PluginManager {
         }
 
         let loader = WorkflowLoader::with_paths(
-            self.config.workflows.search_paths.iter()
+            self.config
+                .workflows
+                .search_paths
+                .iter()
                 .map(PathBuf::from)
-                .collect()
+                .collect(),
         );
 
         let workflows = loader.discover_workflows()?;
-        
+
         for workflow in workflows {
             tracing::info!("Loaded workflow: {}", workflow.name);
             self.workflow_executor.register(workflow);
@@ -130,16 +136,17 @@ impl PluginManager {
 
     async fn start_mcp_servers(&mut self) -> Result<()> {
         let servers = self.config.enabled_mcp_servers();
-        
+
         for server_config in servers {
             tracing::info!("Starting MCP server: {}", server_config.name);
-            
+
             let mut manager = self.mcp_manager.lock().await;
             manager.add_server(server_config).await?;
-            
+
             let tool_specs = manager.tool_specs();
             for spec in tool_specs {
-                self.tool_registry.register_mcp_tool(spec.clone(), spec.name.clone());
+                self.tool_registry
+                    .register_mcp_tool(spec.clone(), spec.name.clone());
             }
         }
 
@@ -206,17 +213,21 @@ impl PluginManager {
         self.tool_registry.all_tools()
     }
 
-    pub async fn execute_workflow(&self, name: &str, variables: HashMap<String, serde_json::Value>) -> Result<crate::workflow::WorkflowResult> {
+    pub async fn execute_workflow(
+        &self,
+        name: &str,
+        variables: HashMap<String, serde_json::Value>,
+    ) -> Result<crate::workflow::WorkflowResult> {
         self.workflow_executor.execute(name, variables).await
     }
 
     pub async fn shutdown(&mut self) -> Result<()> {
         let mut manager = self.mcp_manager.lock().await;
         manager.stop_all().await;
-        
+
         self.tool_registry.clear();
         self.skill_registry.clear();
-        
+
         Ok(())
     }
 }

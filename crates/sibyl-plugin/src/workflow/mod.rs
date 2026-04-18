@@ -1,9 +1,11 @@
-mod types;
 mod context;
-mod loader;
 mod executor;
+mod loader;
+mod types;
 
-pub use types::{Workflow, WorkflowStep, WorkflowResult, StepResult, Action, StepType, VariableDef};
 pub use context::WorkflowContext;
-pub use loader::{WorkflowLoader, WORKFLOW_SEARCH_PATHS};
 pub use executor::WorkflowExecutor;
+pub use loader::{WorkflowLoader, WORKFLOW_SEARCH_PATHS};
+pub use types::{
+    Action, StepResult, StepType, VariableDef, Workflow, WorkflowResult, WorkflowStep,
+};

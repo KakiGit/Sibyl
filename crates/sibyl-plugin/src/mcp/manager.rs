@@ -1,10 +1,10 @@
 use crate::error::Result;
 use crate::mcp::{McpClient, McpServerConfig, McpTool};
-use crate::tool::{ToolSpec, ToolCall, ToolResult, ToolExecutor};
+use crate::tool::{ToolCall, ToolExecutor, ToolResult, ToolSpec};
+use async_trait::async_trait;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use async_trait::async_trait;
 
 pub struct McpManager {
     servers: HashMap<String, McpClient>,
@@ -71,8 +71,15 @@ impl McpManager {
             .collect()
     }
 
-    pub async fn call_tool(&mut self, server_name: &str, tool_name: &str, arguments: serde_json::Value) -> Result<serde_json::Value> {
-        let client = self.servers.get_mut(server_name)
+    pub async fn call_tool(
+        &mut self,
+        server_name: &str,
+        tool_name: &str,
+        arguments: serde_json::Value,
+    ) -> Result<serde_json::Value> {
+        let client = self
+            .servers
+            .get_mut(server_name)
             .ok_or_else(|| crate::error::Error::McpServerNotFound(server_name.to_string()))?;
         client.call_tool(tool_name, arguments).await
     }
@@ -105,7 +112,10 @@ impl McpToolExecutor {
 impl ToolExecutor for McpToolExecutor {
     async fn execute(&self, call: ToolCall) -> Result<ToolResult> {
         let mut manager = self.manager.lock().await;
-        match manager.call_tool(&self.server_name, &call.name, call.arguments).await {
+        match manager
+            .call_tool(&self.server_name, &call.name, call.arguments)
+            .await
+        {
             Ok(result) => Ok(ToolResult::success(result)),
             Err(e) => Ok(ToolResult::error(e.to_string())),
         }
