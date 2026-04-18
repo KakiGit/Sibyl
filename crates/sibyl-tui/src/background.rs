@@ -28,6 +28,13 @@ pub enum BackgroundCommand {
 }
 
 type SharedSessionId = Arc<RwLock<Option<String>>>;
+type SharedTaskState = Arc<RwLock<TaskState>>;
+
+#[derive(Debug, Clone, Default)]
+struct TaskState {
+    last_user_message: Option<String>,
+    last_assistant_response: Option<String>,
+}
 
 async fn handle_command_spawned(
     opencode: OpenCodeClient,
@@ -35,10 +42,17 @@ async fn handle_command_spawned(
     tx: Sender<UiEvent>,
     cmd: BackgroundCommand,
     shared_session_id: SharedSessionId,
+    shared_task_state: SharedTaskState,
 ) {
     match cmd {
         BackgroundCommand::SendMessage { text, session_id } => {
             tracing::info!("Spawned task sending message: {}", text);
+            
+            {
+                let mut state_guard = shared_task_state.write().await;
+                state_guard.last_user_message = Some(text.clone());
+                state_guard.last_assistant_response = None;
+            }
             
             let sid = {
                 let guard = shared_session_id.read().await;
@@ -118,6 +132,7 @@ pub struct BackgroundTask {
     tx: Sender<UiEvent>,
     rx: Receiver<BackgroundCommand>,
     shared_session_id: SharedSessionId,
+    shared_task_state: SharedTaskState,
     session_busy: bool,
     current_message_id: Option<String>,
     streaming_text: String,
@@ -137,6 +152,7 @@ impl BackgroundTask {
             tx,
             rx,
             shared_session_id: Arc::new(RwLock::new(None)),
+            shared_task_state: Arc::new(RwLock::new(TaskState::default())),
             session_busy: false,
             current_message_id: None,
             streaming_text: String::new(),
@@ -199,9 +215,10 @@ impl BackgroundTask {
                             let ipc = self.ipc.clone();
                             let tx = self.tx.clone();
                             let shared_session_id = self.shared_session_id.clone();
+                            let shared_task_state = self.shared_task_state.clone();
                             
                             tokio::spawn(async move {
-                                handle_command_spawned(opencode, ipc, tx, c, shared_session_id).await;
+                                handle_command_spawned(opencode, ipc, tx, c, shared_session_id, shared_task_state).await;
                             });
                         }
                     }
@@ -214,9 +231,10 @@ impl BackgroundTask {
                         let ipc = self.ipc.clone();
                         let tx = self.tx.clone();
                         let shared_session_id = self.shared_session_id.clone();
+                        let shared_task_state = self.shared_task_state.clone();
                         
                         tokio::spawn(async move {
-                            handle_command_spawned(opencode, ipc, tx, c, shared_session_id).await;
+                            handle_command_spawned(opencode, ipc, tx, c, shared_session_id, shared_task_state).await;
                         });
                     }
                     None => {
@@ -269,7 +287,21 @@ impl BackgroundTask {
                 }
             }
             OpenCodeEvent::SessionIdle { properties } => {
-                tracing::info!("SessionIdle (duplicate): session_id={}", properties.session_id);
+                tracing::info!("SessionIdle: session_id={}", properties.session_id);
+                
+                let (user_msg, assistant_msg, session_id) = {
+                    let state_guard = self.shared_task_state.read().await;
+                    (
+                        state_guard.last_user_message.clone(),
+                        state_guard.last_assistant_response.clone(),
+                        properties.session_id.clone()
+                    )
+                };
+                
+                if let (Some(user), Some(assistant)) = (user_msg, assistant_msg) {
+                    tracing::info!("Storing memory for conversation");
+                    self.store_memory(&session_id, &user, &assistant).await;
+                }
             }
             OpenCodeEvent::MessageUpdated { properties } => {
                 let role_str = match properties.info.role {
@@ -300,6 +332,10 @@ impl BackgroundTask {
                         tracing::info!("Text part: id={}, text={}, time={:?}", id, text, time);
                         if time.as_ref().and_then(|t| t.end).is_some() {
                             tracing::info!("Text part complete: {}", text);
+                            {
+                                let mut state_guard = self.shared_task_state.write().await;
+                                state_guard.last_assistant_response = Some(text.clone());
+                            }
                             let _ = self.tx.send(UiEvent::MessagePartComplete {
                                 session_id: properties.session_id,
                                 message_id: self.current_message_id.clone().unwrap_or_default(),
@@ -322,6 +358,10 @@ sibyl_opencode::types::Part::StepFinish { .. } => {
                         let content = self.streaming_text.clone();
                         self.streaming_text.clear();
                         if !content.is_empty() {
+                            {
+                                let mut state_guard = self.shared_task_state.write().await;
+                                state_guard.last_assistant_response = Some(content.clone());
+                            }
                             let _ = self.tx.send(UiEvent::MessagePartComplete {
                                 session_id: properties.session_id,
                                 message_id: self.current_message_id.clone().unwrap_or_default(),
@@ -367,7 +407,6 @@ sibyl_opencode::types::Part::StepFinish { .. } => {
         }
     }
 
-    #[allow(dead_code)]
     async fn store_memory(&self, session_id: &str, user_text: &str, assistant_text: &str) {
         let full_conversation = format!("User: {}\nAssistant: {}", user_text, assistant_text);
         let add_request = Request::new(Method::MemoryAddEpisode, serde_json::json!({
@@ -376,7 +415,11 @@ sibyl_opencode::types::Part::StepFinish { .. } => {
             "source_description": "user conversation",
             "session_id": session_id
         }));
-        let _ = self.ipc.send(add_request).await;
+        if let Err(e) = self.ipc.send(add_request).await {
+            tracing::error!("Failed to store memory: {:?}", e);
+        } else {
+            tracing::info!("Memory stored successfully");
+        }
     }
 }
 
