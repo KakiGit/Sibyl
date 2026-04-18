@@ -178,6 +178,8 @@ fn main() -> anyhow::Result<()> {
     
     tracing::info!("Background task spawned, handle: {:?}", bg_handle);
     
+    let _ = bg_tx.blocking_send(background::BackgroundCommand::LoadInitialMemories);
+    
     let app = App::new(deps.clone(), config, bg_tx, ui_rx);
     
     terminal.draw(|f| ui(f, &app))?;

@@ -183,6 +183,8 @@ fn run_tui(log_path: Option<PathBuf>) -> anyhow::Result<()> {
         let _guard = rt.enter();
         spawn_background_task_with_events(opencode, ipc, bg_rx, ui_tx, ready_tx);
     }
+    
+    let _ = bg_tx.blocking_send(sibyl_tui::background::BackgroundCommand::LoadInitialMemories);
 
     enable_raw_mode()?;
     let mut stdout = io::stdout();

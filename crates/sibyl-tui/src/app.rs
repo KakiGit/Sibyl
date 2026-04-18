@@ -363,6 +363,11 @@ impl App {
                 self.chat.add_message(msg);
                 self.status = AppStatus::Error;
             }
+            UiEvent::MemoriesRetrieved { memories } => {
+                tracing::info!("UI: MemoriesRetrieved count={}", memories.len());
+                self.memory.results = memories;
+                self.status_bar.memory_count = self.memory.results.len();
+            }
         }
     }
 
