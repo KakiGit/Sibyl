@@ -172,14 +172,7 @@ fn run_tui(log_path: Option<PathBuf>) -> anyhow::Result<()> {
     tracing::info!("IPC socket: {}", config.ipc.socket_path);
     let deps = Arc::new(DependencyManager::new(config.dependencies.clone()));
 
-    tracing::info!("Starting Sibyl TUI - ensuring dependencies are running");
-
     let rt = tokio::runtime::Runtime::new()?;
-    rt.block_on(async {
-        if let Err(e) = deps.ensure_all().await {
-            tracing::error!("Failed to start critical dependency: {}", e);
-        }
-    });
 
     let (bg_tx, bg_rx, ui_tx, ui_rx) = create_channels();
 
@@ -196,8 +189,6 @@ fn run_tui(log_path: Option<PathBuf>) -> anyhow::Result<()> {
         spawn_background_task(opencode, ipc, bg_rx, ui_tx);
     }
 
-    let _ = bg_tx.blocking_send(sibyl_tui::background::BackgroundCommand::LoadInitialMemories);
-
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen)?;
@@ -206,6 +197,96 @@ fn run_tui(log_path: Option<PathBuf>) -> anyhow::Result<()> {
 
     let mut app = App::new(deps.clone(), config, bg_tx, ui_rx);
     app.load_history();
+
+    terminal.draw(|f| {
+        let chunks = if app.memory_visible() {
+            Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([Constraint::Percentage(70), Constraint::Percentage(30)])
+                .split(f.area())
+        } else {
+            Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([Constraint::Percentage(100)])
+                .split(f.area())
+        };
+
+        let queue_height = if app.queue().is_empty() { 0 } else { 3 };
+
+        let main_chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(if queue_height > 0 {
+                vec![
+                    Constraint::Length(1),
+                    Constraint::Min(1),
+                    Constraint::Length(queue_height),
+                    Constraint::Length(3),
+                ]
+            } else {
+                vec![
+                    Constraint::Length(1),
+                    Constraint::Min(1),
+                    Constraint::Length(3),
+                ]
+            })
+            .split(chunks[0]);
+
+        let mode_text = match app.mode() {
+            AppMode::Chat => "CHAT",
+            AppMode::MemoryView => "MEMORY",
+            AppMode::CommandPalette => "COMMAND",
+            AppMode::HelpOverlay => "HELP",
+        };
+        render_status_bar(f, main_chunks[0], app.status(), app.status_bar(), mode_text);
+
+        let spinner_char = app.spinner_char();
+        render_chat(
+            f,
+            app.chat(),
+            main_chunks[1],
+            app.status() == AppStatus::Processing,
+            spinner_char,
+        );
+
+        if queue_height > 0 {
+            render_queue_panel(f, app.queue(), main_chunks[2]);
+        }
+
+        let input_index = if queue_height > 0 { 3 } else { 2 };
+
+        if app.mode() == AppMode::CommandPalette {
+            render_command_input(f, &app.input_state(), main_chunks[input_index]);
+        } else {
+            render_input(
+                f,
+                &app.input_state(),
+                main_chunks[input_index],
+                app.mode() == AppMode::Chat,
+                app.status() == AppStatus::Processing,
+                app.spinner_char(),
+            );
+        }
+
+        if app.memory_visible() {
+            render_memory_panel(f, app.memory(), chunks[1]);
+        }
+
+        if app.mode() == AppMode::HelpOverlay {
+            render_help_overlay(f, f.area());
+        }
+    })?;
+
+    {
+        let deps_clone = deps.clone();
+        let _guard = rt.enter();
+        tokio::spawn(async move {
+            tracing::info!("Checking dependencies in background");
+            if let Err(e) = deps_clone.ensure_all().await {
+                tracing::error!("Failed to start critical dependency: {}", e);
+            }
+            tracing::info!("Dependency check complete");
+        });
+    }
 
     let result: io::Result<()> = loop {
         {
