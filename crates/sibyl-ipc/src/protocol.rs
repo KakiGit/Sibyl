@@ -52,6 +52,12 @@ pub enum Method {
     MemoryAddUserFact,
     #[serde(rename = "memory.get_context")]
     MemoryGetContext,
+    #[serde(rename = "memory.modify")]
+    MemoryModify,
+    #[serde(rename = "memory.delete")]
+    MemoryDelete,
+    #[serde(rename = "memory.list")]
+    MemoryList,
     #[serde(rename = "prompt.build")]
     PromptBuild,
     #[serde(rename = "relevance.evaluate")]

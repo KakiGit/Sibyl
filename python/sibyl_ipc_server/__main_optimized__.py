@@ -92,6 +92,55 @@ class SimpleMemoryHandler:
 
         return {"context": "\n".join(context_parts)}
 
+    async def handle_modify(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Handle memory.modify method."""
+        episode_id = params.get("episode_id", "")
+        content = params.get("content")
+        source = params.get("source")
+
+        if not episode_id:
+            return {"status": "error", "error": "episode_id required"}
+
+        modified_episode = await self.store.modify_episode(
+            episode_id=episode_id,
+            content=content,
+            source=source,
+        )
+
+        if modified_episode:
+            return {"status": "ok", "episode": modified_episode}
+        else:
+            return {"status": "error", "error": "episode not found"}
+
+    async def handle_delete(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Handle memory.delete method."""
+        episode_id = params.get("episode_id", "")
+
+        if not episode_id:
+            return {"status": "error", "error": "episode_id required"}
+
+        deleted = await self.store.delete_episode(episode_id)
+
+        if deleted:
+            return {"status": "ok", "episode_id": episode_id}
+        else:
+            return {"status": "error", "error": "episode not found or deletion failed"}
+
+    async def handle_list(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Handle memory.list method."""
+        session_id = params.get("session_id") or params.get("project_id")
+        limit = params.get("limit", 50)
+
+        episodes = await self.store.list_episodes(
+            session_id=session_id,
+            limit=limit,
+        )
+
+        return {
+            "episodes": episodes,
+            "count": len(episodes),
+        }
+
 
 class OptimizedPromptHandler:
     """Handler for prompt operations with SimpleMemoryStore."""
@@ -209,6 +258,9 @@ async def main():
     server.register("memory.add_episode", memory_handler.handle_add_episode)
     server.register("memory.add_user_fact", memory_handler.handle_add_user_fact)
     server.register("memory.get_context", memory_handler.handle_get_context)
+    server.register("memory.modify", memory_handler.handle_modify)
+    server.register("memory.delete", memory_handler.handle_delete)
+    server.register("memory.list", memory_handler.handle_list)
     server.register("prompt.build", prompt_handler.handle_build)
     server.register("relevance.evaluate", prompt_handler.handle_relevance_evaluate)
 

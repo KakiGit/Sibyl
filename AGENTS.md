@@ -60,9 +60,11 @@ dependencies:
   - Memories retrieved (10 most relevant) and injected
   - Response received from harness
   - Memory stored after conversation
-- Memory: `./target/release/sibyl memory --query "..." --json` ✓
-  - Real-time natural language query
-  - Returns episodes, facts, and relevance scores
+- Memory Operations (NEW): ✓
+  - `./target/release/sibyl memory query --query "..." --json` - Real-time natural language query
+  - `./target/release/sibyl memory list --json` - List all memories
+  - `./target/release/sibyl memory modify <id> --content "..." --json` - Modify memory
+  - `./target/release/sibyl memory delete <id> --json` - Delete memory
 - TUI: `./target/release/sibyl tui` ✓
 - Queue handling: Messages queued while processing, sent when idle ✓
 - SSE: Real-time streaming with animated spinner ✓
@@ -97,17 +99,20 @@ dependencies:
 ## Feature Status (from DRAFT.md)
 ### Implemented ✓
 - Memory query and add operations (embedding-based search)
+- Memory modify/delete operations (NEW - CLI + IPC + Python handlers)
+- Memory list operation (NEW - CLI command)
 - Automatic context injection with relevance filtering
 - Subagent relevance evaluation (embedding + optional LLM)
 - OpenCode harness integration (full implementation)
 - Plugin system framework (skills/tools/workflows/MCP registries)
 
 ### Missing (TODO)
-- Memory modify/delete operations for individual memories
 - Cursor, Claude Code, mCodex harness implementations
 - Harness switching functionality (stub only)
-- Memory management UI for modify/delete in TUI
+- Memory management UI for modify/delete in TUI (CLI works, TUI UI pending)
 - Multiple instance isolation/synchronization
+- Wiki layer from LLM_WIKI.md (advanced feature)
+- Plugin tools connected to Python IPC backend (stub only)
 
 ## Test Commands
 ```bash
@@ -115,8 +120,12 @@ dependencies:
 ./target/release/sibyl run --prompt "Hello, what is 2+2?"
 ./target/release/sibyl run --prompt "Remember that I like Python programming" --json
 
-# Memory query
-./target/release/sibyl memory --query "What programming languages does the user like?" --json
+# Memory operations (NEW)
+./target/release/sibyl memory query --query "What programming languages does the user like?" --json
+./target/release/sibyl memory list --json
+./target/release/sibyl memory list --limit 10 --json
+./target/release/sibyl memory modify <episode-id> --content "New content" --json
+./target/release/sibyl memory delete <episode-id> --json
 
 # TUI with debug logging (useful for troubleshooting)
 ./target/release/sibyl tui --log
@@ -176,6 +185,11 @@ Learn patterns from:
 ## IPC Messages
 - `memory.query` - Search relevant memories
 - `memory.add_episode` - Ingest conversation
+- `memory.add_user_fact` - Add user fact
+- `memory.get_context` - Get context for query
+- `memory.modify` - Modify existing memory (NEW)
+- `memory.delete` - Delete memory (NEW)
+- `memory.list` - List all memories (NEW)
 - `prompt.build` - Build system prompt with memory injection
 - `relevance.evaluate` - Subagent evaluates memory relevance
 

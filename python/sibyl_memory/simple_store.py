@@ -270,3 +270,114 @@ class SimpleMemoryStore:
         except Exception as e:
             logger.warning(f"Clear session failed: {e}")
             return False
+
+    async def modify_episode(
+        self,
+        episode_id: str,
+        content: Optional[str] = None,
+        source: Optional[str] = None,
+    ) -> Optional[dict]:
+        """Modify an existing episode."""
+        key = f"episode:{episode_id}"
+        try:
+            data = await self.redis.get(key)
+            if not data:
+                logger.warning(f"Episode not found: {episode_id}")
+                return None
+
+            episode = json.loads(data.decode() if isinstance(data, bytes) else data)
+            
+            if content is not None:
+                episode["content"] = content
+                episode["modified_at"] = datetime.utcnow().isoformat()
+                
+                if self._embedder:
+                    embeddings = await self._embedder.embed([content])
+                    embedding_key = f"embedding:{episode_id}"
+                    await self.redis.set(embedding_key, json.dumps(embeddings[0]))
+                    self._embedding_cache[episode_id] = embeddings[0]
+
+            if source is not None:
+                episode["source"] = source
+
+            await self.redis.set(key, json.dumps(episode))
+            logger.info(f"Modified episode: {episode_id}")
+            return episode
+        except Exception as e:
+            logger.warning(f"Modify episode failed: {e}")
+            return None
+
+    async def delete_episode(self, episode_id: str) -> bool:
+        """Delete an episode."""
+        try:
+            episode_key = f"episode:{episode_id}"
+            embedding_key = f"embedding:{episode_id}"
+            
+            data = await self.redis.get(episode_key)
+            if not data:
+                logger.warning(f"Episode not found for deletion: {episode_id}")
+                return False
+
+            episode = json.loads(data.decode() if isinstance(data, bytes) else data)
+            session_id = episode.get("session_id")
+            
+            await self.redis.delete(episode_key)
+            await self.redis.delete(embedding_key)
+            
+            if session_id:
+                session_key = f"session:{session_id}:episodes"
+                await self.redis.lrem(session_key, 0, episode_id)
+            
+            all_episodes_key = "all:episodes"
+            await self.redis.lrem(all_episodes_key, 0, episode_id)
+            
+            if episode_id in self._embedding_cache:
+                del self._embedding_cache[episode_id]
+            
+            logger.info(f"Deleted episode: {episode_id}")
+            return True
+        except Exception as e:
+            logger.warning(f"Delete episode failed: {e}")
+            return False
+
+    async def list_episodes(
+        self,
+        session_id: Optional[str] = None,
+        limit: int = 50,
+    ) -> List[dict]:
+        """List episodes, optionally filtered by session."""
+        results = []
+        
+        try:
+            if session_id:
+                session_key = f"session:{session_id}:episodes"
+                episode_ids = await self.redis.lrange(session_key, 0, limit)
+            else:
+                episode_ids = await self.redis.lrange("all:episodes", -limit, -1)
+            
+            for ep_id in episode_ids:
+                ep_id = ep_id.decode() if isinstance(ep_id, bytes) else ep_id
+                key = f"episode:{ep_id}"
+                data = await self.redis.get(key)
+                if data:
+                    episode = json.loads(
+                        data.decode() if isinstance(data, bytes) else data
+                    )
+                    results.append(episode)
+        except Exception as e:
+            logger.warning(f"List episodes failed: {e}")
+        
+        return results
+
+    async def get_episode(self, episode_id: str) -> Optional[dict]:
+        """Get a single episode by ID."""
+        key = f"episode:{episode_id}"
+        try:
+            data = await self.redis.get(key)
+            if data:
+                return json.loads(
+                    data.decode() if isinstance(data, bytes) else data
+                )
+        except Exception as e:
+            logger.warning(f"Get episode failed: {e}")
+        return None

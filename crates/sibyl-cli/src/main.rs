@@ -39,10 +39,55 @@ enum Commands {
         log_file: Option<PathBuf>,
     },
     
-    #[command(about = "Query memory system")]
+    #[command(about = "Memory system operations")]
     Memory {
+        #[command(subcommand)]
+        memory_cmd: MemoryCommands,
+    },
+}
+
+#[derive(Subcommand)]
+enum MemoryCommands {
+    #[command(about = "Query memory system")]
+    Query {
         #[arg(short, long, help = "Query text")]
         query: String,
+        
+        #[arg(short, long, help = "Output in JSON format")]
+        json: bool,
+    },
+    
+    #[command(about = "List all memories")]
+    List {
+        #[arg(short, long, help = "Session ID to filter")]
+        session: Option<String>,
+        
+        #[arg(short, long, help = "Limit number of results")]
+        limit: Option<usize>,
+        
+        #[arg(short, long, help = "Output in JSON format")]
+        json: bool,
+    },
+    
+    #[command(about = "Modify a memory")]
+    Modify {
+        #[arg(help = "Episode ID to modify")]
+        id: String,
+        
+        #[arg(short, long, help = "New content")]
+        content: Option<String>,
+        
+        #[arg(short, long, help = "New source")]
+        source: Option<String>,
+        
+        #[arg(short, long, help = "Output in JSON format")]
+        json: bool,
+    },
+    
+    #[command(about = "Delete a memory")]
+    Delete {
+        #[arg(help = "Episode ID to delete")]
+        id: String,
         
         #[arg(short, long, help = "Output in JSON format")]
         json: bool,
@@ -78,7 +123,7 @@ fn main() -> anyhow::Result<()> {
             run_tui(path)
         }
         Some(Commands::Run { prompt, stdin, json }) => run_headless(prompt, stdin, json),
-        Some(Commands::Memory { query, json }) => run_memory_query(query, json),
+        Some(Commands::Memory { memory_cmd }) => run_memory_command(memory_cmd),
     }
 }
 
@@ -323,7 +368,7 @@ fn run_headless(prompt: Option<String>, use_stdin: bool, json_output: bool) -> a
     Ok(())
 }
 
-fn run_memory_query(query: String, json_output: bool) -> anyhow::Result<()> {
+fn run_memory_command(memory_cmd: MemoryCommands) -> anyhow::Result<()> {
     use sibyl_ipc::client::IpcClient;
     use sibyl_ipc::{Method, Request};
     use sibyl_deps::load_config;
@@ -339,6 +384,38 @@ fn run_memory_query(query: String, json_output: bool) -> anyhow::Result<()> {
     });
 
     let ipc = IpcClient::new(&config.ipc.socket_path);
+    
+    let result = match memory_cmd {
+        MemoryCommands::Query { query, json } => {
+            run_memory_query_internal(&ipc, &query, json, &rt)
+        }
+        MemoryCommands::List { session, limit, json } => {
+            run_memory_list_internal(&ipc, session, limit.unwrap_or(50), json, &rt)
+        }
+        MemoryCommands::Modify { id, content, source, json } => {
+            run_memory_modify_internal(&ipc, &id, content, source, json, &rt)
+        }
+        MemoryCommands::Delete { id, json } => {
+            run_memory_delete_internal(&ipc, &id, json, &rt)
+        }
+    };
+
+    rt.block_on(async {
+        if let Err(e) = deps.shutdown().await {
+            tracing::warn!("Error during shutdown: {}", e);
+        }
+    });
+
+    result
+}
+
+fn run_memory_query_internal(
+    ipc: &sibyl_ipc::client::IpcClient,
+    query: &str,
+    json_output: bool,
+    rt: &tokio::runtime::Runtime,
+) -> anyhow::Result<()> {
+    use sibyl_ipc::{Method, Request};
     
     let request = Request::new(Method::MemoryQuery, serde_json::json!({ "query": query }));
     
@@ -385,11 +462,189 @@ fn run_memory_query(query: String, json_output: bool) -> anyhow::Result<()> {
         }
     }
 
-    rt.block_on(async {
-        if let Err(e) = deps.shutdown().await {
-            tracing::warn!("Error during shutdown: {}", e);
-        }
+    Ok(())
+}
+
+fn run_memory_list_internal(
+    ipc: &sibyl_ipc::client::IpcClient,
+    session: Option<String>,
+    limit: usize,
+    json_output: bool,
+    rt: &tokio::runtime::Runtime,
+) -> anyhow::Result<()> {
+    use sibyl_ipc::{Method, Request};
+    
+    let params = serde_json::json!({
+        "session_id": session,
+        "limit": limit
     });
+    let request = Request::new(Method::MemoryList, params);
+    
+    let result = rt.block_on(async {
+        ipc.send(request).await
+    });
+
+    match result {
+        Ok(response) => {
+            if let Some(result) = response.result {
+                if json_output {
+                    println!("{}", serde_json::to_string_pretty(&result)?);
+                } else {
+                    println!("Memory List:");
+                    println!("───────────────────────");
+                    if let Some(episodes) = result.get("episodes").and_then(|e| e.as_array()) {
+                        for episode in episodes.iter() {
+                            if let (Some(id), Some(content)) = (
+                                episode.get("uuid").and_then(|i| i.as_str()),
+                                episode.get("content").and_then(|c| c.as_str())
+                            ) {
+                                println!("ID: {}", id);
+                                println!("Content: {}", content);
+                                if let Some(created) = episode.get("created_at").and_then(|c| c.as_str()) {
+                                    println!("Created: {}", created);
+                                }
+                                println!("───────────────────────");
+                            }
+                        }
+                        if episodes.is_empty() {
+                            println!("No memories found.");
+                        } else {
+                            println!("Total: {} memories", episodes.len());
+                        }
+                    }
+                }
+            } else {
+                if json_output {
+                    println!("{}", serde_json::json!({ "error": "No response from memory system" }));
+                } else {
+                    println!("No response from memory system.");
+                }
+            }
+        }
+        Err(e) => {
+            if json_output {
+                println!("{}", serde_json::json!({ "error": e.to_string() }));
+            } else {
+                eprintln!("Error listing memories: {}", e);
+            }
+            std::process::exit(1);
+        }
+    }
+
+    Ok(())
+}
+
+fn run_memory_modify_internal(
+    ipc: &sibyl_ipc::client::IpcClient,
+    id: &str,
+    content: Option<String>,
+    source: Option<String>,
+    json_output: bool,
+    rt: &tokio::runtime::Runtime,
+) -> anyhow::Result<()> {
+    use sibyl_ipc::{Method, Request};
+    
+    let params = serde_json::json!({
+        "episode_id": id,
+        "content": content,
+        "source": source
+    });
+    let request = Request::new(Method::MemoryModify, params);
+    
+    let result = rt.block_on(async {
+        ipc.send(request).await
+    });
+
+    match result {
+        Ok(response) => {
+            if let Some(result) = response.result {
+                if json_output {
+                    println!("{}", serde_json::to_string_pretty(&result)?);
+                } else {
+                    let status = result.get("status").and_then(|s| s.as_str()).unwrap_or("unknown");
+                    if status == "ok" {
+                        println!("Memory modified successfully.");
+                        if let Some(episode) = result.get("episode") {
+                            if let Some(content) = episode.get("content").and_then(|c| c.as_str()) {
+                                println!("New content: {}", content);
+                            }
+                        }
+                    } else {
+                        let error = result.get("error").and_then(|e| e.as_str()).unwrap_or("unknown error");
+                        eprintln!("Error modifying memory: {}", error);
+                        std::process::exit(1);
+                    }
+                }
+            } else if let Some(error) = response.error {
+                if json_output {
+                    println!("{}", serde_json::json!({ "error": error.message }));
+                } else {
+                    eprintln!("Error: {}", error.message);
+                }
+                std::process::exit(1);
+            }
+        }
+        Err(e) => {
+            if json_output {
+                println!("{}", serde_json::json!({ "error": e.to_string() }));
+            } else {
+                eprintln!("Error modifying memory: {}", e);
+            }
+            std::process::exit(1);
+        }
+    }
+
+    Ok(())
+}
+
+fn run_memory_delete_internal(
+    ipc: &sibyl_ipc::client::IpcClient,
+    id: &str,
+    json_output: bool,
+    rt: &tokio::runtime::Runtime,
+) -> anyhow::Result<()> {
+    use sibyl_ipc::{Method, Request};
+    
+    let params = serde_json::json!({ "episode_id": id });
+    let request = Request::new(Method::MemoryDelete, params);
+    
+    let result = rt.block_on(async {
+        ipc.send(request).await
+    });
+
+    match result {
+        Ok(response) => {
+            if let Some(result) = response.result {
+                if json_output {
+                    println!("{}", serde_json::to_string_pretty(&result)?);
+                } else {
+                    let status = result.get("status").and_then(|s| s.as_str()).unwrap_or("unknown");
+                    if status == "ok" {
+                        println!("Memory deleted successfully.");
+                    } else {
+                        let error = result.get("error").and_then(|e| e.as_str()).unwrap_or("unknown error");
+                        eprintln!("Error deleting memory: {}", error);
+                        std::process::exit(1);
+                    }
+                }
+            } else if let Some(error) = response.error {
+                if json_output {
+                    println!("{}", serde_json::json!({ "error": error.message }));
+                } else {
+                    eprintln!("Error: {}", error.message);
+                }
+                std::process::exit(1);
+            }
+        }
+        Err(e) => {
+            if json_output {
+                println!("{}", serde_json::json!({ "error": e.to_string() }));
+            } else {
+                eprintln!("Error deleting memory: {}", e);
+            }
+            std::process::exit(1);
+        }
+    }
 
     Ok(())
 }

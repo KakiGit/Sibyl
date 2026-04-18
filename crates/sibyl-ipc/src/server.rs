@@ -112,6 +112,30 @@ impl IpcServer {
                     error: None,
                 }
             }
+            crate::Method::MemoryModify => {
+                Response {
+                    jsonrpc: "2.0".to_string(),
+                    id: request.id,
+                    result: Some(serde_json::json!({"status": "ok"})),
+                    error: None,
+                }
+            }
+            crate::Method::MemoryDelete => {
+                Response {
+                    jsonrpc: "2.0".to_string(),
+                    id: request.id,
+                    result: Some(serde_json::json!({"status": "ok"})),
+                    error: None,
+                }
+            }
+            crate::Method::MemoryList => {
+                Response {
+                    jsonrpc: "2.0".to_string(),
+                    id: request.id,
+                    result: Some(serde_json::json!({"episodes": [], "count": 0})),
+                    error: None,
+                }
+            }
         }
     }
 }
