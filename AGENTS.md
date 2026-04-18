@@ -54,6 +54,9 @@ dependencies:
 - Dependencies: FalkorDB (localhost:6379), OpenCode (localhost:4096), Python IPC ✓
 - Headless: `./target/release/sibyl run --prompt "..." --json` ✓
 - Memory: `./target/release/sibyl memory --query "..." --json` ✓
+- TUI: `./target/release/sibyl tui` ✓
+- Queue handling: Messages queued while processing, sent when idle ✓
+- SSE: Real-time streaming with animated spinner ✓
 
 ### Verification Details (2026-04-18 - Latest)
 - Config loaded from ~/.config/sibyl/config.yaml ✓

@@ -15,6 +15,8 @@ test.use({
 test("sibyl tui sends first message and shows You:", async ({ terminal }) => {
   await expect(terminal.getByText("Welcome to Sibyl")).toBeVisible({ timeout: 30000 });
 
+  await expect(terminal.getByText("Ready")).toBeVisible({ timeout: 10000 });
+
   terminal.write("hello\r");
 
   await expect(terminal.getByText("You:")).toBeVisible({ timeout: 10000 });
@@ -22,6 +24,8 @@ test("sibyl tui sends first message and shows You:", async ({ terminal }) => {
 
 test("sibyl tui shows queued messages when busy", async ({ terminal }) => {
   await expect(terminal.getByText("Welcome to Sibyl")).toBeVisible({ timeout: 30000 });
+
+  await expect(terminal.getByText("Ready")).toBeVisible({ timeout: 10000 });
 
   terminal.write("first\r");
 
@@ -35,6 +39,8 @@ test("sibyl tui shows queued messages when busy", async ({ terminal }) => {
 
 test("sibyl tui queue count increases with multiple messages", async ({ terminal }) => {
   await expect(terminal.getByText("Welcome to Sibyl")).toBeVisible({ timeout: 30000 });
+
+  await expect(terminal.getByText("Ready")).toBeVisible({ timeout: 10000 });
 
   terminal.write("start\r");
 
@@ -51,6 +57,8 @@ test("sibyl tui queue count increases with multiple messages", async ({ terminal
 
 test("sibyl tui input clears after submit", async ({ terminal }) => {
   await expect(terminal.getByText("Welcome to Sibyl")).toBeVisible({ timeout: 30000 });
+
+  await expect(terminal.getByText("Ready")).toBeVisible({ timeout: 10000 });
 
   terminal.write("test message\r");
 
