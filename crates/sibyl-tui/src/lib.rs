@@ -2,27 +2,24 @@ pub mod app;
 pub mod background;
 pub mod input;
 pub mod render;
+pub mod session;
 pub mod theme;
 pub mod widgets;
-pub mod session;
 
 pub use app::{
-    App, AppMode, AppStatus, ChatState, InputState, MemoryPanelState, 
-    Message, MessageRole, StatusBarState, QueuePanelState,
+    App, AppMode, AppStatus, ChatState, InputState, MemoryPanelState, Message, MessageRole,
+    QueuePanelState, StatusBarState,
 };
 pub use background::{
-    UiEvent, BackgroundCommand,
-    create_channels, spawn_background_task_with_events,
-    BackgroundTask,
+    create_channels, spawn_background_task, BackgroundCommand, BackgroundTask, UiEvent,
 };
 pub use input::{
-    Command, InputComposer, HandleResult,
-    handle_global_key, handle_chat_key, handle_memory_key, should_handle_as_input,
-    get_command_completions,
+    get_command_completions, handle_chat_key, handle_global_key, handle_memory_key,
+    should_handle_as_input, Command, HandleResult, InputComposer,
 };
-pub use widgets::{Spinner, SpinnerState, render_help_overlay, CompletionPopup};
 pub use render::{
-    render_chat, render_input, render_memory_panel, render_status_bar,
-    render_command_input, render_queue_panel,
+    render_chat, render_command_input, render_input, render_memory_panel, render_queue_panel,
+    render_status_bar,
 };
-pub use session::{SessionRunner, SessionResult, format_headless_output};
+pub use session::{format_headless_output, SessionResult, SessionRunner};
+pub use widgets::{render_help_overlay, CompletionPopup, Spinner, SpinnerState};
