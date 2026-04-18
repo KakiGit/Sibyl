@@ -13,7 +13,7 @@ impl SessionId {
         &self.0
     }
 
-    pub fn from_str(s: String) -> Self {
+    pub fn from_string(s: String) -> Self {
         Self(s)
     }
 }

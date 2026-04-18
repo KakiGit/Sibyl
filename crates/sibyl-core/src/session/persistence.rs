@@ -79,7 +79,7 @@ impl SessionStorage {
                 if let Some(stem) = path.file_stem() {
                     if let Some(s) = stem.to_str() {
                         if s.starts_with("sess-") {
-                            sessions.push(SessionId::from_str(s.to_string()));
+                            sessions.push(SessionId::from_string(s.to_string()));
                         }
                     }
                 }
