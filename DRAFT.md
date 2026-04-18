@@ -62,4 +62,11 @@ Memory System <-> Core <-> Prompt Building
 * OpenCode
 * Cursor
 * Claude Code
-* mCodex
+* Codex
+
+## TUI features
+
+* in the TUI, it should automatically scroll down by default when the content reaches bottom.
+* The progress indicator shows in the start of input bar
+* When in input bar, allow using up/down to select previous/next user message. This should be valid also across different sessions. For example, if I reopen Sibyl, I can use up/down to select previous/next user message across different sessions. This is very useful for users to reuse the previous messages.
+* when hitting ctrl+c or 2 times the esc, cancel the current session on opencode

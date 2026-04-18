@@ -1,4 +1,8 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use std::fs;
+use std::path::PathBuf;
+
+const MAX_HISTORY_SIZE: usize = 100;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ComposerAction {
@@ -25,6 +29,7 @@ pub struct InputComposer {
     cursor: usize,
     history: Vec<String>,
     history_index: Option<usize>,
+    history_file: PathBuf,
 }
 
 impl Default for InputComposer {
@@ -40,6 +45,44 @@ impl InputComposer {
             cursor: 0,
             history: Vec::new(),
             history_index: None,
+            history_file: Self::get_history_path(),
+        }
+    }
+
+    fn get_history_path() -> PathBuf {
+        let data_dir = dirs::data_local_dir()
+            .unwrap_or_else(|| PathBuf::from("."))
+            .join("sibyl");
+        fs::create_dir_all(&data_dir).ok();
+        data_dir.join("history.txt")
+    }
+
+    pub fn load_history(&mut self) {
+        if let Ok(content) = fs::read_to_string(&self.history_file) {
+            self.history = content
+                .lines()
+                .filter(|line| !line.is_empty())
+                .rev()
+                .take(MAX_HISTORY_SIZE)
+                .map(String::from)
+                .collect();
+            tracing::info!("Loaded {} history entries", self.history.len());
+        }
+    }
+
+    pub fn save_history(&self) {
+        let content = self
+            .history
+            .iter()
+            .rev()
+            .take(MAX_HISTORY_SIZE)
+            .map(|s| s.as_str())
+            .collect::<Vec<_>>()
+            .join("\n");
+        if let Err(e) = fs::write(&self.history_file, content) {
+            tracing::warn!("Failed to save history: {}", e);
+        } else {
+            tracing::info!("Saved {} history entries", self.history.len());
         }
     }
 

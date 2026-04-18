@@ -115,7 +115,7 @@ fn run_app<B: ratatui::backend::Backend>(
     terminal: &mut Terminal<B>,
     mut app: App,
     rt: &tokio::runtime::Runtime,
-) -> io::Result<()> {
+) -> io::Result<App> {
     loop {
         {
             let dep_status = rt.block_on(async { app.deps().get_status_summary().await });
@@ -131,7 +131,7 @@ fn run_app<B: ratatui::backend::Backend>(
         if event::poll(Duration::from_millis(100))? {
             if let Event::Key(key) = event::read()? {
                 if !app.handle_key(key) {
-                    return Ok(());
+                    return Ok(app);
                 }
             }
         }
@@ -185,13 +185,19 @@ fn main() -> anyhow::Result<()> {
 
     let _ = bg_tx.blocking_send(background::BackgroundCommand::LoadInitialMemories);
 
-    let app = App::new(deps.clone(), config, bg_tx, ui_rx);
+    let mut app = App::new(deps.clone(), config, bg_tx, ui_rx);
+    app.load_history();
 
     terminal.draw(|f| ui(f, &app))?;
 
-    let result = run_app(&mut terminal, app, &rt);
+    let app = run_app(&mut terminal, app, &rt);
 
     tracing::info!("Shutting down Sibyl");
+    
+    if let Ok(app) = &app {
+        app.save_history();
+    }
+
     rt.block_on(async {
         if let Err(e) = deps.shutdown().await {
             tracing::warn!("Error during shutdown: {}", e);
@@ -202,6 +208,6 @@ fn main() -> anyhow::Result<()> {
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
     terminal.show_cursor()?;
 
-    result?;
+    app?;
     Ok(())
 }

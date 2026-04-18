@@ -225,6 +225,14 @@ impl App {
         }
     }
 
+    pub fn load_history(&mut self) {
+        self.composer.load_history();
+    }
+
+    pub fn save_history(&self) {
+        self.composer.save_history();
+    }
+
     pub fn mode(&self) -> AppMode {
         self.mode
     }

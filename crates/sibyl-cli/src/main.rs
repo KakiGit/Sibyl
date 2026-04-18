@@ -205,6 +205,7 @@ fn run_tui(log_path: Option<PathBuf>) -> anyhow::Result<()> {
     let mut terminal = Terminal::new(backend)?;
 
     let mut app = App::new(deps.clone(), config, bg_tx, ui_rx);
+    app.load_history();
 
     let result: io::Result<()> = loop {
         {
@@ -297,6 +298,7 @@ fn run_tui(log_path: Option<PathBuf>) -> anyhow::Result<()> {
         if event::poll(Duration::from_millis(100))? {
             if let Event::Key(key) = event::read()? {
                 if !app.handle_key(key) {
+                    app.save_history();
                     break Ok(());
                 }
             }
