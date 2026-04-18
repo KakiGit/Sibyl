@@ -40,6 +40,7 @@ impl Message {
 }
 
 #[derive(Debug, Clone)]
+#[derive(Default)]
 pub struct ChatState {
     pub messages: Vec<Message>,
     pub scroll_offset: usize,
@@ -47,16 +48,6 @@ pub struct ChatState {
     pub current_response: Option<String>,
 }
 
-impl Default for ChatState {
-    fn default() -> Self {
-        Self {
-            messages: Vec::new(),
-            scroll_offset: 0,
-            streaming: false,
-            current_response: None,
-        }
-    }
-}
 
 impl ChatState {
     pub fn add_message(&mut self, message: Message) {
@@ -97,36 +88,21 @@ impl ChatState {
 }
 
 #[derive(Debug, Clone)]
+#[derive(Default)]
 pub struct MemoryPanelState {
     pub visible: bool,
     pub results: Vec<String>,
     pub scroll_offset: usize,
 }
 
-impl Default for MemoryPanelState {
-    fn default() -> Self {
-        Self {
-            visible: false,
-            results: Vec::new(),
-            scroll_offset: 0,
-        }
-    }
-}
 
 #[derive(Debug, Clone)]
+#[derive(Default)]
 pub struct QueuePanelState {
     pub messages: Vec<String>,
     pub selected_index: Option<usize>,
 }
 
-impl Default for QueuePanelState {
-    fn default() -> Self {
-        Self {
-            messages: Vec::new(),
-            selected_index: None,
-        }
-    }
-}
 
 impl QueuePanelState {
     pub fn add(&mut self, text: String) {
@@ -143,19 +119,12 @@ impl QueuePanelState {
 }
 
 #[derive(Debug, Clone)]
+#[derive(Default)]
 pub struct InputState {
     pub buffer: String,
     pub cursor_position: usize,
 }
 
-impl Default for InputState {
-    fn default() -> Self {
-        Self {
-            buffer: String::new(),
-            cursor_position: 0,
-        }
-    }
-}
 
 #[derive(Debug, Clone)]
 pub struct StatusBarState {

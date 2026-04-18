@@ -5,6 +5,7 @@ use crate::ipc::IpcConfig;
 use crate::session::HarnessType;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default)]
 pub struct Config {
     #[serde(default)]
     pub harness: HarnessConfigWrapper,
@@ -140,14 +141,3 @@ impl Default for PluginConfig {
     }
 }
 
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            harness: HarnessConfigWrapper::default(),
-            memory: MemoryConfig::default(),
-            ipc: IpcConfig::default(),
-            ui: UiConfig::default(),
-            plugins: PluginConfig::default(),
-        }
-    }
-}

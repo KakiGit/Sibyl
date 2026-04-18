@@ -55,27 +55,59 @@ pub fn render_status_bar(
         "0 mem".to_string()
     };
 
-    let spans = vec![
-        Span::styled(" ", default()),
-        Span::styled(&bar_state.model, accent().add_modifier(Modifier::BOLD)),
-        Span::styled(" │ ", muted()),
-        Span::styled(dep_icon, dep_style),
-        Span::styled(" deps", dep_style),
-        Span::styled(" │ ", muted()),
-        Span::styled(&mem_count, memory_highlight()),
-        Span::styled(" │ ", muted()),
-        Span::styled(&session_display, accent()),
-        Span::styled(" │ ", muted()),
-        Span::styled(status_icon, status_style),
-        Span::styled(" ", status_style),
-        Span::styled(status_text, status_style),
-        Span::styled(" │ ", muted()),
-        Span::styled("[", muted()),
-        Span::styled(mode_text, accent()),
-        Span::styled("]", muted()),
-        Span::styled("  ", default()),
-        Span::styled("Tab:Mem ?:Help Ctrl+C:Quit", muted()),
-    ];
+    let queue_display = if bar_state.queue_count > 0 {
+        format!("queue:{}", bar_state.queue_count)
+    } else {
+        String::new()
+    };
+
+    let spans = if bar_state.queue_count > 0 {
+        vec![
+            Span::styled(" ", default()),
+            Span::styled(&bar_state.model, accent().add_modifier(Modifier::BOLD)),
+            Span::styled(" │ ", muted()),
+            Span::styled(dep_icon, dep_style),
+            Span::styled(" deps", dep_style),
+            Span::styled(" │ ", muted()),
+            Span::styled(&mem_count, memory_highlight()),
+            Span::styled(" │ ", muted()),
+            Span::styled(&session_display, accent()),
+            Span::styled(" │ ", muted()),
+            Span::styled(status_icon, status_style),
+            Span::styled(" ", status_style),
+            Span::styled(status_text, status_style),
+            Span::styled(" │ ", muted()),
+            Span::styled(&queue_display, warning()),
+            Span::styled(" │ ", muted()),
+            Span::styled("[", muted()),
+            Span::styled(mode_text, accent()),
+            Span::styled("]", muted()),
+            Span::styled("  ", default()),
+            Span::styled("Tab:Mem ?:Help Ctrl+C:Quit", muted()),
+        ]
+    } else {
+        vec![
+            Span::styled(" ", default()),
+            Span::styled(&bar_state.model, accent().add_modifier(Modifier::BOLD)),
+            Span::styled(" │ ", muted()),
+            Span::styled(dep_icon, dep_style),
+            Span::styled(" deps", dep_style),
+            Span::styled(" │ ", muted()),
+            Span::styled(&mem_count, memory_highlight()),
+            Span::styled(" │ ", muted()),
+            Span::styled(&session_display, accent()),
+            Span::styled(" │ ", muted()),
+            Span::styled(status_icon, status_style),
+            Span::styled(" ", status_style),
+            Span::styled(status_text, status_style),
+            Span::styled(" │ ", muted()),
+            Span::styled("[", muted()),
+            Span::styled(mode_text, accent()),
+            Span::styled("]", muted()),
+            Span::styled("  ", default()),
+            Span::styled("Tab:Mem ?:Help Ctrl+C:Quit", muted()),
+        ]
+    };
 
     let status = Paragraph::new(Line::from(spans)).style(default());
     f.render_widget(status, area);

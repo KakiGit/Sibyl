@@ -31,7 +31,7 @@ impl SessionManager {
             &SessionEvent::SessionCreated {
                 id: session.id.clone(),
                 timestamp: session.created_at,
-                harness: session.harness.clone(),
+                harness: session.harness,
             },
         ).await?;
         

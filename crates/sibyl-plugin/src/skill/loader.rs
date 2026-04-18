@@ -21,7 +21,7 @@ impl SkillLoader {
     pub fn new() -> Self {
         let search_paths = SKILL_SEARCH_PATHS
             .iter()
-            .map(|p| PathBuf::from(p))
+            .map(PathBuf::from)
             .chain(std::iter::once(
                 dirs::data_local_dir()
                     .map(|p| p.join("sibyl").join("skills"))

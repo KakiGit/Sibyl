@@ -73,11 +73,10 @@ impl WorkflowExecutor {
 
     fn validate_variables(&self, workflow: &Workflow, variables: &HashMap<String, serde_json::Value>) -> Result<()> {
         for var_def in &workflow.variables {
-            if var_def.required {
-                if !variables.contains_key(&var_def.name) && var_def.default.is_none() {
+            if var_def.required
+                && !variables.contains_key(&var_def.name) && var_def.default.is_none() {
                     return Err(Error::MissingVariable(var_def.name.clone()));
                 }
-            }
         }
         Ok(())
     }

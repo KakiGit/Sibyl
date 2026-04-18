@@ -41,7 +41,7 @@ impl HarnessRouter {
     }
 
     pub async fn get_active(&self) -> Option<Arc<dyn Harness>> {
-        let active = self.active.read().await.clone()?;
+        let active = (*self.active.read().await)?;
         let harnesses = self.harnesses.read().await;
         harnesses.get(&active).cloned()
     }

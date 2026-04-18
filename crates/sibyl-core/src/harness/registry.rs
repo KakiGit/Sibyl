@@ -26,7 +26,7 @@ impl HarnessRegistry {
     }
 
     pub async fn register(&self, spec: HarnessSpec) {
-        self.specs.write().await.insert(spec.harness_type.clone(), spec);
+        self.specs.write().await.insert(spec.harness_type, spec);
     }
 
     pub async fn get(&self, harness_type: &HarnessType) -> Option<HarnessSpec> {

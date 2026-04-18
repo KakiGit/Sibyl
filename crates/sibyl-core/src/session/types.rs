@@ -33,15 +33,12 @@ pub enum SessionState {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Default)]
 pub enum HarnessType {
+    #[default]
     OpenCode,
 }
 
-impl Default for HarnessType {
-    fn default() -> Self {
-        Self::OpenCode
-    }
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Session {

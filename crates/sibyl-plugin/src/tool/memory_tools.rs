@@ -11,6 +11,12 @@ pub trait ToolExecutor: Send + Sync {
 
 pub struct MemoryQueryTool;
 
+impl Default for MemoryQueryTool {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MemoryQueryTool {
     pub fn new() -> Self {
         Self
@@ -37,6 +43,12 @@ impl ToolExecutor for MemoryQueryTool {
 }
 
 pub struct MemoryAddTool;
+
+impl Default for MemoryAddTool {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl MemoryAddTool {
     pub fn new() -> Self {

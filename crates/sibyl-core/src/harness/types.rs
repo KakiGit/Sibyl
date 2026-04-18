@@ -40,16 +40,9 @@ pub enum OpenCodeMode {
 }
 
 #[derive(Debug, Clone)]
+#[derive(Default)]
 pub struct SessionConfig {
     pub project_path: Option<std::path::PathBuf>,
     pub harness: HarnessType,
 }
 
-impl Default for SessionConfig {
-    fn default() -> Self {
-        Self {
-            project_path: None,
-            harness: HarnessType::default(),
-        }
-    }
-}

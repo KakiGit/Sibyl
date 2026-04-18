@@ -172,6 +172,7 @@ impl Default for LoggingConfig {
 
 #[derive(Debug, Clone, serde::Deserialize)]
 #[serde(default)]
+#[derive(Default)]
 pub struct SibylConfig {
     #[serde(default)]
     pub harness: HarnessConfig,
@@ -192,18 +193,6 @@ pub struct SibylConfig {
     pub logging: LoggingConfig,
 }
 
-impl Default for SibylConfig {
-    fn default() -> Self {
-        Self {
-            harness: HarnessConfig::default(),
-            llm: LlmConfig::default(),
-            memory: MemoryConfig::default(),
-            ipc: IpcConfig::default(),
-            dependencies: DependenciesConfig::default(),
-            logging: LoggingConfig::default(),
-        }
-    }
-}
 
 pub fn find_config_path() -> Option<PathBuf> {
     let project_config = PathBuf::from(".sibyl/config.yaml");
