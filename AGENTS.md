@@ -101,6 +101,7 @@ dependencies:
   - tests/messages.test.ts: 5/5 passed - message sending, queue panel, multiple messages
   - tests/queue-flow.test.ts: 4/4 passed - queue flow, input clearing
   - tests/full-flow.test.ts: 0/3 passed - timeout (expected due to LLM response latency > 60s)
+- Clippy: no errors (only warnings for unused code) ✓
 
 ## Feature Status (from DRAFT.md)
 ### Implemented ✓

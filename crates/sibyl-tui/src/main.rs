@@ -164,7 +164,10 @@ fn main() -> anyhow::Result<()> {
     
     tracing::info!("Spawning background task with SSE events");
     let (ready_tx, ready_rx) = tokio::sync::oneshot::channel();
-    let bg_handle = spawn_background_task_with_events(opencode, ipc, bg_rx, ui_tx, ready_tx);
+    let bg_handle = {
+        let _guard = rt.enter();
+        spawn_background_task_with_events(opencode, ipc, bg_rx, ui_tx, ready_tx)
+    };
     
     tracing::info!("Waiting for SSE connection...");
     match rt.block_on(ready_rx) {
