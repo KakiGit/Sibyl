@@ -89,6 +89,13 @@ pub fn should_handle_as_input(key: KeyEvent, mode: AppMode) -> bool {
         return true;
     }
 
+    if key.modifiers.contains(KeyModifiers::CONTROL) {
+        if let KeyCode::Char(c) = key.code {
+            return matches!(c, 'a' | 'e' | 'w' | 'u');
+        }
+        return false;
+    }
+
     matches!(
         key.code,
         KeyCode::Char(_)
@@ -100,5 +107,5 @@ pub fn should_handle_as_input(key: KeyEvent, mode: AppMode) -> bool {
             | KeyCode::End
             | KeyCode::Up
             | KeyCode::Down
-    ) && !key.modifiers.contains(KeyModifiers::CONTROL)
+    )
 }
