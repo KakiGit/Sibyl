@@ -20,15 +20,15 @@ impl Command {
 
         let without_slash = &trimmed[1..];
         let parts: Vec<&str> = without_slash.splitn(2, ' ').collect();
-        let cmd = parts.get(0).copied().unwrap_or("");
+        let cmd = parts.first().copied().unwrap_or("");
         let args = parts.get(1).copied().unwrap_or("");
 
         Some(match cmd {
             "help" | "h" | "?" => Command::Help,
             "skill" | "s" => Command::Skill(args.to_string()),
             "memory" | "mem" | "m" => {
-                if args.starts_with("query ") {
-                    Command::MemoryQuery(args[6..].to_string())
+                if let Some(query) = args.strip_prefix("query ") {
+                    Command::MemoryQuery(query.to_string())
                 } else {
                     Command::MemoryQuery(args.to_string())
                 }

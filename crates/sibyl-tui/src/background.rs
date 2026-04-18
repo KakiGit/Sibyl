@@ -53,7 +53,7 @@ async fn handle_command_spawned(
                         Ok(info) => {
                             let mut guard = shared_session_id.write().await;
                             *guard = Some(info.id.clone());
-                            let _ = tx.send(UiEvent::SessionCreated { session_id: info.id.clone() });
+                            let _ = tx.send(UiEvent::SessionCreated { session_id: info.id.clone() }).await;
                             info.id
                         }
                         Err(e) => {
@@ -61,7 +61,7 @@ async fn handle_command_spawned(
                             let _ = tx.send(UiEvent::Error {
                                 session_id: "unknown".to_string(),
                                 message: "Failed to create session".to_string(),
-                            });
+                            }).await;
                             return;
                         }
                     }
@@ -104,7 +104,7 @@ async fn handle_command_spawned(
                 let _ = tx.send(UiEvent::Error {
                     session_id: sid,
                     message: "Failed to send message".to_string(),
-                });
+                }).await;
             }
             tracing::info!("Message sent to OpenCode");
         }
@@ -237,7 +237,7 @@ impl BackgroundTask {
                     session_id: "system".to_string(),
                     message_id: "sse-connected".to_string(),
                     role: "system".to_string(),
-                });
+                }).await;
             }
             OpenCodeEvent::SessionCreated { properties } => {
                 tracing::info!("SessionCreated SSE: session_id={}", properties.session_id);
@@ -245,7 +245,7 @@ impl BackgroundTask {
                     let mut guard = self.shared_session_id.write().await;
                     *guard = Some(properties.session_id.clone());
                 }
-                let _ = self.tx.send(UiEvent::SessionCreated { session_id: properties.session_id });
+                let _ = self.tx.send(UiEvent::SessionCreated { session_id: properties.session_id }).await;
             }
             OpenCodeEvent::ServerHeartbeat { .. } => {
                 tracing::debug!("SSE heartbeat received");
@@ -263,9 +263,9 @@ impl BackgroundTask {
                     *guard = Some(properties.session_id.clone());
                 }
                 if self.session_busy {
-                    let _ = self.tx.send(UiEvent::SessionBusy { session_id: properties.session_id });
+                    let _ = self.tx.send(UiEvent::SessionBusy { session_id: properties.session_id }).await;
                 } else if was_busy {
-                    let _ = self.tx.send(UiEvent::SessionIdle { session_id: properties.session_id });
+                    let _ = self.tx.send(UiEvent::SessionIdle { session_id: properties.session_id }).await;
                 }
             }
             OpenCodeEvent::SessionIdle { properties } => {
@@ -275,7 +275,7 @@ impl BackgroundTask {
                     let mut guard = self.shared_session_id.write().await;
                     *guard = Some(properties.session_id.clone());
                 }
-                let _ = self.tx.send(UiEvent::SessionIdle { session_id: properties.session_id });
+                let _ = self.tx.send(UiEvent::SessionIdle { session_id: properties.session_id }).await;
             }
             OpenCodeEvent::MessageUpdated { properties } => {
                 let role_str = match properties.info.role {
@@ -288,14 +288,14 @@ impl BackgroundTask {
                     session_id: properties.session_id.clone(),
                     message_id: properties.info.id.clone(),
                     role: role_str.to_string(),
-                });
+                }).await;
                 if role_str == "assistant" {
                     self.current_message_id = Some(properties.info.id.clone());
                     if properties.info.time.completed.is_some() {
                         let _ = self.tx.send(UiEvent::MessageComplete {
                             session_id: properties.session_id,
                             message_id: properties.info.id,
-                        });
+                        }).await;
                     }
                 }
             }
@@ -311,7 +311,7 @@ impl BackgroundTask {
                                 message_id: self.current_message_id.clone().unwrap_or_default(),
                                 part_id: id,
                                 content: text,
-                            });
+                            }).await;
                         }
                     }
                     sibyl_opencode::types::Part::Tool { id: _, tool, state, .. } => {
@@ -321,7 +321,7 @@ impl BackgroundTask {
                             session_id: properties.session_id,
                             tool,
                             status,
-                        });
+                        }).await;
                     }
 sibyl_opencode::types::Part::StepFinish { .. } => {
                         tracing::info!("Step finish received, completing stream");
@@ -333,7 +333,7 @@ sibyl_opencode::types::Part::StepFinish { .. } => {
                                 message_id: self.current_message_id.clone().unwrap_or_default(),
                                 part_id: "stream".to_string(),
                                 content,
-                            });
+                            }).await;
                         }
                     }
                     other => {
@@ -349,7 +349,7 @@ sibyl_opencode::types::Part::StepFinish { .. } => {
                     message_id: properties.message_id,
                     part_id: properties.part_id,
                     delta: properties.delta,
-                });
+                }).await;
             }
             OpenCodeEvent::SessionError { properties } => {
                 tracing::error!("SessionError: {:?}", properties.error);
@@ -358,14 +358,14 @@ sibyl_opencode::types::Part::StepFinish { .. } => {
                 let _ = self.tx.send(UiEvent::Error {
                     session_id: properties.session_id,
                     message: msg,
-                });
+                }).await;
             }
             OpenCodeEvent::PermissionAsked { properties } => {
                 tracing::info!("PermissionAsked: {}", properties.permission);
                 let _ = self.tx.send(UiEvent::Error {
                     session_id: properties.session_id,
                     message: format!("Permission requested: {}", properties.permission),
-                });
+                }).await;
             }
             other => {
                 tracing::debug!("Unhandled event: {:?}", other);

@@ -29,7 +29,7 @@ pub fn render_scrollbar(
     };
 
     for i in 0..scrollbar_height {
-        let y = area.y + 1 + i as u16;
+        let y = area.y + 1 + i;
         let x = area.x + area.width.saturating_sub(1);
 
         let char = if i as usize >= thumb_position && (i as usize) < thumb_position + thumb_height {

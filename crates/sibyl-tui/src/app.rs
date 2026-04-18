@@ -331,7 +331,7 @@ impl App {
                 }
 
                 tracing::info!("Session idle, queue count: {}", self.queue.count());
-                if !self.queue.is_empty() && self.queue.messages.first().is_some() {
+                if !self.queue.messages.is_empty() {
                     let next_msg = self.queue.messages.remove(0);
                     tracing::info!("Sending queued message: {}", next_msg);
                     self.status_bar.queue_count = self.queue.count();

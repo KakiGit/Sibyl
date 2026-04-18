@@ -40,11 +40,7 @@ pub fn render_input(
         vec![Span::styled("○ ", muted())]
     };
 
-    let text_spans: Vec<Span<'_>> = if state.buffer.is_empty() {
-        vec![Span::styled(display_text, text_style)]
-    } else {
-        vec![Span::styled(display_text, text_style)]
-    };
+    let text_spans: Vec<Span<'_>> = vec![Span::styled(display_text, text_style)];
 
     let input = Paragraph::new(Line::from(
         prefix.into_iter().chain(text_spans).collect::<Vec<_>>(),
