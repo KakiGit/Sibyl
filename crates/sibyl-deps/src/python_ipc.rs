@@ -66,7 +66,8 @@ impl PythonIpcManager {
 
         debug!("Spawning Python IPC: {} {:?}", cmd, args);
 
-        let python_dir = std::path::PathBuf::from("/home/kaki/Github/Sibyl/python");
+        let python_dir = Self::find_python_dir()?;
+        debug!("Using python directory: {:?}", python_dir);
         
         let child = Command::new(cmd)
             .args(args)
@@ -83,6 +84,44 @@ impl PythonIpcManager {
         *child_guard = Some(child);
 
         Ok(())
+    }
+
+    fn find_python_dir() -> Result<std::path::PathBuf> {
+        if let Ok(exe_path) = std::env::current_exe() {
+            if let Some(exe_dir) = exe_path.parent() {
+                if exe_dir.join("sibyl_memory").exists() {
+                    return Ok(exe_dir.to_path_buf());
+                }
+                if let Some(project_root) = exe_dir.parent() {
+                    if project_root.join("python").join("sibyl_memory").exists() {
+                        return Ok(project_root.join("python"));
+                    }
+                }
+            }
+        }
+
+        let mut dir = std::env::current_dir()
+            .map_err(|e| DependencyError::ConfigError {
+                message: format!("Cannot get current directory: {}", e),
+            })?;
+        
+        loop {
+            if dir.join("python").join("sibyl_memory").exists() {
+                return Ok(dir.join("python"));
+            }
+            if dir.join("sibyl_memory").exists() {
+                return Ok(dir);
+            }
+            if !dir.pop() {
+                break;
+            }
+        }
+
+        std::env::current_dir()
+            .map(|d| d.join("python"))
+            .map_err(|e| DependencyError::ConfigError {
+                message: format!("Cannot find python directory: {}", e),
+            })
     }
 
     async fn wait_for_healthy(&self) -> Result<()> {
