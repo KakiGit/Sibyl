@@ -172,6 +172,25 @@ impl Default for LoggingConfig {
 
 #[derive(Debug, Clone, serde::Deserialize)]
 #[serde(default)]
+pub struct UiConfig {
+    #[serde(default = "default_history_size")]
+    pub history_size: usize,
+}
+
+fn default_history_size() -> usize {
+    100
+}
+
+impl Default for UiConfig {
+    fn default() -> Self {
+        Self {
+            history_size: default_history_size(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(default)]
 #[derive(Default)]
 pub struct SibylConfig {
     #[serde(default)]
@@ -191,6 +210,9 @@ pub struct SibylConfig {
     
     #[serde(default)]
     pub logging: LoggingConfig,
+    
+    #[serde(default)]
+    pub ui: UiConfig,
 }
 
 

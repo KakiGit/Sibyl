@@ -2,7 +2,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use std::fs;
 use std::path::PathBuf;
 
-const MAX_HISTORY_SIZE: usize = 100;
+const DEFAULT_HISTORY_SIZE: usize = 100;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ComposerAction {
@@ -30,6 +30,7 @@ pub struct InputComposer {
     history: Vec<String>,
     history_index: Option<usize>,
     history_file: PathBuf,
+    max_history_size: usize,
 }
 
 impl Default for InputComposer {
@@ -40,12 +41,17 @@ impl Default for InputComposer {
 
 impl InputComposer {
     pub fn new() -> Self {
+        Self::with_history_size(DEFAULT_HISTORY_SIZE)
+    }
+
+    pub fn with_history_size(max_size: usize) -> Self {
         Self {
             buffer: String::new(),
             cursor: 0,
             history: Vec::new(),
             history_index: None,
             history_file: Self::get_history_path(),
+            max_history_size: max_size,
         }
     }
 
@@ -63,10 +69,10 @@ impl InputComposer {
                 .lines()
                 .filter(|line| !line.is_empty())
                 .rev()
-                .take(MAX_HISTORY_SIZE)
+                .take(self.max_history_size)
                 .map(String::from)
                 .collect();
-            tracing::info!("Loaded {} history entries", self.history.len());
+            tracing::info!("Loaded {} history entries (max: {})", self.history.len(), self.max_history_size);
         }
     }
 
@@ -75,14 +81,14 @@ impl InputComposer {
             .history
             .iter()
             .rev()
-            .take(MAX_HISTORY_SIZE)
+            .take(self.max_history_size)
             .map(|s| s.as_str())
             .collect::<Vec<_>>()
             .join("\n");
         if let Err(e) = fs::write(&self.history_file, content) {
             tracing::warn!("Failed to save history: {}", e);
         } else {
-            tracing::info!("Saved {} history entries", self.history.len());
+            tracing::info!("Saved {} history entries", self.history.len().min(self.max_history_size));
         }
     }
 
@@ -236,6 +242,9 @@ impl InputComposer {
         let content = self.buffer.clone();
         if !content.is_empty() {
             self.history.push(content.clone());
+            while self.history.len() > self.max_history_size {
+                self.history.remove(0);
+            }
         }
         self.clear();
         content

@@ -28,6 +28,9 @@ harness:
 ipc:
   socket_path: /tmp/sibyl-ipc.sock
 
+ui:
+  history_size: 100
+
 dependencies:
   python_ipc:
     mode: auto

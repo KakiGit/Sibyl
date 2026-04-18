@@ -212,7 +212,7 @@ impl App {
                 model: config.harness.opencode.model.clone(),
                 ..Default::default()
             },
-            composer: InputComposer::new(),
+            composer: InputComposer::with_history_size(config.ui.history_size),
             spinner: Spinner::new(),
             completion: CompletionPopup::new(),
             bg_tx,
