@@ -1,4 +1,4 @@
-# LLM Wiki
+# LLM Wiki (Sibyl memory system architecture)
 
 A pattern for building personal knowledge bases using LLMs.
 
@@ -12,7 +12,7 @@ The idea here is different. Instead of just retrieving from raw documents at que
 
 This is the key difference: **the wiki is a persistent, compounding artifact.** The cross-references are already there. The contradictions have already been flagged. The synthesis already reflects everything you've read. The wiki keeps getting richer with every source you add and every question you ask.
 
-You never (or rarely) write the wiki yourself — the LLM writes and maintains all of it. You're in charge of sourcing, exploration, and asking the right questions. The LLM does all the grunt work — the summarizing, cross-referencing, filing, and bookkeeping that makes a knowledge base actually useful over time. In practice, I have the LLM agent open on one side and note open on the other. The LLM makes edits based on our conversation, and I browse the results in real time — following links, checking the graph view, reading the updated pages. note is the IDE; the LLM is the programmer; the wiki is the codebase.
+You never (or rarely) write the wiki yourself — the LLM writes and maintains all of it. You're in charge of sourcing, exploration, and asking the right questions. The LLM does all the grunt work — the summarizing, cross-referencing, filing, and bookkeeping that makes a knowledge base actually useful over time. In practice, I have Sibyl connecting to the the LLM agent. The Sibly use LLM makes edits based on our conversation, and I browse the results in real time — following links, checking the graph view, reading the updated pages. Sibyl Note is the IDE; the harness used by Sibyl is the programmer; the wiki is the codebase.
 
 This can apply to a lot of different contexts. A few examples:
 
