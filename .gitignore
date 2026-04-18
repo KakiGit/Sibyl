@@ -18,4 +18,4 @@ tui-tests/.tui-test/
 tui-tests/tui-traces/
 tui-tests/package-lock.json
 node_modules/
-.tui-test/cache/
+.tui-test/cache/tui-tests/test-results/
