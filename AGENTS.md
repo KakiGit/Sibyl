@@ -49,39 +49,23 @@ dependencies:
 - Embedder init: ~8s (one-time startup cost)
 
 ## Baseline Verified (2026-04-18 - Latest)
-- All tests pass, no build errors
+- Build: successful ✓ (cargo build --release)
 - Config: ~/.config/sibyl/config.yaml ✓
-- Dependencies: FalkorDB (localhost:6379), OpenCode (localhost:4096), Python IPC ✓
-- Headless: `./target/release/sibyl run --prompt "..." --json` ✓
-- Memory: `./target/release/sibyl memory --query "..." --json` ✓
-- TUI: `./target/release/sibyl tui` ✓
-- Queue handling: Messages queued while processing, sent when idle ✓
-- SSE: Real-time streaming with animated spinner ✓
-
-### Verification Details (2026-04-18 - Latest)
-- Config loaded from ~/.config/sibyl/config.yaml ✓
   - Harness: opencode (url: http://localhost:4096, model: glm-5)
   - IPC: /tmp/sibyl-ipc.sock
   - Dependencies: auto-start enabled
-- Headless mode: `./target/release/sibyl run --prompt "..." --json` ✓
+- Dependencies: FalkorDB (localhost:6379) ✓, OpenCode (localhost:4096) ✓, Python IPC ✓
+- Headless: `./target/release/sibyl run --prompt "..." --json` ✓
   - Prompt sent to OpenCode harness
   - Memories retrieved (10 most relevant) and injected
   - Response received from harness
   - Memory stored after conversation
-  - Memory query: `./target/release/sibyl memory --query "..." --json` ✓
-- FalkorDB/Redis: localhost:6379 ✓ (PONG verified)
-- OpenCode harness: localhost:4096 ✓ (health check passed)
-- Python IPC server: auto-started ✓
-- TUI tests: 26/26 passed ✓ (some tests flaky on first run, pass on retry - timing issues with SSE initialization)
-- Cargo tests: all passed ✓
-- Cargo build: successful ✓ (only dead code warnings, no errors)
-- Memory system: `./target/release/sibyl memory --query "..." --json` ✓
+- Memory: `./target/release/sibyl memory --query "..." --json` ✓
   - Real-time natural language query
   - Returns episodes, facts, and relevance scores
-- Dependencies auto-started ✓
-  - Python IPC server (optimized version)
-  - FalkorDB/Redis at localhost:6379
-  - OpenCode harness at localhost:4096
+- TUI: `./target/release/sibyl tui` ✓
+- Queue handling: Messages queued while processing, sent when idle ✓
+- SSE: Real-time streaming with animated spinner ✓
 - UX Optimization: Animated spinner for streaming indicator ✓
 - Queue count: Displayed in status bar when messages are queued ✓
 - SSE handling: Refactored background task for concurrent polling ✓
@@ -100,14 +84,14 @@ dependencies:
 - **Note**: Node.js 25.X is NOT supported. Use Node.js 20.X LTS.
   - Install fnm: `sudo pacman -S fnm` (Arch Linux)
   - Use Node 20: `eval "$(fnm env --shell bash)" && fnm use 20`
-- Tests verified (2026-04-18): 26/26 passed ✓
+- Tests verified (2026-04-18): 22/26 passed, 1 flaky, 3 test design issues
   - basic.test.ts: 6/6 passed - welcome screen, keybindings hint, command hints, help overlay, command palette, status bar
   - tests/sse-events.test.ts: 2/2 passed - SSE connection, deps visible
   - tests/single-message.test.ts: 3/3 passed - send message, queue messages, You indicator
   - tests/nonblocking.test.ts: 3/3 passed - input responsive, processing state
   - tests/messages.test.ts: 5/5 passed - message sending, queue panel, multiple messages
-  - tests/queue-flow.test.ts: 4/4 passed - queue flow, input clearing
-  - tests/full-flow.test.ts: 3/3 passed (some tests flaky on first run due to SSE initialization timing, pass on retry)
+  - tests/queue-flow.test.ts: 4/5 passed (1 flaky - timing issue with Welcome state)
+  - tests/full-flow.test.ts: 0/3 passed - test design issue (strict mode violation with multiple "You:"/"Sibyl:" labels)
 - Clippy: no errors (only warnings for unused code) ✓
 
 ## Feature Status (from DRAFT.md)

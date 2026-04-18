@@ -290,12 +290,13 @@ impl App {
                 self.status = AppStatus::Idle;
                 self.spinner.stop();
 
-                if self.chat.streaming && self.chat.current_response.is_some() {
+                if self.chat.streaming {
                     let content = self.chat.current_response.clone().unwrap_or_default();
-                    if content.is_empty() {
-                        self.chat.add_message(Message::new(MessageRole::System, "No response received".to_string()));
-                    } else {
+                    if !content.is_empty() {
+                        tracing::info!("SessionIdle: finishing stream with content");
                         self.chat.finish_stream(content);
+                    } else {
+                        tracing::info!("SessionIdle: stream still empty, waiting for MessagePartComplete");
                     }
                 }
                 self.chat.streaming = false;
