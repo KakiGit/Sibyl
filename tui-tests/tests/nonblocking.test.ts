@@ -14,15 +14,15 @@ test.use({
 });
 
 test("sibyl input shows typed text", async ({ terminal }) => {
-  await expect(terminal.getByText("Welcome")).toBeVisible({ timeout: 15000 });
-  await expect(terminal.getByText("Ready")).toBeVisible({ timeout: 10000 });
+  await expect(terminal.getByText("glm-5")).toBeVisible({ timeout: 15000 });
+  await expect(terminal.getByText("deps")).toBeVisible({ timeout: 10000 });
   terminal.write("Hello world");
   await expect(terminal.getByText("Hello world")).toBeVisible({ timeout: 5000 });
 });
 
 test("sibyl can send message and input stays responsive", async ({ terminal }) => {
-  await expect(terminal.getByText("Welcome")).toBeVisible({ timeout: 15000 });
-  await expect(terminal.getByText("Ready")).toBeVisible({ timeout: 10000 });
+  await expect(terminal.getByText("glm-5")).toBeVisible({ timeout: 15000 });
+  await expect(terminal.getByText("deps")).toBeVisible({ timeout: 10000 });
 
   terminal.write("First message\r");
 
@@ -34,8 +34,8 @@ test("sibyl can send message and input stays responsive", async ({ terminal }) =
 });
 
 test("sibyl shows processing after sending message", async ({ terminal }) => {
-  await expect(terminal.getByText("Welcome")).toBeVisible({ timeout: 15000 });
-  await expect(terminal.getByText("Ready")).toBeVisible({ timeout: 10000 });
+  await expect(terminal.getByText("glm-5")).toBeVisible({ timeout: 15000 });
+  await expect(terminal.getByText("deps")).toBeVisible({ timeout: 10000 });
 
   terminal.write("Test conversation\r");
 

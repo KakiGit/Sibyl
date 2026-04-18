@@ -14,9 +14,8 @@ test.use({
 });
 
 test("sibyl tui first message triggers processing state", async ({ terminal }) => {
-  await expect(terminal.getByText("Welcome to Sibyl")).toBeVisible({ timeout: 15000 });
-  
-  await expect(terminal.getByText("Ready")).toBeVisible({ timeout: 5000 });
+  await expect(terminal.getByText("glm-5")).toBeVisible({ timeout: 15000 });
+  await expect(terminal.getByText("deps")).toBeVisible({ timeout: 5000 });
   
   terminal.write("hello\r");
   
@@ -26,9 +25,8 @@ test("sibyl tui first message triggers processing state", async ({ terminal }) =
 });
 
 test("sibyl tui queued messages appear while processing", async ({ terminal }) => {
-  await expect(terminal.getByText("Welcome to Sibyl")).toBeVisible({ timeout: 15000 });
-
-  await expect(terminal.getByText("Ready")).toBeVisible({ timeout: 5000 });
+  await expect(terminal.getByText("glm-5")).toBeVisible({ timeout: 15000 });
+  await expect(terminal.getByText("deps")).toBeVisible({ timeout: 5000 });
 
   terminal.write("message one\r");
   await expect(terminal.getByText("Processing")).toBeVisible({ timeout: 5000 });
@@ -39,9 +37,8 @@ test("sibyl tui queued messages appear while processing", async ({ terminal }) =
 });
 
 test("sibyl tui shows You indicator for sent messages", async ({ terminal }) => {
-  await expect(terminal.getByText("Welcome to Sibyl")).toBeVisible({ timeout: 15000 });
-
-  await expect(terminal.getByText("Ready")).toBeVisible({ timeout: 5000 });
+  await expect(terminal.getByText("glm-5")).toBeVisible({ timeout: 15000 });
+  await expect(terminal.getByText("deps")).toBeVisible({ timeout: 5000 });
 
   terminal.write("first\r");
   await expect(terminal.getByText("You:")).toBeVisible({ timeout: 5000 });

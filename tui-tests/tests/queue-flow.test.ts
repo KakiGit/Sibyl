@@ -13,9 +13,8 @@ test.use({
 });
 
 test("sibyl tui sends first message and shows You:", async ({ terminal }) => {
-  await expect(terminal.getByText("Welcome to Sibyl")).toBeVisible({ timeout: 30000 });
-
-  await expect(terminal.getByText("Ready")).toBeVisible({ timeout: 10000 });
+  await expect(terminal.getByText("glm-5")).toBeVisible({ timeout: 30000 });
+  await expect(terminal.getByText("deps")).toBeVisible({ timeout: 5000 });
 
   terminal.write("hello\r");
 
@@ -23,9 +22,8 @@ test("sibyl tui sends first message and shows You:", async ({ terminal }) => {
 });
 
 test("sibyl tui shows queued messages when busy", async ({ terminal }) => {
-  await expect(terminal.getByText("Welcome to Sibyl")).toBeVisible({ timeout: 30000 });
-
-  await expect(terminal.getByText("Ready")).toBeVisible({ timeout: 10000 });
+  await expect(terminal.getByText("glm-5")).toBeVisible({ timeout: 30000 });
+  await expect(terminal.getByText("deps")).toBeVisible({ timeout: 5000 });
 
   terminal.write("first\r");
 
@@ -38,9 +36,8 @@ test("sibyl tui shows queued messages when busy", async ({ terminal }) => {
 });
 
 test("sibyl tui queue count increases with multiple messages", async ({ terminal }) => {
-  await expect(terminal.getByText("Welcome to Sibyl")).toBeVisible({ timeout: 30000 });
-
-  await expect(terminal.getByText("Ready")).toBeVisible({ timeout: 10000 });
+  await expect(terminal.getByText("glm-5")).toBeVisible({ timeout: 30000 });
+  await expect(terminal.getByText("deps")).toBeVisible({ timeout: 5000 });
 
   terminal.write("start\r");
 
@@ -56,9 +53,8 @@ test("sibyl tui queue count increases with multiple messages", async ({ terminal
 });
 
 test("sibyl tui input clears after submit", async ({ terminal }) => {
-  await expect(terminal.getByText("Welcome to Sibyl")).toBeVisible({ timeout: 30000 });
-
-  await expect(terminal.getByText("Ready")).toBeVisible({ timeout: 10000 });
+  await expect(terminal.getByText("glm-5")).toBeVisible({ timeout: 30000 });
+  await expect(terminal.getByText("deps")).toBeVisible({ timeout: 5000 });
 
   terminal.write("test message\r");
 

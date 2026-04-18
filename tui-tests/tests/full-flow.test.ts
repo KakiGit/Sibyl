@@ -14,61 +14,58 @@ test.use({
 });
 
 test("sibyl tui complete flow: first message sent, response received, queued message processed", async ({ terminal }) => {
-  await expect(terminal.getByText("Welcome to Sibyl")).toBeVisible({ timeout: 30000 });
+  await expect(terminal.getByText("glm-5")).toBeVisible({ timeout: 30000 });
+  await expect(terminal.getByText("deps")).toBeVisible({ timeout: 5000 });
 
-  await expect(terminal.getByText("Ready")).toBeVisible({ timeout: 10000 });
+  terminal.write("say 'ALPHA123'\r");
 
-  terminal.write("say 'one'\r");
-
-  await expect(terminal.getByText("say 'one'")).toBeVisible({ timeout: 5000 });
+  await expect(terminal.getByText("ALPHA123")).toBeVisible({ timeout: 5000 });
 
   await expect(terminal.getByText("Processing")).toBeVisible({ timeout: 5000 });
 
-  terminal.write("say 'two'\r");
+  terminal.write("say 'BETA456'\r");
 
   await expect(terminal.getByText("Queued (1)")).toBeVisible({ timeout: 5000 });
 
-  await expect(terminal.getByText("one")).toBeVisible({ timeout: 60000 });
+  await expect(terminal.getByText("ALPHA123")).toBeVisible({ timeout: 60000 });
 
-  await expect(terminal.getByText("Ready")).toBeVisible({ timeout: 10000 });
+  await expect(terminal.getByText("glm-5")).toBeVisible({ timeout: 10000 });
 
   await expect(terminal.getByText("Processing")).toBeVisible({ timeout: 5000 });
 
-  await expect(terminal.getByText("two")).toBeVisible({ timeout: 60000 });
+  await expect(terminal.getByText("BETA456")).toBeVisible({ timeout: 60000 });
 
-  await expect(terminal.getByText("Ready")).toBeVisible({ timeout: 10000 });
+  await expect(terminal.getByText("glm-5")).toBeVisible({ timeout: 10000 });
 });
 
 test("sibyl tui processes two queued messages", async ({ terminal }) => {
-  await expect(terminal.getByText("Welcome to Sibyl")).toBeVisible({ timeout: 30000 });
+  await expect(terminal.getByText("glm-5")).toBeVisible({ timeout: 30000 });
+  await expect(terminal.getByText("deps")).toBeVisible({ timeout: 5000 });
 
-  await expect(terminal.getByText("Ready")).toBeVisible({ timeout: 10000 });
+  terminal.write("say 'FIRSTUNIQUE'\r");
 
-  terminal.write("say 'FIRSTMSG'\r");
-
-  await expect(terminal.getByText("FIRSTMSG")).toBeVisible({ timeout: 5000 });
+  await expect(terminal.getByText("FIRSTUNIQUE")).toBeVisible({ timeout: 5000 });
 
   await expect(terminal.getByText("Processing")).toBeVisible({ timeout: 5000 });
 
-  terminal.write("say 'SECONDMSG'\r");
+  terminal.write("say 'SECONDUNIQUE'\r");
 
   await expect(terminal.getByText("Queued (1)")).toBeVisible({ timeout: 5000 });
 
-  await expect(terminal.getByText("FIRSTMSG")).toBeVisible({ timeout: 60000 });
+  await expect(terminal.getByText("FIRSTUNIQUE")).toBeVisible({ timeout: 60000 });
 
-  await expect(terminal.getByText("Ready")).toBeVisible({ timeout: 10000 });
+  await expect(terminal.getByText("glm-5")).toBeVisible({ timeout: 10000 });
 
   await expect(terminal.getByText("Processing")).toBeVisible({ timeout: 5000 });
 
-  await expect(terminal.getByText("SECONDMSG")).toBeVisible({ timeout: 60000 });
+  await expect(terminal.getByText("SECONDUNIQUE")).toBeVisible({ timeout: 60000 });
 
-  await expect(terminal.getByText("Ready")).toBeVisible({ timeout: 10000 });
+  await expect(terminal.getByText("glm-5")).toBeVisible({ timeout: 10000 });
 });
 
 test("sibyl tui queue panel appears with correct count", async ({ terminal }) => {
-  await expect(terminal.getByText("Welcome to Sibyl")).toBeVisible({ timeout: 30000 });
-
-  await expect(terminal.getByText("Ready")).toBeVisible({ timeout: 10000 });
+  await expect(terminal.getByText("glm-5")).toBeVisible({ timeout: 30000 });
+  await expect(terminal.getByText("deps")).toBeVisible({ timeout: 5000 });
 
   terminal.write("hello\r");
 
