@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Upload, Loader2, FileText, CheckCircle, XCircle } from "lucide-react";
+import { Upload, Loader2, FileText, CheckCircle, XCircle, Sparkles, Link } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,8 @@ interface IngestResult {
   title: string;
   type: "entity" | "concept" | "source" | "summary";
   processed: boolean;
+  crossReferences?: string[];
+  llmGenerated?: boolean;
 }
 
 async function fetchIngestStatus(): Promise<{ data: IngestStatus }> {
@@ -41,6 +43,25 @@ async function ingestTextContent(options: {
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.message || "Failed to ingest content");
+  }
+  return response.json();
+}
+
+async function ingestWithLlm(options: {
+  filename: string;
+  content: string;
+  title?: string;
+  type?: "entity" | "concept" | "source" | "summary";
+  tags?: string[];
+}): Promise<{ data: IngestResult }> {
+  const response = await fetch("/api/ingest/llm", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(options),
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || "Failed to ingest with LLM");
   }
   return response.json();
 }
@@ -107,6 +128,7 @@ export function ContentIngestion() {
   const [title, setTitle] = useState("");
   const [type, setType] = useState<"entity" | "concept" | "source" | "summary">("concept");
   const [tags, setTags] = useState("");
+  const [useLlm, setUseLlm] = useState(false);
   const [result, setResult] = useState<IngestResult | null>(null);
   const queryClient = useQueryClient();
 
@@ -120,6 +142,17 @@ export function ContentIngestion() {
     },
   });
 
+  const llmIngestMutation = useMutation({
+    mutationFn: ingestWithLlm,
+    onSuccess: (data) => {
+      setResult(data.data);
+      queryClient.invalidateQueries({ queryKey: ["ingestStatus"] });
+      queryClient.invalidateQueries({ queryKey: ["stats"] });
+      queryClient.invalidateQueries({ queryKey: ["wikiPages"] });
+      queryClient.invalidateQueries({ queryKey: ["wikiLinks"] });
+    },
+  });
+
   const batchMutation = useMutation({
     mutationFn: batchIngest,
     onSuccess: () => {
@@ -129,16 +162,23 @@ export function ContentIngestion() {
     },
   });
 
+  const isPending = ingestMutation.isPending || llmIngestMutation.isPending;
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (filename.trim() && content.trim()) {
-      ingestMutation.mutate({
+      const options = {
         filename: filename.trim(),
         content: content.trim(),
         title: title.trim() || undefined,
         type,
         tags: tags.trim() ? tags.split(",").map((t) => t.trim()).filter(Boolean) : undefined,
-      });
+      };
+      if (useLlm) {
+        llmIngestMutation.mutate(options);
+      } else {
+        ingestMutation.mutate(options);
+      }
     }
   };
 
@@ -152,6 +192,7 @@ export function ContentIngestion() {
     setTitle("");
     setType("concept");
     setTags("");
+    setUseLlm(false);
     setResult(null);
   };
 
@@ -177,7 +218,7 @@ export function ContentIngestion() {
                   onChange={(e) => setFilename(e.target.value)}
                   placeholder="document-name.txt"
                   className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                  disabled={ingestMutation.isPending}
+                  disabled={isPending}
                 />
               </div>
               <div>
@@ -188,7 +229,7 @@ export function ContentIngestion() {
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="Custom title for wiki page"
                   className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                  disabled={ingestMutation.isPending}
+                  disabled={isPending}
                 />
               </div>
             </div>
@@ -201,7 +242,7 @@ export function ContentIngestion() {
                 placeholder="Enter the content to be ingested into the wiki..."
                 rows={6}
                 className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary resize-none"
-                disabled={ingestMutation.isPending}
+                disabled={isPending}
               />
             </div>
 
@@ -212,7 +253,7 @@ export function ContentIngestion() {
                   value={type}
                   onChange={(e) => setType(e.target.value as typeof type)}
                   className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                  disabled={ingestMutation.isPending}
+                  disabled={isPending}
                 >
                   <option value="concept">Concept</option>
                   <option value="entity">Entity</option>
@@ -228,38 +269,57 @@ export function ContentIngestion() {
                   onChange={(e) => setTags(e.target.value)}
                   placeholder="ai, machine-learning, tutorial"
                   className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                  disabled={ingestMutation.isPending}
+                  disabled={isPending}
                 />
               </div>
             </div>
 
+            <div className="flex items-center gap-2 p-3 bg-purple-50 rounded-lg">
+              <input
+                type="checkbox"
+                id="useLlm"
+                checked={useLlm}
+                onChange={(e) => setUseLlm(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300"
+                disabled={isPending}
+              />
+              <Sparkles className="h-4 w-4 text-purple-600" />
+              <label htmlFor="useLlm" className="text-sm text-purple-800 cursor-pointer">
+                Use LLM enhancement - generates structured content, summaries, and cross-references
+              </label>
+            </div>
+
             <div className="flex gap-3">
-              <Button type="submit" disabled={ingestMutation.isPending || !filename.trim() || !content.trim()}>
-                {ingestMutation.isPending ? (
+              <Button type="submit" disabled={isPending || !filename.trim() || !content.trim()}>
+                {isPending ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
+                ) : useLlm ? (
+                  <Sparkles className="h-4 w-4" />
                 ) : (
                   <Upload className="h-4 w-4" />
                 )}
-                <span className="ml-2">Ingest</span>
+                <span className="ml-2">{useLlm ? "Ingest with LLM" : "Ingest"}</span>
               </Button>
-              <Button type="button" variant="outline" onClick={handleClear} disabled={ingestMutation.isPending}>
+              <Button type="button" variant="outline" onClick={handleClear} disabled={isPending}>
                 Clear
               </Button>
             </div>
 
-            {ingestMutation.error && (
+            {(ingestMutation.error || llmIngestMutation.error) && (
               <div className="flex items-center gap-2 p-3 bg-red-50 rounded-lg">
                 <XCircle className="h-4 w-4 text-red-600" />
-                <p className="text-sm text-red-600">{(ingestMutation.error as Error).message}</p>
+                <p className="text-sm text-red-600">{((ingestMutation.error || llmIngestMutation.error) as Error).message}</p>
               </div>
             )}
           </form>
 
-          {!ingestMutation.isPending && result && (
+          {!isPending && result && (
             <div className="space-y-3">
               <div className="flex items-center gap-2 p-3 bg-green-50 rounded-lg">
                 <CheckCircle className="h-4 w-4 text-green-600" />
-                <p className="text-sm text-green-600">Content ingested successfully!</p>
+                <p className="text-sm text-green-600">
+                  {result.llmGenerated ? "Content ingested with LLM enhancement!" : "Content ingested successfully!"}
+                </p>
               </div>
 
               <Card>
@@ -272,10 +332,33 @@ export function ContentIngestion() {
                         <p className="text-xs text-muted-foreground">{result.slug}</p>
                       </div>
                     </div>
-                    <Badge className={PAGE_TYPE_CONFIG[result.type].color}>
-                      {PAGE_TYPE_CONFIG[result.type].label}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      {result.llmGenerated && (
+                        <Badge className="bg-purple-100 text-purple-800">
+                          <Sparkles className="h-3 w-3 mr-1" />
+                          LLM
+                        </Badge>
+                      )}
+                      <Badge className={PAGE_TYPE_CONFIG[result.type].color}>
+                        {PAGE_TYPE_CONFIG[result.type].label}
+                      </Badge>
+                    </div>
                   </div>
+                  {result.crossReferences && result.crossReferences.length > 0 && (
+                    <div className="mt-3 pt-3 border-t">
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Link className="h-4 w-4" />
+                        <span>Cross-references:</span>
+                      </div>
+                      <div className="flex gap-2 mt-2">
+                        {result.crossReferences.map((ref) => (
+                          <Badge key={ref} className="bg-gray-100 text-gray-700">
+                            [[{ref}]]
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </div>

@@ -1,10 +1,11 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { storage } from "../storage/index.js";
-import { ingestRawResource, ingestUnprocessedResources, reingestRawResource } from "../processors/ingest.js";
+import { ingestRawResource, ingestUnprocessedResources, reingestRawResource, ingestWithLlm } from "../processors/ingest.js";
 import { wikiFileManager } from "../wiki/index.js";
 import { WikiPageTypeSchema } from "@sibyl/sdk";
 import { logger } from "@sibyl/shared";
+import { getLlmProvider } from "../llm/index.js";
 
 const IngestSingleSchema = z.object({
   rawResourceId: z.string().min(1),
@@ -234,5 +235,95 @@ export async function registerIngestRoutes(fastify: FastifyInstance) {
         total: totalCount,
       },
     };
+  });
+
+  fastify.post("/api/ingest/llm", async (request, reply) => {
+    const bodySchema = z.object({
+      filename: z.string().min(1),
+      content: z.string().min(1),
+      title: z.string().optional(),
+      type: WikiPageTypeSchema.optional(),
+      tags: z.array(z.string()).optional(),
+    });
+
+    const parseResult = bodySchema.safeParse(request.body);
+
+    if (!parseResult.success) {
+      reply.code(400);
+      return { error: parseResult.error.message };
+    }
+
+    const body = parseResult.data;
+    const { writeFileSync, existsSync, mkdirSync } = await import("fs");
+    const { join } = await import("path");
+    const { tmpdir } = await import("os");
+
+    const slug = body.filename
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "");
+
+    const tempDir = join(tmpdir(), "sibyl-ingest");
+    if (!existsSync(tempDir)) {
+      mkdirSync(tempDir, { recursive: true });
+    }
+
+    const contentPath = join(tempDir, `${slug}.txt`);
+    writeFileSync(contentPath, body.content);
+
+    const llmProvider = getLlmProvider();
+    if (!llmProvider) {
+      reply.code(503);
+      return { error: "LLM provider not configured. Check ~/.llm_secrets file." };
+    }
+
+    try {
+      const rawResource = await storage.rawResources.create({
+        type: "text",
+        filename: body.filename,
+        contentPath,
+        metadata: {
+          title: body.title,
+          tags: body.tags,
+          contentLength: body.content.length,
+        },
+      });
+
+      const ingestResult = await ingestWithLlm({
+        rawResourceId: rawResource.id,
+        title: body.title,
+        type: body.type,
+        tags: body.tags,
+        wikiFileManager,
+        llmProvider,
+      });
+
+      logger.info("Ingested content with LLM via API", {
+        filename: body.filename,
+        wikiPageId: ingestResult.wikiPageId,
+        crossReferences: ingestResult.generatedContent.crossReferences.length,
+        model: llmProvider.getConfig().model,
+      });
+
+      return {
+        data: {
+          rawResourceId: ingestResult.rawResourceId,
+          wikiPageId: ingestResult.wikiPageId,
+          slug: ingestResult.slug,
+          title: ingestResult.title,
+          type: ingestResult.type,
+          processed: ingestResult.processed,
+          crossReferences: ingestResult.generatedContent.crossReferences,
+          llmGenerated: true,
+        },
+      };
+    } catch (error) {
+      logger.error("LLM ingest failed", {
+        filename: body.filename,
+        error: (error as Error).message,
+      });
+      reply.code(500);
+      return { error: "Failed to ingest with LLM", message: (error as Error).message };
+    }
   });
 }

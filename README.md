@@ -146,6 +146,26 @@ bun run --filter @sibyl/server test
 bun run --filter @sibyl/plugin test
 ```
 
+## LLM Configuration
+
+Sibyl supports LLM-enhanced ingestion for generating structured wiki content with cross-references. Configure LLM by creating a `~/.llm_secrets` file:
+
+```
+base_url=https://api.openai.com/v1
+api_key=your-api-key-here
+model=gpt-4
+```
+
+Or use environment variables:
+- `LLM_BASE_URL`: API endpoint URL
+- `LLM_API_KEY`: API authentication key
+- `LLM_MODEL`: Model name to use
+
+When LLM is configured, the Web UI shows a "Use LLM enhancement" checkbox for ingestion. This generates:
+- Structured wiki content with proper headings
+- Summary and tags extracted from content
+- Cross-references to existing wiki pages
+
 ## Project Structure
 
 ```

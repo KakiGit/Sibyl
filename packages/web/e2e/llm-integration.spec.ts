@@ -256,4 +256,53 @@ This content was filed directly to the wiki.`
     const filedCardTitle = page.getByText(`Filed Page ${timestamp}`).first();
     await expect(filedCardTitle).toBeVisible({ timeout: 5000 });
   });
+
+  test("should ingest content with LLM enhancement", async ({ page }) => {
+    const timestamp = Date.now();
+
+    const filenameInput = page.locator("input[placeholder*='document-name']");
+    await filenameInput.fill(`llm-enhanced-${timestamp}.txt`);
+
+    const contentTextarea = page.locator(
+      "textarea[placeholder*='ingested into the wiki']"
+    );
+    await contentTextarea.fill(
+      `Deep Learning Fundamentals ${timestamp}
+
+Deep learning is a subset of machine learning that uses neural networks with many layers. Key applications include image recognition, natural language processing, and autonomous vehicles. Popular frameworks include TensorFlow and PyTorch. Deep neural networks can learn complex patterns from large datasets.`
+    );
+
+    const llmCheckbox = page.locator("#useLlm");
+    await llmCheckbox.check();
+    await expect(llmCheckbox).toBeChecked();
+
+    const ingestButton = page.getByRole("button", { name: "Ingest with LLM" });
+    await expect(ingestButton).toBeEnabled();
+    await ingestButton.click();
+
+    await expect(
+      page.locator("text=Content ingested with LLM enhancement")
+    ).toBeVisible({ timeout: 60000 });
+
+    await expect(page.locator("text=LLM")).toBeVisible({ timeout: 5000 });
+
+    await page.waitForTimeout(1000);
+
+    const queryInput = page.locator("input[placeholder*='Ask a question']");
+    await queryInput.fill(`What is deep learning ${timestamp}?`);
+
+    const synthesizeButton = page.getByRole("button", { name: "Synthesize" });
+    await synthesizeButton.click();
+
+    await expect(
+      page.locator("text=Synthesizing answer")
+    ).toBeVisible({ timeout: 5000 });
+
+    const answerSection = page.locator(".prose");
+    await expect(answerSection).toBeVisible({ timeout: 60000 });
+
+    const answerText = await answerSection.textContent();
+    expect(answerText?.toLowerCase()).toContain("deep");
+    expect(answerText?.length).toBeGreaterThan(50);
+  });
 });
