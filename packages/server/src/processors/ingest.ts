@@ -2,6 +2,8 @@ import { readFileSync, existsSync } from "fs";
 import { storage } from "../storage/index.js";
 import { wikiFileManager, WikiFileManager } from "../wiki/index.js";
 import { logger } from "@sibyl/shared";
+import { generateWikiContent, type LlmGeneratedContent } from "./llm-content.js";
+import type { LlmProvider } from "../llm/index.js";
 import type { RawResource, WikiPage } from "@sibyl/sdk";
 
 export interface IngestOptions {
@@ -11,6 +13,8 @@ export interface IngestOptions {
   title?: string;
   tags?: string[];
   wikiFileManager?: WikiFileManager;
+  useLlm?: boolean;
+  llmProvider?: LlmProvider | null;
 }
 
 export interface IngestResult {
@@ -349,8 +353,209 @@ export async function reingestRawResource(
   });
 }
 
+export async function ingestWithLlm(options: IngestOptions): Promise<IngestResult & { generatedContent: LlmGeneratedContent }> {
+  if (!options.rawResourceId) {
+    throw new Error("rawResourceId is required");
+  }
+
+  const wikiManager = options.wikiFileManager || wikiFileManager;
+
+  const rawResource = await storage.rawResources.findById(options.rawResourceId);
+  if (!rawResource) {
+    throw new Error(`Raw resource not found: ${options.rawResourceId}`);
+  }
+
+  let content: string;
+  try {
+    content = await readRawResourceContent(rawResource);
+  } catch (error) {
+    throw new Error(`Failed to read content: ${(error as Error).message}`);
+  }
+
+  const existingPages = await storage.wikiPages.findAll({ limit: 50 });
+
+  const generatedContent = await generateWikiContent({
+    content,
+    filename: rawResource.filename,
+    type: options.type,
+    wikiFileManager: wikiManager,
+    llmProvider: options.llmProvider,
+    existingPages,
+  });
+
+  const title = options.title || generatedContent.title;
+  const slug = generateSlugFromTitle(title);
+  const type = generatedContent.type;
+  const summary = generatedContent.summary;
+  const tags = options.tags || generatedContent.tags;
+  const wikiContent = generatedContent.content;
+
+  const now = Date.now();
+
+  const existingPage = await storage.wikiPages.findBySlug(slug);
+
+  if (existingPage) {
+    const updatedPageContent = {
+      title,
+      type,
+      slug,
+      content: wikiContent,
+      summary,
+      tags: [...existingPage.tags, ...tags],
+      sourceIds: [...existingPage.sourceIds, rawResource.id],
+      createdAt: existingPage.createdAt,
+      updatedAt: now,
+    };
+
+    wikiManager.updatePage(updatedPageContent);
+
+    await storage.wikiPages.update(existingPage.id, {
+      title,
+      summary,
+      tags: updatedPageContent.tags,
+      sourceIds: updatedPageContent.sourceIds,
+    });
+
+    await createCrossReferenceLinks(existingPage.id, generatedContent.crossReferences);
+
+    await storage.rawResources.update(rawResource.id, { processed: true });
+
+    await storage.processingLog.create({
+      operation: "ingest",
+      rawResourceId: rawResource.id,
+      wikiPageId: existingPage.id,
+      details: {
+        title,
+        type,
+        slug,
+        action: "updated",
+        contentLength: wikiContent.length,
+        llmGenerated: true,
+        crossReferences: generatedContent.crossReferences.length,
+      },
+    });
+
+    wikiManager.appendToLog({
+      timestamp: new Date().toISOString().split("T")[0],
+      operation: "ingest",
+      title: `${title} (LLM-enhanced)`,
+      details: `Updated wiki page from raw resource using LLM: ${rawResource.filename}`,
+    });
+
+    logger.info("Ingested raw resource with LLM (updated existing page)", {
+      rawResourceId: rawResource.id,
+      wikiPageId: existingPage.id,
+      slug,
+      crossReferences: generatedContent.crossReferences.length,
+    });
+
+    return {
+      rawResourceId: rawResource.id,
+      wikiPageId: existingPage.id,
+      slug,
+      title,
+      type,
+      processed: true,
+      generatedContent,
+    };
+  }
+
+  wikiManager.createPage({
+    title,
+    type,
+    slug,
+    content: wikiContent,
+    summary,
+    tags,
+    sourceIds: [rawResource.id],
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  const dbPage = await storage.wikiPages.create({
+    slug,
+    title,
+    type,
+    contentPath: wikiManager.getPagePath(type, slug),
+    summary,
+    tags,
+    sourceIds: [rawResource.id],
+  });
+
+  await createCrossReferenceLinks(dbPage.id, generatedContent.crossReferences);
+
+  await storage.rawResources.update(rawResource.id, { processed: true });
+
+  await storage.processingLog.create({
+    operation: "ingest",
+    rawResourceId: rawResource.id,
+    wikiPageId: dbPage.id,
+    details: {
+      title,
+      type,
+      slug,
+      action: "created",
+      contentLength: wikiContent.length,
+      llmGenerated: true,
+      crossReferences: generatedContent.crossReferences.length,
+    },
+  });
+
+  wikiManager.appendToLog({
+    timestamp: new Date().toISOString().split("T")[0],
+    operation: "ingest",
+    title: `${title} (LLM-enhanced)`,
+    details: `Created wiki page from raw resource using LLM: ${rawResource.filename}`,
+  });
+
+  logger.info("Ingested raw resource with LLM (created new page)", {
+    rawResourceId: rawResource.id,
+    wikiPageId: dbPage.id,
+    slug,
+    crossReferences: generatedContent.crossReferences.length,
+  });
+
+  return {
+    rawResourceId: rawResource.id,
+    wikiPageId: dbPage.id,
+    slug,
+    title,
+    type,
+    processed: true,
+    generatedContent,
+  };
+}
+
+async function createCrossReferenceLinks(fromPageId: string, toSlugs: string[]): Promise<void> {
+  for (const toSlug of toSlugs) {
+    const targetPage = await storage.wikiPages.findBySlug(toSlug);
+    if (!targetPage) {
+      logger.debug("Cross-reference target not found", { slug: toSlug });
+      continue;
+    }
+
+    const existingLinks = await storage.wikiLinks.findByFromPageId(fromPageId);
+    const alreadyLinked = existingLinks.some(
+      (l) => l.toPageId === targetPage.id && l.relationType === "reference"
+    );
+
+    if (alreadyLinked) {
+      continue;
+    }
+
+    await storage.wikiLinks.create({
+      fromPageId,
+      toPageId: targetPage.id,
+      relationType: "reference",
+    });
+
+    logger.debug("Created cross-reference link", { fromPageId, toSlug, toPageId: targetPage.id });
+  }
+}
+
 export const ingestProcessor = {
   ingestRawResource,
   ingestUnprocessedResources,
   reingestRawResource,
+  ingestWithLlm,
 };

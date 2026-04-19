@@ -15,3 +15,5 @@ export { lintWiki, findOrphanPages, findStalePages, findMissingReferences, findP
 export type { LintIssue, LintReport, LintOptions } from "./processors/lint.js";
 export { embeddingsService, getOrGenerateEmbedding, semanticSearch, initializeEmbedder, getEmbeddingDimension, getDefaultModel, resetEmbedder } from "./embeddings/index.js";
 export type { CachedEmbedding, SimilarityResult } from "./embeddings/index.js";
+export { ingestWithLlm, generateWikiContent, generateWikiPageWithLlm } from "./processors/index.js";
+export type { LlmGeneratedContent, LlmContentOptions } from "./processors/index.js";
