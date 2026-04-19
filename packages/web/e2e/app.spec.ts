@@ -1095,3 +1095,224 @@ test.describe("Content Filing", () => {
     await expect(page.locator("text=3")).toBeVisible();
   });
 });
+
+test.describe("Wiki Graph View", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto("/");
+  });
+
+  test("should display wiki graph view section", async ({ page }) => {
+    await expect(page.locator("text=Wiki Graph View")).toBeVisible();
+  });
+
+  test("should display graph stats cards", async ({ page, context }) => {
+    await context.route("/api/wiki-links/graph", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: {
+            nodes: [
+              { id: "1", slug: "page-1", title: "Page 1", type: "concept", incomingLinks: 2, outgoingLinks: 1, isOrphan: false, isHub: false },
+              { id: "2", slug: "page-2", title: "Page 2", type: "entity", incomingLinks: 0, outgoingLinks: 0, isOrphan: true, isHub: false },
+              { id: "3", slug: "page-3", title: "Page 3", type: "source", incomingLinks: 5, outgoingLinks: 3, isOrphan: false, isHub: true },
+            ],
+            edges: [
+              { id: "e1", from: "1", to: "3", relationType: "references" },
+              { id: "e2", from: "3", to: "1", relationType: "related" },
+            ],
+            stats: { totalPages: 3, totalLinks: 2, orphanCount: 1, hubCount: 1 },
+          },
+        }),
+      });
+    });
+
+    await page.reload();
+    await expect(page.locator("text=Pages")).toBeVisible();
+    await expect(page.locator("text=Links")).toBeVisible();
+    await expect(page.locator("text=Orphans")).toBeVisible();
+    await expect(page.locator("text=Hubs")).toBeVisible();
+  });
+
+  test("should show empty state when no wiki pages exist", async ({ page, context }) => {
+    await context.route("/api/wiki-links/graph", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: {
+            nodes: [],
+            edges: [],
+            stats: { totalPages: 0, totalLinks: 0, orphanCount: 0, hubCount: 0 },
+          },
+        }),
+      });
+    });
+
+    await page.reload();
+    await expect(page.locator("text=No wiki pages to visualize")).toBeVisible();
+  });
+
+  test("should display hub pages section when hubs exist", async ({ page, context }) => {
+    await context.route("/api/wiki-links/graph", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: {
+            nodes: [
+              { id: "hub-1", slug: "hub-page", title: "Hub Page", type: "concept", incomingLinks: 5, outgoingLinks: 3, isOrphan: false, isHub: true },
+            ],
+            edges: [],
+            stats: { totalPages: 1, totalLinks: 0, orphanCount: 0, hubCount: 1 },
+          },
+        }),
+      });
+    });
+
+    await page.reload();
+    await expect(page.locator("text=Hub Pages")).toBeVisible();
+    await expect(page.locator("text=Hub Page")).toBeVisible();
+  });
+
+  test("should display orphan pages section when orphans exist", async ({ page, context }) => {
+    await context.route("/api/wiki-links/graph", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: {
+            nodes: [
+              { id: "orphan-1", slug: "orphan-page", title: "Orphan Page", type: "entity", incomingLinks: 0, outgoingLinks: 0, isOrphan: true, isHub: false },
+            ],
+            edges: [],
+            stats: { totalPages: 1, totalLinks: 0, orphanCount: 1, hubCount: 0 },
+          },
+        }),
+      });
+    });
+
+    await page.reload();
+    await expect(page.locator("text=Orphan Pages")).toBeVisible();
+    await expect(page.locator("text=Orphan Page")).toBeVisible();
+  });
+
+  test("should display node cards with connection counts", async ({ page, context }) => {
+    await context.route("/api/wiki-links/graph", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: {
+            nodes: [
+              { id: "node-1", slug: "connected-page", title: "Connected Page", type: "concept", incomingLinks: 3, outgoingLinks: 2, isOrphan: false, isHub: true },
+            ],
+            edges: [],
+            stats: { totalPages: 1, totalLinks: 0, orphanCount: 0, hubCount: 1 },
+          },
+        }),
+      });
+    });
+
+    await page.reload();
+    await expect(page.locator("text=Connected Page")).toBeVisible();
+  });
+
+  test("should display type badges on node cards", async ({ page, context }) => {
+    await context.route("/api/wiki-links/graph", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: {
+            nodes: [
+              { id: "entity-1", slug: "entity-node", title: "Entity Node", type: "entity", incomingLinks: 0, outgoingLinks: 0, isOrphan: true, isHub: false },
+              { id: "concept-1", slug: "concept-node", title: "Concept Node", type: "concept", incomingLinks: 0, outgoingLinks: 0, isOrphan: true, isHub: false },
+            ],
+            edges: [],
+            stats: { totalPages: 2, totalLinks: 0, orphanCount: 2, hubCount: 0 },
+          },
+        }),
+      });
+    });
+
+    await page.reload();
+    await expect(page.locator("text=Entity")).toBeVisible();
+    await expect(page.locator("text=Concept")).toBeVisible();
+  });
+
+  test("should display hub badge on hub nodes", async ({ page, context }) => {
+    await context.route("/api/wiki-links/graph", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: {
+            nodes: [
+              { id: "hub-1", slug: "hub-node", title: "Hub Node", type: "concept", incomingLinks: 5, outgoingLinks: 3, isOrphan: false, isHub: true },
+            ],
+            edges: [],
+            stats: { totalPages: 1, totalLinks: 0, orphanCount: 0, hubCount: 1 },
+          },
+        }),
+      });
+    });
+
+    await page.reload();
+    await expect(page.locator("text=Hub")).toBeVisible();
+  });
+
+  test("should display orphan badge on orphan nodes", async ({ page, context }) => {
+    await context.route("/api/wiki-links/graph", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: {
+            nodes: [
+              { id: "orphan-1", slug: "orphan-node", title: "Orphan Node", type: "entity", incomingLinks: 0, outgoingLinks: 0, isOrphan: true, isHub: false },
+            ],
+            edges: [],
+            stats: { totalPages: 1, totalLinks: 0, orphanCount: 1, hubCount: 0 },
+          },
+        }),
+      });
+    });
+
+    await page.reload();
+    await expect(page.locator("text=Orphan")).toBeVisible();
+  });
+
+  test("should show loading state during fetch", async ({ page, context }) => {
+    await context.route("/api/wiki-links/graph", async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: {
+            nodes: [],
+            edges: [],
+            stats: { totalPages: 0, totalLinks: 0, orphanCount: 0, hubCount: 0 },
+          },
+        }),
+      });
+    });
+
+    await page.reload();
+    await expect(page.locator("text=Wiki Graph View")).toBeVisible();
+  });
+
+  test("should show error message when graph fetch fails", async ({ page, context }) => {
+    await context.route("/api/wiki-links/graph", async (route) => {
+      await route.fulfill({
+        status: 500,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "Server error" }),
+      });
+    });
+
+    await page.reload();
+    await expect(page.locator("text=Failed to load wiki graph")).toBeVisible();
+  });
+});

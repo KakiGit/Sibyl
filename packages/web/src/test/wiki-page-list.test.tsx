@@ -20,13 +20,12 @@ const createWrapper = () => {
 };
 
 describe("WikiPageList", () => {
-  let mockFetch: typeof fetch;
   let fetchCalls: { url: string; options?: RequestInit }[] = [];
 
   beforeEach(() => {
     originalFetch = global.fetch;
     fetchCalls = [];
-    mockFetch = async (url: string | URL | Request, options?: RequestInit) => {
+    (global as Record<string, unknown>).fetch = async (url: string | URL | Request, options?: RequestInit) => {
       const urlString = typeof url === "string" ? url : url instanceof URL ? url.href : url.url;
       fetchCalls.push({ url: urlString, options });
       return {
@@ -34,7 +33,6 @@ describe("WikiPageList", () => {
         json: async () => ({ data: [] }),
       } as Response;
     };
-    global.fetch = mockFetch;
   });
 
   afterEach(() => {
@@ -42,7 +40,7 @@ describe("WikiPageList", () => {
   });
 
   it("renders loading skeleton while fetching", () => {
-    global.fetch = async () => new Promise(() => {}) as Promise<Response>;
+    (global as Record<string, unknown>).fetch = async () => new Promise(() => {}) as Promise<Response>;
 
     render(<WikiPageList />, { wrapper: createWrapper() });
 
@@ -53,7 +51,7 @@ describe("WikiPageList", () => {
   });
 
   it("renders empty state when no pages exist", async () => {
-    global.fetch = async () => ({
+    (global as Record<string, unknown>).fetch = async () => ({
       ok: true,
       json: async () => ({ data: [] }),
     } as Response);
@@ -66,7 +64,7 @@ describe("WikiPageList", () => {
   });
 
   it("renders wiki page cards when data exists", async () => {
-    global.fetch = async () => ({
+    (global as Record<string, unknown>).fetch = async () => ({
       ok: true,
       json: async () => ({
         data: [
@@ -93,7 +91,7 @@ describe("WikiPageList", () => {
   });
 
   it("renders multiple wiki page cards", async () => {
-    global.fetch = async () => ({
+    (global as Record<string, unknown>).fetch = async () => ({
       ok: true,
       json: async () => ({
         data: [
@@ -130,7 +128,7 @@ describe("WikiPageList", () => {
   });
 
   it("displays tags on wiki page cards", async () => {
-    global.fetch = async () => ({
+    (global as Record<string, unknown>).fetch = async () => ({
       ok: true,
       json: async () => ({
         data: [
@@ -156,7 +154,7 @@ describe("WikiPageList", () => {
   });
 
   it("shows error state on fetch failure", async () => {
-    global.fetch = async () => ({
+    (global as Record<string, unknown>).fetch = async () => ({
       ok: false,
     } as Response);
 
@@ -168,7 +166,7 @@ describe("WikiPageList", () => {
   });
 
   it("fetches pages with type filter", async () => {
-    global.fetch = async (url: string | URL | Request) => {
+    (global as Record<string, unknown>).fetch = async (url: string | URL | Request) => {
       const urlString = typeof url === "string" ? url : url instanceof URL ? url.href : url.url;
       fetchCalls.push({ url: urlString });
       return {
