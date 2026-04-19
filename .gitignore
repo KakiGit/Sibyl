@@ -19,3 +19,11 @@ tui-tests/tui-traces/
 tui-tests/package-lock.json
 node_modules/
 .tui-test/cache/tui-tests/test-results/
+
+# TypeScript/Bun build artifacts
+*.tsbuildinfo
+packages/*/dist/
+data/db/*.db
+
+# Bun lockfile (optional - some teams prefer to track this)
+# bun.lock
