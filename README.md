@@ -26,6 +26,15 @@ Sibyl uses a three-layer knowledge architecture:
 - **Filing**: Save query results as new wiki pages
 - **Lint**: Health check wiki pages for conflicts, orphans, and gaps
 
+### Wiki Graph View
+
+The Web UI includes a Wiki Graph View that visualizes relationships between wiki pages:
+
+- Displays statistics: total pages, links, orphans, and hubs
+- Identifies **hub pages** (pages with 3+ connections)
+- Identifies **orphan pages** (pages with no connections)
+- Shows incoming and outgoing link counts for each page
+
 ## Build
 
 ```bash
