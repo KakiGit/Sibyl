@@ -7,3 +7,7 @@ export { createServer, startServer, stopServer } from "./server.js";
 export type { ServerOptions } from "./server.js";
 export { createMcpServer, startMcpServer } from "./mcp/index.js";
 export { registerMcpTools } from "./mcp/tools.js";
+export { LlmProvider, getLlmProvider, loadLlmConfig, resetLlmProvider } from "./llm/index.js";
+export type { LlmConfig, LlmResponse } from "./llm/index.js";
+export { synthesizeAnswer, queryWiki } from "./processors/query.js";
+export type { SynthesizeOptions, SynthesizeResult, Citation, QueryOptions, QueryResult } from "./processors/query.js";

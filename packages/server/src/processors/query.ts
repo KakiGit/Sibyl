@@ -1,5 +1,6 @@
 import { storage } from "../storage/index.js";
 import { wikiFileManager, WikiFileManager } from "../wiki/index.js";
+import { getLlmProvider, type LlmProvider } from "../llm/index.js";
 import { logger } from "@sibyl/shared";
 import type { WikiPage, WikiPageType } from "@sibyl/sdk";
 
@@ -24,6 +25,30 @@ export interface QueryResult {
   matches: QueryMatch[];
   total: number;
   executedAt: number;
+}
+
+export interface SynthesizeOptions {
+  query: string;
+  types?: WikiPageType[];
+  tags?: string[];
+  maxPages?: number;
+  wikiFileManager?: WikiFileManager;
+  llmProvider?: LlmProvider | null;
+}
+
+export interface Citation {
+  pageSlug: string;
+  pageTitle: string;
+  pageType: WikiPageType;
+  relevanceScore: number;
+}
+
+export interface SynthesizeResult {
+  query: string;
+  answer: string;
+  citations: Citation[];
+  synthesizedAt: number;
+  model?: string;
 }
 
 function calculateRelevanceScore(
@@ -177,6 +202,149 @@ export async function queryWiki(options: QueryOptions): Promise<QueryResult> {
   };
 }
 
+const SYNTHESIS_SYSTEM_PROMPT = `You are a knowledge synthesis assistant. Your task is to answer questions by synthesizing information from the provided wiki pages.
+
+Instructions:
+1. Read the provided wiki page contents carefully
+2. Synthesize a comprehensive answer to the user's question
+3. When referencing information, use [[page-slug]] format to create citations
+4. If information comes from multiple sources, combine them coherently
+5. If there's insufficient information, acknowledge it and suggest what might be missing
+6. Structure your answer with clear sections if appropriate
+7. Always cite your sources using the wiki link format [[slug]]
+
+Example citation format:
+- "According to [[machine-learning]], neural networks are..."
+- "As noted in [[architecture]], the system uses..."
+
+Format your response as markdown.`;
+
+const SYNTHESIS_MAX_PAGES = 5;
+
+export async function synthesizeAnswer(options: SynthesizeOptions): Promise<SynthesizeResult> {
+  const wikiManager = options.wikiFileManager || wikiFileManager;
+  const llmProvider = options.llmProvider ?? getLlmProvider();
+  const maxPages = options.maxPages ?? SYNTHESIS_MAX_PAGES;
+
+  if (!options.query || options.query.trim().length === 0) {
+    throw new Error("Query string is required");
+  }
+
+  const queryResult = await queryWiki({
+    query: options.query,
+    types: options.types,
+    tags: options.tags,
+    limit: maxPages,
+    includeContent: true,
+    wikiFileManager: wikiManager,
+  });
+
+  if (queryResult.matches.length === 0) {
+    return {
+      query: options.query,
+      answer: "No relevant wiki pages found for this query. Try broadening your search or adding more content to the wiki.",
+      citations: [],
+      synthesizedAt: Date.now(),
+    };
+  }
+
+  if (!llmProvider) {
+    logger.warn("No LLM provider available, returning basic summary");
+    const basicAnswer = generateBasicSummary(queryResult.matches);
+    return {
+      query: options.query,
+      answer: basicAnswer,
+      citations: queryResult.matches.map((m) => ({
+        pageSlug: m.page.slug,
+        pageTitle: m.page.title,
+        pageType: m.page.type,
+        relevanceScore: m.relevanceScore,
+      })),
+      synthesizedAt: Date.now(),
+    };
+  }
+
+  const contextSections: string[] = [];
+  for (const match of queryResult.matches) {
+    const content = match.content || match.page.summary || "";
+    contextSections.push(`## [[${match.page.slug}]] (${match.page.type})
+Title: ${match.page.title}
+Summary: ${match.page.summary || "No summary"}
+Content:
+${content.slice(0, 2000)}
+`);
+  }
+
+  const userPrompt = `Question: ${options.query}
+
+Available wiki pages:
+${contextSections.join("\n---\n")}
+
+Please synthesize an answer to the question using the provided wiki pages. Remember to cite sources using [[slug]] format.`;
+
+  const response = await llmProvider.call(SYNTHESIS_SYSTEM_PROMPT, userPrompt);
+
+  await storage.processingLog.create({
+    operation: "query",
+    details: {
+      query: options.query,
+      synthesized: true,
+      model: response.model,
+      citationsCount: queryResult.matches.length,
+      promptTokens: response.usage?.promptTokens,
+      completionTokens: response.usage?.completionTokens,
+    },
+  });
+
+  wikiManager.appendToLog({
+    timestamp: new Date().toISOString().split("T")[0],
+    operation: "query",
+    title: `LLM Synthesis: ${options.query}`,
+    details: `Synthesized answer from ${queryResult.matches.length} pages using ${response.model}`,
+  });
+
+  logger.info("Synthesized answer with LLM", {
+    query: options.query,
+    model: response.model,
+    citations: queryResult.matches.length,
+  });
+
+  return {
+    query: options.query,
+    answer: response.content,
+    citations: queryResult.matches.map((m) => ({
+      pageSlug: m.page.slug,
+      pageTitle: m.page.title,
+      pageType: m.page.type,
+      relevanceScore: m.relevanceScore,
+    })),
+    synthesizedAt: Date.now(),
+    model: response.model,
+  };
+}
+
+function generateBasicSummary(matches: QueryMatch[]): string {
+  const sections: string[] = [];
+  
+  sections.push("# Answer Summary\n\n");
+  sections.push(`Based on ${matches.length} wiki pages:\n\n`);
+  
+  for (const match of matches) {
+    sections.push(`## [[${match.page.slug}]]\n\n`);
+    if (match.page.summary) {
+      sections.push(`${match.page.summary}\n\n`);
+    }
+    if (match.content) {
+      const preview = match.content.slice(0, 300);
+      sections.push(`${preview}...\n\n`);
+    }
+  }
+  
+  sections.push("\n*Note: This is a basic summary. Enable LLM integration for synthesized answers.*\n");
+  
+  return sections.join("");
+}
+
 export async function searchWikiPages(searchTerm: string): Promise<WikiPage[]> {
   const pages = await storage.wikiPages.findAll({ search: searchTerm });
   return pages;
@@ -246,6 +414,7 @@ export async function getWikiPageGraph(pageId: string): Promise<{
 
 export const queryProcessor = {
   queryWiki,
+  synthesizeAnswer,
   searchWikiPages,
   getWikiPageBySlug,
   getWikiPagesByType,

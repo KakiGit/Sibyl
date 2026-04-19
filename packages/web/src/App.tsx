@@ -1,7 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
-import { FileText, Brain, BookOpen, Layers } from "lucide-react";
+import { FileText, Brain, BookOpen, Layers, Search } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { WikiPageList } from "@/components/wiki-page-list";
+import { QuerySynthesis } from "@/components/query-synthesis";
 
 async function fetchStats() {
   const response = await fetch("/api/wiki-pages");
@@ -106,6 +107,13 @@ export default function App() {
           <section>
             <h2 className="text-lg font-semibold mb-4">Dashboard</h2>
             <Dashboard />
+          </section>
+          <section>
+            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <Search className="h-5 w-5" />
+              Query Synthesis
+            </h2>
+            <QuerySynthesis />
           </section>
           <section>
             <h2 className="text-lg font-semibold mb-4">Wiki Pages</h2>
