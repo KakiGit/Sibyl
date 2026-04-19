@@ -228,6 +228,17 @@ curl -X POST http://localhost:3000/api/wiki-pages/search/rebuild-index
 
 Rebuilds the FTS5 full-text search index from all existing wiki pages.
 
+### Wiki Search UI
+
+The Web UI includes a Wiki Search component that allows users to search wiki pages with:
+
+- Hybrid search combining keyword (FTS5) and semantic (vector) search
+- Type filtering (entity, concept, source, summary)
+- Tag filtering
+- Custom result limit
+- Relevance score visualization
+- Match type indicators (keyword, semantic, hybrid)
+
 ## Start the Web UI
 
 ```bash
