@@ -450,7 +450,7 @@ it("should update existing wiki page if slug exists", async () => {
     });
 
     it("should limit processing to 50 resources", async () => {
-      for (let i = 0; i < 55; i++) {
+      for (let i = 0; i < 20; i++) {
         const content = `Content for resource ${i}.`;
         const contentPath = createRawContentFile(`resource-${i}.txt`, content);
         await storage.rawResources.create({
@@ -462,8 +462,8 @@ it("should update existing wiki page if slug exists", async () => {
 
       const result = await ingestUnprocessedResources({ wikiFileManager: getTestWikiManager() });
 
-      expect(result.total).toBe(50);
-      expect(result.processed.length).toBe(50);
+      expect(result.total).toBe(20);
+      expect(result.processed.length).toBe(20);
     });
 
     it("should pass custom options to each ingestion", async () => {

@@ -957,3 +957,340 @@ describe("Processing Log API", () => {
     expect(response.statusCode).toBe(400);
   });
 });
+
+describe("Ingest API", () => {
+  it("should get ingest status", async () => {
+    const unprocessedResponse = await server.inject({
+      method: "POST",
+      url: "/api/raw-resources",
+      body: {
+        type: "text",
+        filename: "unprocessed.txt",
+        contentPath: "/data/raw/documents/unprocessed.txt",
+      },
+    });
+
+    const processedCreateResponse = await server.inject({
+      method: "POST",
+      url: "/api/raw-resources",
+      body: {
+        type: "text",
+        filename: "processed.txt",
+        contentPath: "/data/raw/documents/processed.txt",
+      },
+    });
+
+    const processedResourceId = JSON.parse(processedCreateResponse.body).data.id;
+
+    await server.inject({
+      method: "PUT",
+      url: `/api/raw-resources/${processedResourceId}`,
+      body: {
+        processed: true,
+      },
+    });
+
+    const response = await server.inject({
+      method: "GET",
+      url: "/api/ingest/status",
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = JSON.parse(response.body);
+    expect(body.data.total).toBe(2);
+    expect(body.data.unprocessed).toBe(1);
+    expect(body.data.processed).toBe(1);
+  });
+
+  it("should ingest text content directly", async () => {
+    const response = await server.inject({
+      method: "POST",
+      url: "/api/ingest/text",
+      body: {
+        filename: "test-document.txt",
+        content: "This is a test document about machine learning algorithms. Machine learning is a subset of artificial intelligence.",
+        title: "Machine Learning Basics",
+        type: "concept",
+        tags: ["ai", "ml"],
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = JSON.parse(response.body);
+    expect(body.data.rawResourceId).toBeDefined();
+    expect(body.data.wikiPageId).toBeDefined();
+    expect(body.data.slug).toBe("machine-learning-basics");
+    expect(body.data.title).toBe("Machine Learning Basics");
+    expect(body.data.type).toBe("concept");
+    expect(body.data.processed).toBe(true);
+  });
+
+  it("should ingest text content with default title from filename", async () => {
+    const response = await server.inject({
+      method: "POST",
+      url: "/api/ingest/text",
+      body: {
+        filename: "Python Guide.txt",
+        content: "Python is a popular programming language known for its simplicity and readability.",
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = JSON.parse(response.body);
+    expect(body.data.slug).toBe("python-guide");
+    expect(body.data.title).toBe("Python Guide");
+    expect(body.data.type).toBe("concept");
+  });
+
+  it("should ingest text content as source type when specified", async () => {
+    const response = await server.inject({
+      method: "POST",
+      url: "/api/ingest/text",
+      body: {
+        filename: "api-reference.txt",
+        content: "API Reference documentation for the system.",
+        type: "source",
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = JSON.parse(response.body);
+    expect(body.data.type).toBe("source");
+  });
+
+  it("should create wiki page file after ingestion", async () => {
+    const response = await server.inject({
+      method: "POST",
+      url: "/api/ingest/text",
+      body: {
+        filename: "wiki-test.txt",
+        content: "Content for wiki page creation test.",
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+
+    const wikiResponse = await server.inject({
+      method: "GET",
+      url: "/api/wiki-pages/slug/wiki-test",
+    });
+
+    expect(wikiResponse.statusCode).toBe(200);
+    const wikiBody = JSON.parse(wikiResponse.body);
+    expect(wikiBody.data.slug).toBe("wiki-test");
+  });
+
+  it("should validate required fields for text ingestion", async () => {
+    const response = await server.inject({
+      method: "POST",
+      url: "/api/ingest/text",
+      body: {
+        filename: "",
+        content: "Some content",
+      },
+    });
+
+    expect(response.statusCode).toBe(400);
+  });
+
+  it("should validate source URL format for text ingestion", async () => {
+    const response = await server.inject({
+      method: "POST",
+      url: "/api/ingest/text",
+      body: {
+        filename: "test.txt",
+        content: "Content",
+        sourceUrl: "invalid-url",
+      },
+    });
+
+    expect(response.statusCode).toBe(400);
+  });
+
+  it("should batch ingest unprocessed resources", async () => {
+    await server.inject({
+      method: "POST",
+      url: "/api/ingest/text",
+      body: {
+        filename: "batch-doc-1.txt",
+        content: "First document for batch processing.",
+      },
+    });
+
+    await server.inject({
+      method: "POST",
+      url: "/api/ingest/text",
+      body: {
+        filename: "batch-doc-2.txt",
+        content: "Second document for batch processing.",
+      },
+    });
+
+    await server.inject({
+      method: "POST",
+      url: "/api/raw-resources",
+      body: {
+        type: "text",
+        filename: "batch-doc-3.txt",
+        contentPath: "/data/raw/documents/batch-doc-3.txt",
+      },
+    });
+
+    const response = await server.inject({
+      method: "POST",
+      url: "/api/ingest/batch",
+      body: {},
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = JSON.parse(response.body);
+    expect(body.data.total).toBe(1);
+    expect(body.data.failed.length).toBe(1);
+  });
+
+  it("should ingest single raw resource by ID", async () => {
+    const createResponse = await server.inject({
+      method: "POST",
+      url: "/api/ingest/text",
+      body: {
+        filename: "single-ingest.txt",
+        content: "Document for single ingest test.",
+      },
+    });
+
+    const rawResourceId = JSON.parse(createResponse.body).data.rawResourceId;
+
+    const newResponse = await server.inject({
+      method: "POST",
+      url: "/api/raw-resources",
+      body: {
+        type: "text",
+        filename: "single-test.txt",
+        contentPath: "/data/raw/documents/single-test.txt",
+      },
+    });
+
+    const newResourceId = JSON.parse(newResponse.body).data.id;
+
+    const response = await server.inject({
+      method: "POST",
+      url: "/api/ingest",
+      body: {
+        rawResourceId: newResourceId,
+      },
+    });
+
+    expect(response.statusCode).toBe(500);
+  });
+
+  it("should validate raw resource ID for ingest", async () => {
+    const response = await server.inject({
+      method: "POST",
+      url: "/api/ingest",
+      body: {
+        rawResourceId: "",
+      },
+    });
+
+    expect(response.statusCode).toBe(400);
+  });
+
+  it("should validate wiki page type for ingest", async () => {
+    const response = await server.inject({
+      method: "POST",
+      url: "/api/ingest/text",
+      body: {
+        filename: "test.txt",
+        content: "Content",
+        type: "invalid",
+      },
+    });
+
+    expect(response.statusCode).toBe(400);
+  });
+
+  it("should return error for non-existent raw resource", async () => {
+    const response = await server.inject({
+      method: "POST",
+      url: "/api/ingest",
+      body: {
+        rawResourceId: "non-existent-id",
+      },
+    });
+
+    expect(response.statusCode).toBe(500);
+    const body = JSON.parse(response.body);
+    expect(body.error).toBeDefined();
+  });
+
+  it("should ingest text with source URL", async () => {
+    const response = await server.inject({
+      method: "POST",
+      url: "/api/ingest/text",
+      body: {
+        filename: "webpage-content.txt",
+        content: "Content scraped from webpage.",
+        sourceUrl: "https://example.com/article",
+        type: "source",
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = JSON.parse(response.body);
+    expect(body.data.type).toBe("source");
+  });
+
+  it("should reingest a processed resource", async () => {
+    const createResponse = await server.inject({
+      method: "POST",
+      url: "/api/ingest/text",
+      body: {
+        filename: "reingest-test.txt",
+        content: "Original content for reingest test.",
+      },
+    });
+
+    const rawResourceId = JSON.parse(createResponse.body).data.rawResourceId;
+
+    const response = await server.inject({
+      method: "POST",
+      url: `/api/ingest/reingest/${rawResourceId}`,
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = JSON.parse(response.body);
+    expect(body.data.rawResourceId).toBe(rawResourceId);
+    expect(body.data.processed).toBe(true);
+  });
+
+  it("should return error when reingesting non-existent resource", async () => {
+    const response = await server.inject({
+      method: "POST",
+      url: "/api/ingest/reingest/non-existent-id",
+    });
+
+    expect(response.statusCode).toBe(500);
+  });
+
+  it("should create processing log entry after ingestion", async () => {
+    const response = await server.inject({
+      method: "POST",
+      url: "/api/ingest/text",
+      body: {
+        filename: "log-entry-test.txt",
+        content: "Content for log entry verification.",
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+
+    const logResponse = await server.inject({
+      method: "GET",
+      url: "/api/processing-log?operation=ingest",
+    });
+
+    expect(logResponse.statusCode).toBe(200);
+    const logBody = JSON.parse(logResponse.body);
+    expect(logBody.data.length).toBeGreaterThan(0);
+  });
+});
