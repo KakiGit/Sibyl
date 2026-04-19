@@ -1,0 +1,32 @@
+{
+  "name": "@sibyl/client",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "sibyl": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "dev": "bun run --watch src/index.ts"
+  },
+  "dependencies": {
+    "@clack/prompts": "^1.2.0",
+    "yargs": "^18.0.0",
+    "chalk": "^5.4.1",
+    "ora": "^8.2.0",
+    "@sibyl/sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/yargs": "^17.0.32"
+  }
+}

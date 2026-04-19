@@ -6,6 +6,7 @@
     "noEmit": false,
     "declaration": true,
     "declarationMap": true,
+    "composite": true,
     "allowImportingTsExtensions": false
   },
   "include": ["src/**/*"]
