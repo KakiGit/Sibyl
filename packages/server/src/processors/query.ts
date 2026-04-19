@@ -34,6 +34,7 @@ export interface SynthesizeOptions {
   maxPages?: number;
   wikiFileManager?: WikiFileManager;
   llmProvider?: LlmProvider | null;
+  skipLlm?: boolean;
 }
 
 export interface Citation {
@@ -223,7 +224,7 @@ const SYNTHESIS_MAX_PAGES = 5;
 
 export async function synthesizeAnswer(options: SynthesizeOptions): Promise<SynthesizeResult> {
   const wikiManager = options.wikiFileManager || wikiFileManager;
-  const llmProvider = options.llmProvider ?? getLlmProvider();
+  const llmProvider = options.skipLlm ? null : (options.llmProvider ?? getLlmProvider());
   const maxPages = options.maxPages ?? SYNTHESIS_MAX_PAGES;
 
   if (!options.query || options.query.trim().length === 0) {

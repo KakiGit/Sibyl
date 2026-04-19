@@ -353,6 +353,11 @@ This file catalogs all wiki pages organized by category.
   }
 
   appendToLog(entry: LogEntry): void {
+    if (!existsSync(this.logPath)) {
+      mkdirSync(dirname(this.logPath), { recursive: true });
+      writeFileSync(this.logPath, "# Processing Log\n\n");
+    }
+    
     const timestamp = entry.timestamp || new Date().toISOString().split("T")[0];
     const logLine = `## [${timestamp}] ${entry.operation} | ${entry.title}\n${entry.details ? entry.details + "\n" : ""}\n`;
     

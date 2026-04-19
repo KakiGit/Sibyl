@@ -1,7 +1,10 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import "@happy-dom/global-registrator";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { WikiPageList } from "../components/wiki-page-list";
+
+let originalFetch: typeof fetch;
 
 const createWrapper = () => {
   const queryClient = new QueryClient({
@@ -17,12 +20,29 @@ const createWrapper = () => {
 };
 
 describe("WikiPageList", () => {
+  let mockFetch: typeof fetch;
+  let fetchCalls: { url: string; options?: RequestInit }[] = [];
+
   beforeEach(() => {
-    vi.stubGlobal("fetch", vi.fn());
+    originalFetch = global.fetch;
+    fetchCalls = [];
+    mockFetch = async (url: string | URL | Request, options?: RequestInit) => {
+      const urlString = typeof url === "string" ? url : url instanceof URL ? url.href : url.url;
+      fetchCalls.push({ url: urlString, options });
+      return {
+        ok: true,
+        json: async () => ({ data: [] }),
+      } as Response;
+    };
+    global.fetch = mockFetch;
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
   });
 
   it("renders loading skeleton while fetching", () => {
-    vi.mocked(fetch).mockImplementation(() => new Promise(() => {}));
+    global.fetch = async () => new Promise(() => {}) as Promise<Response>;
 
     render(<WikiPageList />, { wrapper: createWrapper() });
 
@@ -33,7 +53,7 @@ describe("WikiPageList", () => {
   });
 
   it("renders empty state when no pages exist", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce({
+    global.fetch = async () => ({
       ok: true,
       json: async () => ({ data: [] }),
     } as Response);
@@ -46,7 +66,7 @@ describe("WikiPageList", () => {
   });
 
   it("renders wiki page cards when data exists", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce({
+    global.fetch = async () => ({
       ok: true,
       json: async () => ({
         data: [
@@ -73,7 +93,7 @@ describe("WikiPageList", () => {
   });
 
   it("renders multiple wiki page cards", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce({
+    global.fetch = async () => ({
       ok: true,
       json: async () => ({
         data: [
@@ -110,7 +130,7 @@ describe("WikiPageList", () => {
   });
 
   it("displays tags on wiki page cards", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce({
+    global.fetch = async () => ({
       ok: true,
       json: async () => ({
         data: [
@@ -136,7 +156,7 @@ describe("WikiPageList", () => {
   });
 
   it("shows error state on fetch failure", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce({
+    global.fetch = async () => ({
       ok: false,
     } as Response);
 
@@ -148,27 +168,31 @@ describe("WikiPageList", () => {
   });
 
   it("fetches pages with type filter", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        data: [
-          {
-            id: "test-1",
-            slug: "entity-only",
-            title: "Entity Only",
-            type: "entity",
-            summary: undefined,
-            tags: [],
-            updatedAt: Date.now(),
-          },
-        ],
-      }),
-    } as Response);
+    global.fetch = async (url: string | URL | Request) => {
+      const urlString = typeof url === "string" ? url : url instanceof URL ? url.href : url.url;
+      fetchCalls.push({ url: urlString });
+      return {
+        ok: true,
+        json: async () => ({
+          data: [
+            {
+              id: "test-1",
+              slug: "entity-only",
+              title: "Entity Only",
+              type: "entity",
+              summary: undefined,
+              tags: [],
+              updatedAt: Date.now(),
+            },
+          ],
+        }),
+      } as Response;
+    };
 
     render(<WikiPageList type="entity" />, { wrapper: createWrapper() });
 
     await waitFor(() => {
-      expect(vi.mocked(fetch)).toHaveBeenCalledWith("/api/wiki-pages?type=entity");
+      expect(fetchCalls.some(c => c.url === "/api/wiki-pages?type=entity")).toBe(true);
     });
   });
 });

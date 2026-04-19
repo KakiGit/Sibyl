@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from "fs";
-import { resolve } from "path";
+import { resolve, join } from "path";
 import { logger } from "@sibyl/shared";
 
 export interface LlmConfig {
@@ -20,13 +20,17 @@ export interface LlmResponse {
 }
 
 const DEFAULT_MAX_TOKENS = 4096;
-const SECRETS_PATH = resolve("~/.llm_secrets");
+const SECRETS_FILE = ".llm_secrets";
 
 function expandHomePath(path: string): string {
   if (path.startsWith("~")) {
     return resolve(path.replace("~", process.env.HOME || ""));
   }
   return path;
+}
+
+function getSecretsPath(): string {
+  return expandHomePath(join(process.env.HOME || "", SECRETS_FILE));
 }
 
 function parseSecretsFile(path: string): Record<string, string> {
@@ -51,7 +55,7 @@ function parseSecretsFile(path: string): Record<string, string> {
 }
 
 export function loadLlmConfig(): LlmConfig | null {
-  const secretsPath = expandHomePath(SECRETS_PATH);
+  const secretsPath = getSecretsPath();
   const secrets = parseSecretsFile(secretsPath);
 
   const baseUrl = secrets.base_url || process.env.LLM_BASE_URL;
