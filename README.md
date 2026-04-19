@@ -56,6 +56,28 @@ curl http://localhost:3000/api/wiki-log?limit=10
 curl -X POST http://localhost:3000/api/wiki-index/rebuild
 ```
 
+### Schema API
+
+The schema defines wiki structure and LLM processing rules:
+
+```bash
+# Get current schema
+curl http://localhost:3000/api/schema
+
+# Update schema content
+curl -X PUT http://localhost:3000/api/schema \
+  -H "Content-Type: application/json" \
+  -d '{"content": "# Custom Schema\n\nYour processing rules..."}'
+
+# Reset schema to default
+curl -X POST http://localhost:3000/api/schema/reset
+```
+
+The default schema includes:
+- Wiki page structure and format conventions
+- Ingest, Query, Filing, and Lint workflow definitions
+- Cross-reference and tag conventions
+
 ## Build
 
 ```bash
