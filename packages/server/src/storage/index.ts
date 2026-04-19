@@ -451,6 +451,12 @@ export class WikiLinkStorage {
     );
   }
 
+  async findAllLinks(): Promise<WikiLink[]> {
+    const db = getDatabase();
+    const results = await db.select().from(wikiLinks);
+    return results.map((r) => this.mapToWikiLink(r));
+  }
+
   private mapToWikiLink(row: {
     id: string;
     fromPageId: string;

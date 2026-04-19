@@ -6,3 +6,6 @@ export type { QueryOptions, QueryMatch, QueryResult } from "./query.js";
 
 export { filingProcessor, fileContent, fileQueryResult, fileAnalysis, getFilingHistory } from "./filing.js";
 export type { FilingOptions, FilingResult, FileQueryResultOptions } from "./filing.js";
+
+export { lintProcessor, lintWiki, findOrphanPages, findStalePages, findMissingReferences, findPotentialConflicts, getLintHistory } from "./lint.js";
+export type { LintIssue, LintReport, LintOptions } from "./lint.js";

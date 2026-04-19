@@ -1,8 +1,8 @@
 import { storage } from "../storage/index.js";
 import { wikiFileManager, WikiFileManager } from "../wiki/index.js";
 import { logger } from "@sibyl/shared";
-import type { WikiPage, WikiPageType } from "@sibyl/sdk";
-import type { QueryResult, QueryMatch } from "./query.js";
+import type { WikiPageType } from "@sibyl/sdk";
+import type { QueryResult } from "./query.js";
 
 export interface FilingOptions {
   title: string;
@@ -35,18 +35,6 @@ function generateSlugFromTitle(title: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "");
-}
-
-function extractLinksFromContent(content: string): string[] {
-  const linkPattern = /\[\[([^\]]+)\]\]/g;
-  const links: string[] = [];
-  let match;
-  
-  while ((match = linkPattern.exec(content)) !== null) {
-    links.push(match[1]);
-  }
-  
-  return links;
 }
 
 function generateSummaryFromContent(content: string, maxLength: number = 200): string {
@@ -207,7 +195,6 @@ export async function fileQueryResult(options: FileQueryResultOptions): Promise<
   }
   
   const title = options.title || `Query: ${queryResult.query}`;
-  const slug = generateSlugFromTitle(title);
   
   const matchedPages = queryResult.matches.map((m) => m.page);
   const allTags = new Set<string>();
