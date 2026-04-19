@@ -8,6 +8,7 @@ import { registerIngestRoutes } from "./ingest.js";
 import { registerLintRoutes } from "./lint.js";
 import { registerFilingRoutes } from "./filing.js";
 import { registerDocumentRoutes } from "./documents.js";
+import { registerWikiMetaRoutes } from "./wiki-meta.js";
 
 export async function registerRoutes(fastify: FastifyInstance) {
   await registerRawResourceRoutes(fastify);
@@ -19,6 +20,7 @@ export async function registerRoutes(fastify: FastifyInstance) {
   await registerLintRoutes(fastify);
   await registerFilingRoutes(fastify);
   await registerDocumentRoutes(fastify);
+  await registerWikiMetaRoutes(fastify);
 
   fastify.get("/api/health", async () => {
     return { status: "ok", timestamp: Date.now() };
