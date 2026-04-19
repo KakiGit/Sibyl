@@ -1,14 +1,28 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Brain, Layers, FileText, BookOpen } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { WikiPageDetail } from "./wiki-page-detail";
 
 const PAGE_TYPE_CONFIG = {
   entity: { icon: Brain, label: "Entity", color: "bg-blue-100 text-blue-800" },
-  concept: { icon: Layers, label: "Concept", color: "bg-purple-100 text-purple-800" },
-  source: { icon: FileText, label: "Source", color: "bg-green-100 text-green-800" },
-  summary: { icon: BookOpen, label: "Summary", color: "bg-orange-100 text-orange-800" },
+  concept: {
+    icon: Layers,
+    label: "Concept",
+    color: "bg-purple-100 text-purple-800",
+  },
+  source: {
+    icon: FileText,
+    label: "Source",
+    color: "bg-green-100 text-green-800",
+  },
+  summary: {
+    icon: BookOpen,
+    label: "Summary",
+    color: "bg-orange-100 text-orange-800",
+  },
 } as const;
 
 interface WikiPage {
@@ -28,12 +42,21 @@ async function fetchWikiPages(type?: string): Promise<{ data: WikiPage[] }> {
   return response.json();
 }
 
-function WikiPageCard({ page }: { page: WikiPage }) {
+function WikiPageCard({
+  page,
+  onClick,
+}: {
+  page: WikiPage;
+  onClick: () => void;
+}) {
   const config = PAGE_TYPE_CONFIG[page.type];
   const Icon = config.icon;
 
   return (
-    <Card className="hover:shadow-md transition-shadow">
+    <Card
+      className="hover:shadow-md transition-shadow cursor-pointer hover:border-primary/50"
+      onClick={onClick}
+    >
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-2">
@@ -85,10 +108,21 @@ function WikiPageListSkeleton() {
 }
 
 export function WikiPageList({ type }: { type?: string }) {
+  const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
+
   const { data, isLoading, error } = useQuery({
-    queryKey: ["wiki-pages", type],
+    queryKey: ["wikiPages", type],
     queryFn: () => fetchWikiPages(type),
   });
+
+  if (selectedPageId) {
+    return (
+      <WikiPageDetail
+        pageId={selectedPageId}
+        onBack={() => setSelectedPageId(null)}
+      />
+    );
+  }
 
   if (isLoading) {
     return <WikiPageListSkeleton />;
@@ -124,7 +158,11 @@ export function WikiPageList({ type }: { type?: string }) {
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
       {pages.map((page) => (
-        <WikiPageCard key={page.id} page={page} />
+        <WikiPageCard
+          key={page.id}
+          page={page}
+          onClick={() => setSelectedPageId(page.id)}
+        />
       ))}
     </div>
   );
