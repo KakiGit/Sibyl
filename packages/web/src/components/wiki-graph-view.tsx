@@ -1,8 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
-import { Network, Link2Off, GitBranch, Brain, Layers, FileText, BookOpen, ArrowRight, ArrowLeft } from "lucide-react";
+import { useState } from "react";
+import { Network, Link2Off, GitBranch, Brain, Layers, FileText, BookOpen, ArrowRight, ArrowLeft, LayoutGrid, List } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { InteractiveGraph } from "@/components/interactive-graph";
 
 interface GraphNode {
   id: string;
@@ -126,6 +128,7 @@ function GraphViewSkeleton() {
 }
 
 export function WikiGraphView() {
+  const [viewMode, setViewMode] = useState<"interactive" | "list">("interactive");
   const { data, isLoading, error } = useQuery({
     queryKey: ["wikiGraph"],
     queryFn: fetchWikiGraph,
@@ -203,15 +206,51 @@ export function WikiGraphView() {
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Network className="h-5 w-5" />
-            Wiki Graph View
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Network className="h-5 w-5" />
+              Wiki Graph View
+            </CardTitle>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setViewMode("interactive")}
+                className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-sm transition-colors ${
+                  viewMode === "interactive"
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                }`}
+              >
+                <LayoutGrid className="h-4 w-4" />
+                Graph
+              </button>
+              <button
+                onClick={() => setViewMode("list")}
+                className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-sm transition-colors ${
+                  viewMode === "list"
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                }`}
+              >
+                <List className="h-4 w-4" />
+                List
+              </button>
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="space-y-6">
           <GraphStats graph={graph} />
           
-          {graph.stats.totalLinks > 0 && (
+          {viewMode === "interactive" && (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Interactive visualization of {graph.nodes.length} pages with {graph.stats.totalLinks} connections.
+                Click nodes to see details. Hubs (3+ connections) shown larger, orphans shown with red dashed border.
+              </p>
+              <InteractiveGraph graph={graph} />
+            </div>
+          )}
+          
+          {viewMode === "list" && graph.stats.totalLinks > 0 && (
             <p className="text-sm text-muted-foreground">
               Visualizing {graph.nodes.length} pages with {graph.stats.totalLinks} connections.
               Hubs have 3+ connections, orphans have none.
@@ -220,7 +259,7 @@ export function WikiGraphView() {
         </CardContent>
       </Card>
 
-      {hubNodes.length > 0 && (
+      {viewMode === "list" && hubNodes.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
@@ -241,7 +280,7 @@ export function WikiGraphView() {
         </Card>
       )}
 
-      {orphanNodes.length > 0 && (
+      {viewMode === "list" && orphanNodes.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
@@ -262,7 +301,7 @@ export function WikiGraphView() {
         </Card>
       )}
 
-      {regularNodes.length > 0 && (
+      {viewMode === "list" && regularNodes.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">

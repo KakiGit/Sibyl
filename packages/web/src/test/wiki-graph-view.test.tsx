@@ -1,6 +1,6 @@
 import "@happy-dom/global-registrator";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { WikiGraphView } from "../components/wiki-graph-view";
 
@@ -120,21 +120,27 @@ describe("WikiGraphView", () => {
     });
   });
 
-  it("renders hub pages section", async () => {
+  it("renders hub pages section in list view", async () => {
     (global as Record<string, unknown>).fetch = async () => ({
       ok: true,
       json: async () => mockGraphData,
     } as Response);
 
     render(<WikiGraphView />, { wrapper: createWrapper() });
+
+    await waitFor(() => {
+      expect(screen.getByText("List")).toBeTruthy();
+    }, { timeout: 10000 });
+
+    fireEvent.click(screen.getByText("List"));
 
     await waitFor(() => {
       expect(screen.getByText(/Hub Pages/i)).toBeTruthy();
       expect(screen.getByText("Main Concept")).toBeTruthy();
-    });
+    }, { timeout: 10000 });
   });
 
-  it("renders orphan pages section", async () => {
+  it("renders orphan pages section in list view", async () => {
     (global as Record<string, unknown>).fetch = async () => ({
       ok: true,
       json: async () => mockGraphData,
@@ -143,59 +149,83 @@ describe("WikiGraphView", () => {
     render(<WikiGraphView />, { wrapper: createWrapper() });
 
     await waitFor(() => {
+      expect(screen.getByText("List")).toBeTruthy();
+    }, { timeout: 10000 });
+
+    fireEvent.click(screen.getByText("List"));
+
+    await waitFor(() => {
       expect(screen.getByText(/Orphan Pages/i)).toBeTruthy();
       expect(screen.getByText("Orphan Page")).toBeTruthy();
-    });
+    }, { timeout: 10000 });
   });
 
-  it("displays orphan badge on orphan nodes", async () => {
+  it("displays orphan badge on orphan nodes in list view", async () => {
     (global as Record<string, unknown>).fetch = async () => ({
       ok: true,
       json: async () => mockGraphData,
     } as Response);
 
     render(<WikiGraphView />, { wrapper: createWrapper() });
+
+    await waitFor(() => {
+      expect(screen.getByText("List")).toBeTruthy();
+    }, { timeout: 10000 });
+
+    fireEvent.click(screen.getByText("List"));
 
     await waitFor(() => {
       const orphanBadges = screen.getAllByText("Orphan").filter((el) =>
         el.className.includes("text-red")
       );
       expect(orphanBadges.length).toBeGreaterThan(0);
-    });
+    }, { timeout: 10000 });
   });
 
-  it("displays hub badge on hub nodes", async () => {
+  it("displays hub badge on hub nodes in list view", async () => {
     (global as Record<string, unknown>).fetch = async () => ({
       ok: true,
       json: async () => mockGraphData,
     } as Response);
 
     render(<WikiGraphView />, { wrapper: createWrapper() });
+
+    await waitFor(() => {
+      expect(screen.getByText("List")).toBeTruthy();
+    }, { timeout: 10000 });
+
+    fireEvent.click(screen.getByText("List"));
 
     await waitFor(() => {
       const hubBadges = screen.getAllByText("Hub").filter((el) =>
         el.className.includes("text-blue")
       );
       expect(hubBadges.length).toBeGreaterThan(0);
-    });
+    }, { timeout: 10000 });
   });
 
-  it("shows page type badges correctly", async () => {
+  it("shows page type badges correctly in list view", async () => {
     (global as Record<string, unknown>).fetch = async () => ({
       ok: true,
       json: async () => mockGraphData,
     } as Response);
 
     render(<WikiGraphView />, { wrapper: createWrapper() });
+
+    await waitFor(() => {
+      expect(screen.getByText("List")).toBeTruthy();
+    }, { timeout: 10000 });
+
+    fireEvent.click(screen.getByText("List"));
 
     await waitFor(() => {
       expect(screen.getByText("Concept")).toBeTruthy();
       expect(screen.getByText("Entity")).toBeTruthy();
       expect(screen.getByText("Source")).toBeTruthy();
-    });
+    }, { timeout: 10000 });
   });
 
-  it("shows incoming and outgoing link counts", async () => {
+  it("shows incoming and outgoing link counts in list view", async () => {
     (global as Record<string, unknown>).fetch = async () => ({
       ok: true,
       json: async () => mockGraphData,
@@ -204,10 +234,16 @@ describe("WikiGraphView", () => {
     render(<WikiGraphView />, { wrapper: createWrapper() });
 
     await waitFor(() => {
+      expect(screen.getByText("List")).toBeTruthy();
+    }, { timeout: 10000 });
+
+    fireEvent.click(screen.getByText("List"));
+
+    await waitFor(() => {
       expect(screen.getByText("Main Concept")).toBeTruthy();
       const allLinkCounts = screen.getAllByText("5");
       expect(allLinkCounts.length).toBeGreaterThan(0);
-    });
+    }, { timeout: 10000 });
   });
 
   it("shows error state on fetch failure", async () => {
@@ -222,21 +258,27 @@ describe("WikiGraphView", () => {
     });
   });
 
-  it("renders regular pages section", async () => {
+  it("renders regular pages section in list view", async () => {
     (global as Record<string, unknown>).fetch = async () => ({
       ok: true,
       json: async () => mockGraphData,
     } as Response);
 
     render(<WikiGraphView />, { wrapper: createWrapper() });
+
+    await waitFor(() => {
+      expect(screen.getByText("List")).toBeTruthy();
+    }, { timeout: 10000 });
+
+    fireEvent.click(screen.getByText("List"));
 
     await waitFor(() => {
       expect(screen.getByText(/All Pages/i)).toBeTruthy();
       expect(screen.getByText("Regular Page")).toBeTruthy();
-    });
+    }, { timeout: 10000 });
   });
 
-  it("displays connection info message when links exist", async () => {
+  it("displays connection info message in interactive view", async () => {
     (global as Record<string, unknown>).fetch = async () => ({
       ok: true,
       json: async () => mockGraphData,
@@ -245,12 +287,11 @@ describe("WikiGraphView", () => {
     render(<WikiGraphView />, { wrapper: createWrapper() });
 
     await waitFor(() => {
-      expect(screen.getByText(/Visualizing 3 pages/i)).toBeTruthy();
-      expect(screen.getByText(/orphans have none/i)).toBeTruthy();
-    });
+      expect(screen.getByText(/Interactive visualization/i)).toBeTruthy();
+    }, { timeout: 10000 });
   });
 
-  it("handles graph with all hub nodes", async () => {
+  it("handles graph with all hub nodes in list view", async () => {
     const allHubsData = {
       data: {
         nodes: [
@@ -295,13 +336,19 @@ describe("WikiGraphView", () => {
     render(<WikiGraphView />, { wrapper: createWrapper() });
 
     await waitFor(() => {
+      expect(screen.getByText("List")).toBeTruthy();
+    }, { timeout: 10000 });
+
+    fireEvent.click(screen.getByText("List"));
+
+    await waitFor(() => {
       expect(screen.getByText("Hub One")).toBeTruthy();
       expect(screen.getByText("Hub Two")).toBeTruthy();
       expect(screen.queryByText(/Orphan Pages/i)).toBeFalsy();
-    });
+    }, { timeout: 10000 });
   });
 
-  it("handles graph with all orphan nodes", async () => {
+  it("handles graph with all orphan nodes in list view", async () => {
     const allOrphansData = {
       data: {
         nodes: [
@@ -344,9 +391,152 @@ describe("WikiGraphView", () => {
     render(<WikiGraphView />, { wrapper: createWrapper() });
 
     await waitFor(() => {
+      expect(screen.getByText("List")).toBeTruthy();
+    }, { timeout: 10000 });
+
+    fireEvent.click(screen.getByText("List"));
+
+    await waitFor(() => {
       expect(screen.getByText("Orphan One")).toBeTruthy();
       expect(screen.getByText("Orphan Two")).toBeTruthy();
       expect(screen.queryByText(/Hub Pages/i)).toBeFalsy();
+    }, { timeout: 10000 });
+  });
+
+  it("renders view mode toggle buttons", async () => {
+    (global as Record<string, unknown>).fetch = async () => ({
+      ok: true,
+      json: async () => mockGraphData,
+    } as Response);
+
+    render(<WikiGraphView />, { wrapper: createWrapper() });
+
+    await waitFor(() => {
+      expect(screen.getByText("Graph")).toBeTruthy();
+      expect(screen.getByText("List")).toBeTruthy();
     });
+  });
+
+  it("defaults to interactive (Graph) view mode", async () => {
+    (global as Record<string, unknown>).fetch = async () => ({
+      ok: true,
+      json: async () => mockGraphData,
+    } as Response);
+
+    render(<WikiGraphView />, { wrapper: createWrapper() });
+
+    await waitFor(() => {
+      expect(screen.getByText(/Interactive visualization/i)).toBeTruthy();
+    });
+  });
+
+  it("switches to list view when clicking List button", async () => {
+    (global as Record<string, unknown>).fetch = async () => ({
+      ok: true,
+      json: async () => mockGraphData,
+    } as Response);
+
+    render(<WikiGraphView />, { wrapper: createWrapper() });
+
+    await waitFor(() => {
+      expect(screen.getByText("List")).toBeTruthy();
+    }, { timeout: 10000 });
+
+    const listButton = screen.getByText("List");
+    fireEvent.click(listButton);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Visualizing 3 pages/i)).toBeTruthy();
+    }, { timeout: 10000 });
+  });
+
+  it("shows hub pages section in list view mode", async () => {
+    (global as Record<string, unknown>).fetch = async () => ({
+      ok: true,
+      json: async () => mockGraphData,
+    } as Response);
+
+    render(<WikiGraphView />, { wrapper: createWrapper() });
+
+    await waitFor(() => {
+      expect(screen.getByText("List")).toBeTruthy();
+    }, { timeout: 10000 });
+
+    const listButton = screen.getByText("List");
+    fireEvent.click(listButton);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Hub Pages/i)).toBeTruthy();
+      expect(screen.getByText("Main Concept")).toBeTruthy();
+    }, { timeout: 10000 });
+  });
+
+  it("shows orphan pages section in list view mode", async () => {
+    (global as Record<string, unknown>).fetch = async () => ({
+      ok: true,
+      json: async () => mockGraphData,
+    } as Response);
+
+    render(<WikiGraphView />, { wrapper: createWrapper() });
+
+    await waitFor(() => {
+      expect(screen.getByText("List")).toBeTruthy();
+    }, { timeout: 10000 });
+
+    const listButton = screen.getByText("List");
+    fireEvent.click(listButton);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Orphan Pages/i)).toBeTruthy();
+      expect(screen.getByText("Orphan Page")).toBeTruthy();
+    }, { timeout: 10000 });
+  });
+
+  it("shows regular pages section in list view mode", async () => {
+    (global as Record<string, unknown>).fetch = async () => ({
+      ok: true,
+      json: async () => mockGraphData,
+    } as Response);
+
+    render(<WikiGraphView />, { wrapper: createWrapper() });
+
+    await waitFor(() => {
+      expect(screen.getByText("List")).toBeTruthy();
+    }, { timeout: 10000 });
+
+    const listButton = screen.getByText("List");
+    fireEvent.click(listButton);
+
+    await waitFor(() => {
+      expect(screen.getByText(/All Pages/i)).toBeTruthy();
+      expect(screen.getByText("Regular Page")).toBeTruthy();
+    }, { timeout: 10000 });
+  });
+
+  it("switches back to graph view when clicking Graph button", async () => {
+    (global as Record<string, unknown>).fetch = async () => ({
+      ok: true,
+      json: async () => mockGraphData,
+    } as Response);
+
+    render(<WikiGraphView />, { wrapper: createWrapper() });
+
+    await waitFor(() => {
+      expect(screen.getByText("List")).toBeTruthy();
+    }, { timeout: 10000 });
+
+    const listButton = screen.getByText("List");
+    fireEvent.click(listButton);
+
+    await waitFor(() => {
+      expect(screen.getByText("Graph")).toBeTruthy();
+    }, { timeout: 10000 });
+
+    const graphButton = screen.getByText("Graph");
+    fireEvent.click(graphButton);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Interactive visualization/i)).toBeTruthy();
+    }, { timeout: 10000 });
   });
 });
