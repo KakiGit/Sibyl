@@ -35,6 +35,27 @@ The Web UI includes a Wiki Graph View that visualizes relationships between wiki
 - Identifies **orphan pages** (pages with no connections)
 - Shows incoming and outgoing link counts for each page
 
+### Wiki Navigation API
+
+The server provides endpoints for accessing wiki index and log files:
+
+```bash
+# Get wiki index entries (catalog of all pages)
+curl http://localhost:3000/api/wiki-index
+
+# Get processing log entries
+curl http://localhost:3000/api/wiki-log
+
+# Filter log by operation type
+curl http://localhost:3000/api/wiki-log?operation=ingest
+
+# Limit log entries
+curl http://localhost:3000/api/wiki-log?limit=10
+
+# Rebuild wiki index from existing pages
+curl -X POST http://localhost:3000/api/wiki-index/rebuild
+```
+
 ## Build
 
 ```bash
