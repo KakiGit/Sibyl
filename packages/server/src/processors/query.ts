@@ -1,6 +1,7 @@
 import { storage } from "../storage/index.js";
 import { wikiFileManager, WikiFileManager } from "../wiki/index.js";
 import { getLlmProvider, type LlmProvider } from "../llm/index.js";
+import { semanticSearch, initializeEmbedder } from "../embeddings/index.js";
 import { logger } from "@sibyl/shared";
 import type { WikiPage, WikiPageType } from "@sibyl/sdk";
 
@@ -11,6 +12,8 @@ export interface QueryOptions {
   limit?: number;
   includeContent?: boolean;
   wikiFileManager?: WikiFileManager;
+  useSemanticSearch?: boolean;
+  semanticThreshold?: number;
 }
 
 export interface QueryMatch {
@@ -118,15 +121,11 @@ export async function queryWiki(options: QueryOptions): Promise<QueryResult> {
   const wikiManager = options.wikiFileManager || wikiFileManager;
   const limit = options.limit || 20;
   const includeContent = options.includeContent ?? false;
+  const useSemantic = options.useSemanticSearch ?? false;
+  const semanticThreshold = options.semanticThreshold ?? 0.3;
 
   if (!options.query || options.query.trim().length === 0) {
     throw new Error("Query string is required");
-  }
-
-  const queryTerms = tokenizeQuery(options.query);
-
-  if (queryTerms.length === 0) {
-    throw new Error("Query must contain meaningful terms");
   }
 
   const allPages = await storage.wikiPages.findAll({ limit: 200 });
@@ -145,23 +144,68 @@ export async function queryWiki(options: QueryOptions): Promise<QueryResult> {
 
   const matches: QueryMatch[] = [];
 
-  for (const page of filteredPages) {
-    let content: string | undefined;
+  if (useSemantic) {
+    try {
+      await initializeEmbedder();
+      
+      const candidates = filteredPages.map((page) => {
+        const pageContent = wikiManager.readPage(page.type, page.slug);
+        const content = pageContent?.content || page.summary || "";
+        return {
+          id: page.id,
+          content: `${page.title}\n${page.summary || ""}\n${content}`,
+          metadata: { page, content: includeContent ? content : undefined },
+        };
+      });
 
-    if (includeContent) {
-      const pageContent = wikiManager.readPage(page.type, page.slug);
-      content = pageContent?.content;
+      const semanticResults = await semanticSearch(options.query, candidates, {
+        threshold: semanticThreshold,
+        limit,
+      });
+
+      for (const result of semanticResults) {
+        const page = result.metadata?.page as WikiPage;
+        if (page) {
+          matches.push({
+            page,
+            content: result.metadata?.content as string | undefined,
+            relevanceScore: Math.round(result.similarity * 100),
+            matchType: "content",
+          });
+        }
+      }
+    } catch (error) {
+      logger.warn("Semantic search failed, falling back to keyword search", {
+        error: (error as Error).message,
+      });
+    }
+  }
+
+  if (!useSemantic || matches.length === 0) {
+    const queryTerms = tokenizeQuery(options.query);
+
+    if (queryTerms.length === 0) {
+      throw new Error("Query must contain meaningful terms");
     }
 
-    const { score, matchType } = calculateRelevanceScore(page, queryTerms, content);
+    for (const page of filteredPages) {
+      let content: string | undefined;
 
-    if (score > 0) {
-      matches.push({
-        page,
-        content: includeContent ? content : undefined,
-        relevanceScore: score,
-        matchType,
-      });
+      if (includeContent) {
+        const pageContent = wikiManager.readPage(page.type, page.slug);
+        content = pageContent?.content;
+      }
+
+      const { score, matchType } = calculateRelevanceScore(page, queryTerms, content);
+
+      if (score > 0) {
+        matches.push({
+          page,
+          content: includeContent ? content : undefined,
+          relevanceScore: score,
+          matchType,
+        });
+      }
     }
   }
 
@@ -177,6 +221,7 @@ export async function queryWiki(options: QueryOptions): Promise<QueryResult> {
       query: options.query,
       types: options.types,
       tags: options.tags,
+      useSemanticSearch: useSemantic,
       resultCount: limitedMatches.length,
       totalMatches: matches.length,
     },
@@ -186,13 +231,14 @@ export async function queryWiki(options: QueryOptions): Promise<QueryResult> {
     timestamp: new Date().toISOString().split("T")[0],
     operation: "query",
     title: options.query,
-    details: `Found ${limitedMatches.length} matches (total: ${matches.length})`,
+    details: `Found ${limitedMatches.length} matches (total: ${matches.length})${useSemantic ? " [semantic]" : ""}`,
   });
 
   logger.info("Executed wiki query", {
     query: options.query,
     matches: limitedMatches.length,
     total: matches.length,
+    semantic: useSemantic,
   });
 
   return {

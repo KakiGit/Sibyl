@@ -13,3 +13,5 @@ export { synthesizeAnswer, queryWiki } from "./processors/query.js";
 export type { SynthesizeOptions, SynthesizeResult, Citation, QueryOptions, QueryResult } from "./processors/query.js";
 export { lintWiki, findOrphanPages, findStalePages, findMissingReferences, findPotentialConflicts, getLintHistory } from "./processors/lint.js";
 export type { LintIssue, LintReport, LintOptions } from "./processors/lint.js";
+export { embeddingsService, getOrGenerateEmbedding, semanticSearch, initializeEmbedder, getEmbeddingDimension, getDefaultModel, resetEmbedder } from "./embeddings/index.js";
+export type { CachedEmbedding, SimilarityResult } from "./embeddings/index.js";

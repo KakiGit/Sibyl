@@ -603,6 +603,12 @@ export class EmbeddingCacheStorage {
     return true;
   }
 
+  async count(): Promise<number> {
+    const db = getDatabase();
+    const result = await db.select({ count: sql<number>`count(*)` }).from(embeddingsCache);
+    return result[0]?.count ?? 0;
+  }
+
   private mapToEmbeddingCache(row: {
     id: string;
     contentHash: string;
