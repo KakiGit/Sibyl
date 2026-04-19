@@ -3,3 +3,5 @@ export { rawResources, wikiPages, wikiLinks, processingLog, embeddingsCache } fr
 export { storage, RawResourceStorage, WikiPageStorage, WikiLinkStorage, ProcessingLogStorage, EmbeddingCacheStorage } from "./storage/index.js";
 export { WikiFileManager, wikiFileManager } from "./wiki/index.js";
 export type { WikiPageContent, IndexEntry, LogEntry } from "./wiki/index.js";
+export { createServer, startServer, stopServer } from "./server.js";
+export type { ServerOptions } from "./server.js";
