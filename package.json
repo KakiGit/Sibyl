@@ -1,0 +1,26 @@
+{
+  "name": "sibyl",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "db:generate": "bun run --filter @sibyl/server db:generate",
+    "db:push": "bun run --filter @sibyl/server db:push"
+  },
+  "devDependencies": {
+    "@types/bun": "1.3.11",
+    "@types/node": "22.13.9",
+    "typescript": "5.8.2",
+    "vitest": "^3.0.0",
+    "@happy-dom/global-registrator": "^20.0.11",
+    "turbo": "^2.8.13",
+    "husky": "^9.1.7",
+    "prettier": "^3.6.2"
+  },
+  "packageManager": "bun@1.3.x"
+}

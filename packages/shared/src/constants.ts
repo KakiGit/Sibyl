@@ -1,0 +1,18 @@
+export const APP_NAME = "sibyl";
+export const APP_VERSION = "0.1.0";
+
+export const RAW_RESOURCE_TYPES = ["pdf", "image", "webpage", "text"] as const;
+export const WIKI_PAGE_TYPES = ["entity", "concept", "source", "summary"] as const;
+export const OPERATIONS = ["ingest", "query", "filing", "lint"] as const;
+
+export const DATA_DIR = "data";
+export const RAW_DIR = `${DATA_DIR}/raw`;
+export const WIKI_DIR = `${DATA_DIR}/wiki`;
+export const SCHEMA_DIR = `${DATA_DIR}/schema`;
+export const DB_DIR = `${DATA_DIR}/db`;
+
+export const DB_FILE = `${DB_DIR}/sibyl.db`;
+export const RAW_INDEX_FILE = `${RAW_DIR}/index.json`;
+export const WIKI_INDEX_FILE = `${WIKI_DIR}/index.md`;
+export const WIKI_LOG_FILE = `${WIKI_DIR}/log.md`;
+export const SCHEMA_FILE = `${SCHEMA_DIR}/SCHEMA.md`;
