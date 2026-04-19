@@ -1,5 +1,4 @@
 import { readFileSync, existsSync } from "fs";
-import { join } from "path";
 import { storage } from "../storage/index.js";
 import { wikiFileManager, WikiFileManager } from "../wiki/index.js";
 import { logger } from "@sibyl/shared";
@@ -44,7 +43,6 @@ function generateSlugFromTitle(title: string): string {
 }
 
 function extractTagsFromContent(content: string): string[] {
-  const keywords: string[] = [];
   const words = content.toLowerCase().split(/\s+/);
   const stopWords = new Set([
     "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
