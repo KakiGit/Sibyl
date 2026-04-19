@@ -344,4 +344,72 @@ export function registerMcpTools(server: McpServer) {
       };
     }
   );
+
+  server.tool(
+    "memory_query",
+    "Query the knowledge base with a question. Searches wiki pages and returns relevant information to help answer the question.",
+    {
+      question: z.string().describe("Question to ask the knowledge base"),
+      type: z.enum(["entity", "concept", "source", "summary"]).optional().describe("Filter by wiki page type"),
+      limit: z.number().int().positive().max(20).default(10).describe("Maximum number of pages to return"),
+      includeContent: z.boolean().optional().default(false).describe("Whether to include full page content in results"),
+    },
+    async ({ question, type, limit, includeContent }) => {
+      const pages = await storage.wikiPages.findAll({
+        search: question,
+        type,
+        limit,
+      });
+
+      await storage.processingLog.create({
+        operation: "query",
+        details: { question, type, limit, resultCount: pages.length },
+      });
+
+      if (pages.length === 0) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({
+                success: true,
+                question,
+                resultCount: 0,
+                message: "No relevant information found in the knowledge base.",
+                pages: [],
+              }),
+            },
+          ],
+        };
+      }
+
+      const results = pages.map((page) => {
+        const content = includeContent ? wikiFileManager.readPage(page.type, page.slug)?.content : undefined;
+        return {
+          slug: page.slug,
+          title: page.title,
+          type: page.type,
+          summary: page.summary,
+          content: includeContent ? content : undefined,
+          tags: page.tags,
+          updatedAt: page.updatedAt,
+        };
+      });
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({
+              success: true,
+              question,
+              resultCount: pages.length,
+              message: `Found ${pages.length} relevant pages in the knowledge base.`,
+              pages: results,
+            }),
+          },
+        ],
+      };
+    }
+  );
 }

@@ -326,6 +326,7 @@ The MCP server provides the following tools for MCP clients (like Claude Code, C
 - `memory_delete`: Delete a wiki page
 - `memory_ingest`: Ingest text content directly and create wiki pages immediately
 - `memory_raw_save`: Save raw content for later processing
+- `memory_query`: Query the knowledge base with a question and return relevant pages
 - `memory_log`: Get processing log entries
 
 ## Testing

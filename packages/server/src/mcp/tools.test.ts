@@ -597,6 +597,292 @@ describe("MCP Tools Logic", () => {
     });
   });
 
+  describe("memory_query", () => {
+    async function queryKnowledgeBase(
+      question: string,
+      type?: string,
+      limit?: number,
+      includeContent?: boolean
+    ) {
+      const pages = await storage.wikiPages.findAll({
+        search: question,
+        type: type as "entity" | "concept" | "source" | "summary" | undefined,
+        limit: limit || 10,
+      });
+
+      await storage.processingLog.create({
+        operation: "query",
+        details: { question, type, limit, resultCount: pages.length },
+      });
+
+      if (pages.length === 0) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({
+                success: true,
+                question,
+                resultCount: 0,
+                message: "No relevant information found in the knowledge base.",
+                pages: [],
+              }),
+            },
+          ],
+        };
+      }
+
+      const results = pages.map((page) => {
+        const content = includeContent ? wikiManager.readPage(page.type, page.slug)?.content : undefined;
+        return {
+          slug: page.slug,
+          title: page.title,
+          type: page.type,
+          summary: page.summary,
+          content: includeContent ? content : undefined,
+          tags: page.tags,
+          updatedAt: page.updatedAt,
+        };
+      });
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({
+              success: true,
+              question,
+              resultCount: pages.length,
+              message: `Found ${pages.length} relevant pages in the knowledge base.`,
+              pages: results,
+            }),
+          },
+        ],
+      };
+    }
+
+    it("should return no results when knowledge base is empty", async () => {
+      const result = await queryKnowledgeBase("empty query test");
+      const text = result.content[0].text as string;
+      const data = JSON.parse(text);
+      expect(data.success).toBe(true);
+      expect(data.resultCount).toBe(0);
+      expect(data.message).toContain("No relevant information");
+      expect(data.pages).toHaveLength(0);
+    });
+
+    it("should find pages matching the question", async () => {
+      await storage.wikiPages.create({
+        slug: "python-language",
+        title: "Python Programming Language",
+        type: "concept",
+        contentPath: join(testWikiDir, "concepts/python-language.md"),
+        summary: "Python is a high-level programming language known for its simplicity.",
+        tags: ["programming", "python"],
+      });
+
+      wikiManager.createPage({
+        title: "Python Programming Language",
+        type: "concept",
+        slug: "python-language",
+        content: "Python is a versatile programming language used for web development, data science, and automation.",
+        tags: ["programming", "python"],
+        sourceIds: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      const result = await queryKnowledgeBase("Python");
+      const text = result.content[0].text as string;
+      const data = JSON.parse(text);
+      expect(data.success).toBe(true);
+      expect(data.resultCount).toBe(1);
+      expect(data.pages[0].title).toBe("Python Programming Language");
+      expect(data.pages[0].slug).toBe("python-language");
+      expect(data.pages[0].summary).toContain("high-level programming language");
+    });
+
+    it("should filter by type", async () => {
+      await storage.wikiPages.create({
+        slug: "john-developer",
+        title: "John the Developer",
+        type: "entity",
+        contentPath: join(testWikiDir, "entities/john-developer.md"),
+        summary: "A software developer who works with Python.",
+      });
+
+      await storage.wikiPages.create({
+        slug: "python-concept",
+        title: "Python Concept",
+        type: "concept",
+        contentPath: join(testWikiDir, "concepts/python-concept.md"),
+        summary: "A programming language.",
+      });
+
+      wikiManager.createPage({
+        title: "John the Developer",
+        type: "entity",
+        slug: "john-developer",
+        content: "John is a developer.",
+        tags: [],
+        sourceIds: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      wikiManager.createPage({
+        title: "Python Concept",
+        type: "concept",
+        slug: "python-concept",
+        content: "Python is a language.",
+        tags: [],
+        sourceIds: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      const result = await queryKnowledgeBase("Python", "concept");
+      const text = result.content[0].text as string;
+      const data = JSON.parse(text);
+      expect(data.pages.length).toBe(1);
+      expect(data.pages[0].type).toBe("concept");
+    });
+
+    it("should respect limit parameter", async () => {
+      for (let i = 0; i < 15; i++) {
+        await storage.wikiPages.create({
+          slug: `python-topic-${i}`,
+          title: `Python Topic ${i}`,
+          type: "concept",
+          contentPath: join(testWikiDir, `concepts/python-topic-${i}.md`),
+          summary: `Information about Python topic ${i}`,
+        });
+
+        wikiManager.createPage({
+          title: `Python Topic ${i}`,
+          type: "concept",
+          slug: `python-topic-${i}`,
+          content: `Content for topic ${i}`,
+          tags: [],
+          sourceIds: [],
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+      }
+
+      const result = await queryKnowledgeBase("Python", undefined, 5);
+      const text = result.content[0].text as string;
+      const data = JSON.parse(text);
+      expect(data.pages.length).toBe(5);
+    });
+
+    it("should include full content when requested", async () => {
+      await storage.wikiPages.create({
+        slug: "detailed-topic",
+        title: "Detailed Topic",
+        type: "concept",
+        contentPath: join(testWikiDir, "concepts/detailed-topic.md"),
+        summary: "A brief summary",
+      });
+
+      wikiManager.createPage({
+        title: "Detailed Topic",
+        type: "concept",
+        slug: "detailed-topic",
+        content: "This is the full content of the wiki page with detailed information.",
+        tags: [],
+        sourceIds: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      const result = await queryKnowledgeBase("Detailed", undefined, undefined, true);
+      const text = result.content[0].text as string;
+      const data = JSON.parse(text);
+      expect(data.pages[0].content).toContain("full content of the wiki page");
+    });
+
+    it("should not include content by default", async () => {
+      await storage.wikiPages.create({
+        slug: "no-content-test",
+        title: "No Content Test",
+        type: "concept",
+        contentPath: join(testWikiDir, "concepts/no-content-test.md"),
+      });
+
+      wikiManager.createPage({
+        title: "No Content Test",
+        type: "concept",
+        slug: "no-content-test",
+        content: "Hidden content that should not be returned.",
+        tags: [],
+        sourceIds: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      const result = await queryKnowledgeBase("Content");
+      const text = result.content[0].text as string;
+      const data = JSON.parse(text);
+      expect(data.pages[0].content).toBeUndefined();
+    });
+
+    it("should create processing log entry", async () => {
+      await storage.wikiPages.create({
+        slug: "log-test-page",
+        title: "Log Test Page",
+        type: "concept",
+        contentPath: join(testWikiDir, "concepts/log-test-page.md"),
+      });
+
+      wikiManager.createPage({
+        title: "Log Test Page",
+        type: "concept",
+        slug: "log-test-page",
+        content: "Content",
+        tags: [],
+        sourceIds: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      await queryKnowledgeBase("Log Test");
+
+      const logs = await storage.processingLog.findByOperation("query");
+      const queryLog = logs.find((l) => l.details?.question === "Log Test");
+      expect(queryLog).toBeDefined();
+      expect(queryLog?.details?.resultCount).toBe(1);
+    });
+
+    it("should return page tags in results", async () => {
+      await storage.wikiPages.create({
+        slug: "tagged-page",
+        title: "Tagged Page",
+        type: "concept",
+        contentPath: join(testWikiDir, "concepts/tagged-page.md"),
+        tags: ["important", "reference", "tutorial"],
+      });
+
+      wikiManager.createPage({
+        title: "Tagged Page",
+        type: "concept",
+        slug: "tagged-page",
+        content: "Content",
+        tags: ["important", "reference", "tutorial"],
+        sourceIds: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      const result = await queryKnowledgeBase("Tagged");
+      const text = result.content[0].text as string;
+      const data = JSON.parse(text);
+      expect(data.pages[0].tags).toContain("important");
+      expect(data.pages[0].tags).toContain("reference");
+      expect(data.pages[0].tags).toContain("tutorial");
+    });
+  });
+
   describe("memory_ingest", () => {
     async function ingestContent(
       filename: string,
