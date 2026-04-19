@@ -4,9 +4,9 @@
     "outDir": "./dist",
     "rootDir": "./src",
     "noEmit": false,
-    "emitDeclarationOnly": true,
     "declaration": true,
-    "declarationMap": true
+    "declarationMap": true,
+    "allowImportingTsExtensions": false
   },
   "include": ["src/**/*"]
 }

@@ -12,18 +12,12 @@ build/
 venv/
 *.log
 
-# TUI test artifacts
-tui-tests/node_modules/
-tui-tests/.tui-test/
-tui-tests/tui-traces/
-tui-tests/package-lock.json
+.turbo/
+
+data/
+
 node_modules/
 .tui-test/cache/tui-tests/test-results/
 
-# TypeScript/Bun build artifacts
 *.tsbuildinfo
 packages/*/dist/
-data/db/*.db
-
-# Bun lockfile (optional - some teams prefer to track this)
-# bun.lock
