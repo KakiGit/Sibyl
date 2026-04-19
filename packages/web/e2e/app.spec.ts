@@ -830,3 +830,268 @@ test.describe("Wiki Lint", () => {
     await expect(page.locator("button:text('Run Lint')")).toBeDisabled();
   });
 });
+
+test.describe("Content Filing", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto("/");
+  });
+
+  test("should display content filing section", async ({ page }) => {
+    await expect(page.locator("text=Content Filing")).toBeVisible();
+  });
+
+  test("should display filing mode tabs", async ({ page }) => {
+    await expect(page.locator("button:text('File Content')")).toBeVisible();
+    await expect(page.locator("button:text('File Query Result')")).toBeVisible();
+  });
+
+  test("should switch between filing modes", async ({ page }) => {
+    await page.locator("button:text('File Query Result')").click();
+    await expect(page.locator("input[placeholder*='Search query']")).toBeVisible();
+
+    await page.locator("button:text('File Content')").click();
+    await expect(page.locator("input[placeholder*='Wiki page title']")).toBeVisible();
+  });
+
+  test("should display filing form fields in content mode", async ({ page }) => {
+    await expect(page.locator("input[placeholder*='Wiki page title']")).toBeVisible();
+    await expect(page.locator("textarea[placeholder*='Enter the content']")).toBeVisible();
+    await expect(page.locator("select")).toBeVisible();
+    await expect(page.locator("input[placeholder*='research']")).toBeVisible();
+  });
+
+  test("should display file content button", async ({ page }) => {
+    await expect(page.locator("button:text('File Content')")).toBeVisible();
+  });
+
+  test("should file content successfully", async ({ page, context }) => {
+    await context.route("/api/filing", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: {
+            wikiPageId: "test-wiki-id",
+            slug: "test-filed-page",
+            title: "Test Filed Page",
+            type: "summary",
+            linkedPages: ["page-1", "page-2"],
+            filedAt: Date.now(),
+          },
+        }),
+      });
+    });
+
+    const titleInput = page.locator("input[placeholder*='Wiki page title']");
+    await titleInput.fill("Test Filed Page");
+
+    const contentTextarea = page.locator("textarea[placeholder*='Enter the content']");
+    await contentTextarea.fill("This is filed content for the wiki.");
+
+    await page.locator("button:text('File Content')").click();
+
+    await expect(page.locator("text=Content filed successfully")).toBeVisible();
+    await expect(page.locator("text=Test Filed Page")).toBeVisible();
+  });
+
+  test("should show loading state during filing", async ({ page, context }) => {
+    await context.route("/api/filing", async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: {
+            wikiPageId: "test-id",
+            slug: "test",
+            title: "Test",
+            type: "summary",
+            linkedPages: [],
+            filedAt: Date.now(),
+          },
+        }),
+      });
+    });
+
+    const titleInput = page.locator("input[placeholder*='Wiki page title']");
+    await titleInput.fill("Test");
+
+    const contentTextarea = page.locator("textarea[placeholder*='Enter the content']");
+    await contentTextarea.fill("Test content");
+
+    await page.locator("button:text('File Content')").click();
+
+    await expect(page.locator("button:text('File Content')")).toBeDisabled();
+  });
+
+  test("should show error message when filing fails", async ({ page, context }) => {
+    await context.route("/api/filing", async (route) => {
+      await route.fulfill({
+        status: 500,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "Filing failed", message: "Server error" }),
+      });
+    });
+
+    const titleInput = page.locator("input[placeholder*='Wiki page title']");
+    await titleInput.fill("Test");
+
+    const contentTextarea = page.locator("textarea[placeholder*='Enter the content']");
+    await contentTextarea.fill("Test content");
+
+    await page.locator("button:text('File Content')").click();
+
+    await expect(page.locator("text=Server error")).toBeVisible();
+  });
+
+  test("should display filing history section", async ({ page }) => {
+    await expect(page.locator("text=Filing History")).toBeVisible();
+  });
+
+  test("should show empty filing history state", async ({ page, context }) => {
+    await context.route("/api/filing/history**", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ data: [] }),
+      });
+    });
+
+    await page.reload();
+    await expect(page.locator("text=No filing history yet")).toBeVisible();
+  });
+
+  test("should display filing history entries", async ({ page, context }) => {
+    await context.route("/api/filing/history**", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: [
+            {
+              wikiPageId: "id-1",
+              title: "First Filed Page",
+              slug: "first-filed-page",
+              filedAt: Date.now(),
+            },
+            {
+              wikiPageId: "id-2",
+              title: "Second Filed Page",
+              slug: "second-filed-page",
+              filedAt: Date.now() - 100000,
+            },
+          ],
+        }),
+      });
+    });
+
+    await page.reload();
+    await expect(page.locator("text=First Filed Page")).toBeVisible();
+    await expect(page.locator("text=Second Filed Page")).toBeVisible();
+  });
+
+  test("should display type badge after successful filing", async ({ page, context }) => {
+    await context.route("/api/filing", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: {
+            wikiPageId: "test-id",
+            slug: "concept-test",
+            title: "Concept Test",
+            type: "concept",
+            linkedPages: [],
+            filedAt: Date.now(),
+          },
+        }),
+      });
+    });
+
+    const titleInput = page.locator("input[placeholder*='Wiki page title']");
+    await titleInput.fill("Concept Test");
+
+    const contentTextarea = page.locator("textarea[placeholder*='Enter the content']");
+    await contentTextarea.fill("Test content");
+
+    await page.locator("button:text('File Content')").click();
+
+    await expect(page.locator("text=Concept")).toBeVisible();
+  });
+
+  test("should file query result successfully", async ({ page, context }) => {
+    await context.route("/api/filing/query", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: {
+            wikiPageId: "query-result-id",
+            slug: "query-result-test",
+            title: "Query Result: Test Query",
+            type: "summary",
+            linkedPages: ["page-1"],
+            filedAt: Date.now(),
+          },
+        }),
+      });
+    });
+
+    await page.locator("button:text('File Query Result')").click();
+
+    const queryInput = page.locator("input[placeholder*='Search query']");
+    await queryInput.fill("Test Query");
+
+    await page.locator("button:text('File Query Result')").click();
+
+    await expect(page.locator("text=Content filed successfully")).toBeVisible();
+  });
+
+  test("should show error when query filing has no matches", async ({ page, context }) => {
+    await context.route("/api/filing/query", async (route) => {
+      await route.fulfill({
+        status: 400,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "No matching wiki pages found" }),
+      });
+    });
+
+    await page.locator("button:text('File Query Result')").click();
+
+    const queryInput = page.locator("input[placeholder*='Search query']");
+    await queryInput.fill("nonexistent");
+
+    await page.locator("button:text('File Query Result')").click();
+
+    await expect(page.locator("text=No matching wiki pages found")).toBeVisible();
+  });
+
+  test("should display linked pages badge", async ({ page, context }) => {
+    await context.route("/api/filing", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: {
+            wikiPageId: "test-id",
+            slug: "linked-test",
+            title: "Linked Test",
+            type: "summary",
+            linkedPages: ["page-1", "page-2", "page-3"],
+            filedAt: Date.now(),
+          },
+        }),
+      });
+    });
+
+    const titleInput = page.locator("input[placeholder*='Wiki page title']");
+    await titleInput.fill("Linked Test");
+
+    const contentTextarea = page.locator("textarea[placeholder*='Enter the content']");
+    await contentTextarea.fill("Test content");
+
+    await page.locator("button:text('File Content')").click();
+
+    await expect(page.locator("text=3")).toBeVisible();
+  });
+});

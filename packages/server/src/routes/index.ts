@@ -6,6 +6,7 @@ import { registerProcessingLogRoutes } from "./processing-log.js";
 import { registerSynthesizeRoutes } from "./synthesize.js";
 import { registerIngestRoutes } from "./ingest.js";
 import { registerLintRoutes } from "./lint.js";
+import { registerFilingRoutes } from "./filing.js";
 
 export async function registerRoutes(fastify: FastifyInstance) {
   await registerRawResourceRoutes(fastify);
@@ -15,6 +16,7 @@ export async function registerRoutes(fastify: FastifyInstance) {
   await registerSynthesizeRoutes(fastify);
   await registerIngestRoutes(fastify);
   await registerLintRoutes(fastify);
+  await registerFilingRoutes(fastify);
 
   fastify.get("/api/health", async () => {
     return { status: "ok", timestamp: Date.now() };

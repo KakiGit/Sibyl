@@ -1,10 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
-import { FileText, Brain, BookOpen, Layers, Search, Upload, Activity } from "lucide-react";
+import { FileText, Brain, BookOpen, Layers, Search, Upload, Activity, FileDown } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { WikiPageList } from "@/components/wiki-page-list";
 import { QuerySynthesis } from "@/components/query-synthesis";
 import { ContentIngestion } from "@/components/content-ingestion";
 import { WikiLint } from "@/components/wiki-lint";
+import { ContentFiling } from "@/components/content-filing";
 
 async function fetchStats() {
   const response = await fetch("/api/wiki-pages");
@@ -123,6 +124,13 @@ export default function App() {
               Query Synthesis
             </h2>
             <QuerySynthesis />
+          </section>
+          <section>
+            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <FileDown className="h-5 w-5" />
+              Content Filing
+            </h2>
+            <ContentFiling />
           </section>
           <section>
             <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
