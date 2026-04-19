@@ -166,6 +166,68 @@ curl -X POST http://localhost:3000/api/synthesize/stream \
 
 Returns Server-Sent Events with `start`, `answer`, `citations`, and `done` events.
 
+### Hybrid Search API
+
+The server provides FTS5-powered hybrid search combining keyword and semantic search:
+
+```bash
+# Basic search (keyword + semantic by default)
+curl -X POST http://localhost:3000/api/wiki-pages/search \
+  -H "Content-Type: application/json" \
+  -d '{"query": "machine learning"}'
+
+# Keyword-only search
+curl -X POST http://localhost:3000/api/wiki-pages/search \
+  -H "Content-Type: application/json" \
+  -d '{"query": "neural networks", "useSemantic": false}'
+
+# Filter by type
+curl -X POST http://localhost:3000/api/wiki-pages/search \
+  -H "Content-Type: application/json" \
+  -d '{"query": "python", "type": "concept"}'
+
+# Filter by tags
+curl -X POST http://localhost:3000/api/wiki-pages/search \
+  -H "Content-Type: application/json" \
+  -d '{"query": "programming", "tags": "frontend,web"}'
+
+# Adjust semantic threshold (0-1)
+curl -X POST http://localhost:3000/api/wiki-pages/search \
+  -H "Content-Type: application/json" \
+  -d '{"query": "ai", "semanticThreshold": 0.5, "limit": 20}'
+```
+
+Parameters:
+- `query`: Search query (required)
+- `type`: Filter by page type (`entity`, `concept`, `source`, `summary`)
+- `tags`: Comma-separated tags filter
+- `useSemantic`: Enable semantic search (default: true)
+- `semanticThreshold`: Minimum similarity score (0-1, default: 0.3)
+- `limit`: Maximum results (default: 10, max: 50)
+
+Response format:
+```json
+{
+  "data": [
+    {
+      "page": { "id": "...", "title": "...", "type": "..." },
+      "keywordScore": 0.8,
+      "semanticScore": 0.7,
+      "combinedScore": 0.74,
+      "matchType": "hybrid"
+    }
+  ]
+}
+```
+
+#### Rebuild Search Index
+
+```bash
+curl -X POST http://localhost:3000/api/wiki-pages/search/rebuild-index
+```
+
+Rebuilds the FTS5 full-text search index from all existing wiki pages.
+
 ## Start the Web UI
 
 ```bash

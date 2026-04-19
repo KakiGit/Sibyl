@@ -46,4 +46,21 @@ export interface QueryRawResourcesOptions {
   offset?: number;
 }
 
+export interface HybridSearchOptions {
+  query: string;
+  type?: WikiPage["type"];
+  tags?: string[];
+  useSemantic?: boolean;
+  semanticThreshold?: number;
+  limit?: number;
+}
+
+export interface SearchResult {
+  page: WikiPage;
+  keywordScore: number;
+  semanticScore?: number;
+  combinedScore: number;
+  matchType: "keyword" | "semantic" | "hybrid";
+}
+
 export type { RawResource, WikiPage, WikiLink, ProcessingLog, EmbeddingCache };

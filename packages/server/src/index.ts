@@ -17,3 +17,5 @@ export { embeddingsService, getOrGenerateEmbedding, semanticSearch, initializeEm
 export type { CachedEmbedding, SimilarityResult } from "./embeddings/index.js";
 export { ingestWithLlm, generateWikiContent, generateWikiPageWithLlm } from "./processors/index.js";
 export type { LlmGeneratedContent, LlmContentOptions } from "./processors/index.js";
+export { wikiSearchStorage, WikiSearchStorage } from "./search/index.js";
+export { registerSearchRoutes } from "./routes/search.js";

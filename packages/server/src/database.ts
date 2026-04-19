@@ -101,6 +101,16 @@ export function migrateDatabase(database: ReturnType<typeof drizzle<typeof schem
       created_at INTEGER NOT NULL
     )
   `);
+  
+  sqlite.run(`
+    CREATE VIRTUAL TABLE IF NOT EXISTS wiki_pages_fts USING fts5(
+      id,
+      title,
+      summary,
+      content,
+      tokenize = 'porter unicode61'
+    )
+  `);
 }
 
 export function getDatabase(): ReturnType<typeof drizzle<typeof schema>> {
