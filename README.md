@@ -58,6 +58,42 @@ bun run --filter @sibyl/server dev
 PORT=8080 HOST=0.0.0.0 bun run --filter @sibyl/server dev
 ```
 
+### Document Ingestion API
+
+The server provides endpoints for ingesting various document types:
+
+#### Ingest PDF
+
+```bash
+curl -X POST http://localhost:3000/api/documents/pdf \
+  -H "Content-Type: application/json" \
+  -d '{"filePath": "/path/to/document.pdf", "title": "My Document"}'
+```
+
+#### Ingest Webpage
+
+```bash
+curl -X POST http://localhost:3000/api/documents/webpage \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://example.com/article", "title": "Article Title"}'
+```
+
+#### Ingest Image
+
+```bash
+curl -X POST http://localhost:3000/api/documents/image \
+  -H "Content-Type: application/json" \
+  -d '{"filePath": "/path/to/photo.jpg", "createThumbnail": true}'
+```
+
+#### Upload Document (Base64)
+
+```bash
+curl -X POST http://localhost:3000/api/documents/upload \
+  -H "Content-Type: application/json" \
+  -d '{"filename": "document.pdf", "content": "<base64-encoded-content>", "mimeType": "application/pdf"}'
+```
+
 ## Start the Web UI
 
 ```bash
