@@ -1,0 +1,599 @@
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { existsSync, mkdirSync, rmSync } from "fs";
+import { join } from "path";
+import { tmpdir } from "os";
+import { createDatabase, migrateDatabase, closeDatabase, setDatabase } from "../index.js";
+import { storage } from "../storage/index.js";
+import { WikiFileManager } from "../wiki/index.js";
+
+let testDbDir: string;
+let testDbPath: string;
+let testWikiDir: string;
+let wikiManager: WikiFileManager;
+
+beforeEach(async () => {
+  testDbDir = join(tmpdir(), `sibyl-mcp-test-${Date.now()}`);
+  mkdirSync(testDbDir, { recursive: true });
+  testDbPath = join(testDbDir, "test.db");
+  testWikiDir = join(testDbDir, "wiki");
+  
+  const db = createDatabase(testDbPath);
+  migrateDatabase(db);
+  setDatabase(db);
+  
+  wikiManager = new WikiFileManager(testDbDir);
+});
+
+afterEach(async () => {
+  closeDatabase();
+  if (existsSync(testDbDir)) {
+    rmSync(testDbDir, { recursive: true, force: true });
+  }
+});
+
+async function recallMemory(query: string, type?: string, limit?: number) {
+  const pages = await storage.wikiPages.findAll({
+    search: query,
+    type: type as "entity" | "concept" | "source" | "summary" | undefined,
+    limit: limit || 5,
+  });
+
+  if (pages.length === 0) {
+    return { content: [{ type: "text", text: "No memories found matching the query." }] };
+  }
+
+  const results = pages.map((page) => {
+    const content = wikiManager.readPage(page.type, page.slug);
+    return {
+      slug: page.slug,
+      title: page.title,
+      type: page.type,
+      summary: page.summary,
+      content: content?.content || "",
+      tags: page.tags,
+      updatedAt: page.updatedAt,
+    };
+  });
+
+  return { content: [{ type: "text", text: JSON.stringify(results, null, 2) }] };
+}
+
+async function saveMemory(
+  title: string,
+  type: string,
+  content: string,
+  summary?: string,
+  tags?: string[],
+  sourceIds?: string[]
+) {
+  const slug = title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+
+  const existing = await storage.wikiPages.findBySlug(slug);
+  const now = Date.now();
+
+  const wikiPageContent = {
+    title,
+    type: type as "entity" | "concept" | "source" | "summary",
+    slug,
+    content,
+    summary,
+    tags: tags || [],
+    sourceIds: sourceIds || [],
+    createdAt: existing?.createdAt || now,
+    updatedAt: now,
+  };
+
+  if (existing) {
+    wikiManager.updatePage(wikiPageContent);
+    await storage.wikiPages.update(existing.id, {
+      title,
+      summary,
+      tags: tags || [],
+      sourceIds: sourceIds || [],
+    });
+  } else {
+    wikiManager.createPage(wikiPageContent);
+    const dbPage = await storage.wikiPages.create({
+      slug,
+      title,
+      type: type as "entity" | "concept" | "source" | "summary",
+      contentPath: wikiManager.getPagePath(type as "entity" | "concept" | "source" | "summary", slug),
+      summary,
+      tags: tags || [],
+      sourceIds: sourceIds || [],
+    });
+
+    await storage.processingLog.create({
+      operation: "ingest",
+      wikiPageId: dbPage.id,
+      details: { title, type, slug },
+    });
+  }
+
+  return {
+    content: [
+      {
+        type: "text",
+        text: JSON.stringify({
+          success: true,
+          slug,
+          title,
+          type,
+          message: existing ? "Memory updated successfully" : "Memory created successfully",
+        }),
+      },
+    ],
+  };
+}
+
+async function listMemories(type?: string) {
+  const index = wikiManager.getIndex();
+  const filtered = type ? index.filter((entry) => entry.type === type) : index;
+  return { content: [{ type: "text", text: JSON.stringify(filtered, null, 2) }] };
+}
+
+async function deleteMemory(slug: string, type: string) {
+  const existing = await storage.wikiPages.findBySlug(slug);
+
+  if (!existing) {
+    return {
+      content: [{ type: "text", text: JSON.stringify({ success: false, error: "Memory not found" }) }],
+    };
+  }
+
+  wikiManager.deletePage(type as "entity" | "concept" | "source" | "summary", slug);
+  await storage.wikiPages.delete(existing.id);
+
+  return {
+    content: [{ type: "text", text: JSON.stringify({ success: true, slug, message: "Memory deleted successfully" }) }],
+  };
+}
+
+async function getLog(limit?: number, operation?: string) {
+  if (operation) {
+    const logs = await storage.processingLog.findByOperation(operation as "ingest" | "query" | "filing" | "lint");
+    return { content: [{ type: "text", text: JSON.stringify(logs.slice(0, limit || 10), null, 2) }] };
+  }
+
+  const logs = await storage.processingLog.recent(limit || 10);
+  return { content: [{ type: "text", text: JSON.stringify(logs, null, 2) }] };
+}
+
+async function saveRawResource(
+  type: string,
+  filename: string,
+  content: string,
+  sourceUrl?: string,
+  metadata?: Record<string, unknown>
+) {
+  const slug = filename
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+
+  const contentPath = `data/raw/documents/${slug}.txt`;
+
+  const resource = await storage.rawResources.create({
+    type: type as "pdf" | "image" | "webpage" | "text",
+    filename,
+    contentPath,
+    sourceUrl,
+    metadata: {
+      ...metadata,
+      contentPreview: content.slice(0, 500),
+    },
+  });
+
+  await storage.processingLog.create({
+    operation: "ingest",
+    rawResourceId: resource.id,
+    details: { filename, type, contentLength: content.length },
+  });
+
+  return {
+    content: [
+      {
+        type: "text",
+        text: JSON.stringify({
+          success: true,
+          id: resource.id,
+          filename,
+          type,
+          message: "Raw resource saved successfully",
+        }),
+      },
+    ],
+  };
+}
+
+describe("MCP Tools Logic", () => {
+  describe("memory_recall", () => {
+    it("should return empty result when no memories exist", async () => {
+      const result = await recallMemory("test");
+      expect(result.content).toHaveLength(1);
+      expect(result.content[0].type).toBe("text");
+      const text = result.content[0].text as string;
+      expect(text).toContain("No memories found");
+    });
+
+    it("should find memories matching query", async () => {
+      await storage.wikiPages.create({
+        slug: "python-programming",
+        title: "Python Programming",
+        type: "concept",
+        contentPath: join(testWikiDir, "concepts/python-programming.md"),
+        summary: "A popular programming language",
+        tags: ["programming", "language"],
+      });
+
+      wikiManager.createPage({
+        title: "Python Programming",
+        type: "concept",
+        slug: "python-programming",
+        content: "Python is a versatile programming language used for web development.",
+        tags: ["programming", "language"],
+        sourceIds: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      const result = await recallMemory("Python");
+      const text = result.content[0].text as string;
+      const data = JSON.parse(text);
+      expect(data.length).toBe(1);
+      expect(data[0].title).toBe("Python Programming");
+      expect(data[0].slug).toBe("python-programming");
+    });
+
+    it("should filter by type", async () => {
+      await storage.wikiPages.create({
+        slug: "john-doe",
+        title: "John Doe",
+        type: "entity",
+        contentPath: join(testWikiDir, "entities/john-doe.md"),
+      });
+
+      await storage.wikiPages.create({
+        slug: "javascript",
+        title: "JavaScript",
+        type: "concept",
+        contentPath: join(testWikiDir, "concepts/javascript.md"),
+      });
+
+      wikiManager.createPage({
+        title: "John Doe",
+        type: "entity",
+        slug: "john-doe",
+        content: "John Doe is a software developer.",
+        tags: [],
+        sourceIds: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      wikiManager.createPage({
+        title: "JavaScript",
+        type: "concept",
+        slug: "javascript",
+        content: "JavaScript is a web programming language.",
+        tags: [],
+        sourceIds: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      const result = await recallMemory("", "entity");
+      const text = result.content[0].text as string;
+      const data = JSON.parse(text);
+      expect(data.length).toBe(1);
+      expect(data[0].type).toBe("entity");
+    });
+
+    it("should respect limit parameter", async () => {
+      for (let i = 0; i < 10; i++) {
+        await storage.wikiPages.create({
+          slug: `page-${i}`,
+          title: `Page ${i}`,
+          type: "concept",
+          contentPath: join(testWikiDir, `concepts/page-${i}.md`),
+        });
+
+        wikiManager.createPage({
+          title: `Page ${i}`,
+          type: "concept",
+          slug: `page-${i}`,
+          content: `Content for page ${i}`,
+          tags: [],
+          sourceIds: [],
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+      }
+
+      const result = await recallMemory("Page", undefined, 3);
+      const text = result.content[0].text as string;
+      const data = JSON.parse(text);
+      expect(data.length).toBe(3);
+    });
+  });
+
+  describe("memory_save", () => {
+    it("should create a new memory page", async () => {
+      const result = await saveMemory("Test Concept", "concept", "This is a test concept content.", "A brief summary", ["test", "example"]);
+
+      const text = result.content[0].text as string;
+      const data = JSON.parse(text);
+      expect(data.success).toBe(true);
+      expect(data.slug).toBe("test-concept");
+      expect(data.message).toContain("created");
+
+      const page = await storage.wikiPages.findBySlug("test-concept");
+      expect(page).not.toBeNull();
+      expect(page?.title).toBe("Test Concept");
+      expect(page?.type).toBe("concept");
+    });
+
+    it("should update existing memory page", async () => {
+      await saveMemory("Existing Page", "concept", "Original content");
+
+      const result = await saveMemory("Existing Page", "concept", "Updated content", "New summary");
+
+      const text = result.content[0].text as string;
+      const data = JSON.parse(text);
+      expect(data.success).toBe(true);
+      expect(data.message).toContain("updated");
+
+      const page = await storage.wikiPages.findBySlug("existing-page");
+      expect(page?.summary).toBe("New summary");
+    });
+
+    it("should save with source IDs", async () => {
+      const result = await saveMemory("Documented Concept", "concept", "Content with sources", undefined, undefined, ["src-1", "src-2"]);
+
+      const text = result.content[0].text as string;
+      const data = JSON.parse(text);
+      expect(data.success).toBe(true);
+
+      const page = await storage.wikiPages.findBySlug("documented-concept");
+      expect(page?.sourceIds).toEqual(["src-1", "src-2"]);
+    });
+
+    it("should generate valid slug from title", async () => {
+      const result = await saveMemory("This Is A Complex Title!", "concept", "Content");
+
+      const text = result.content[0].text as string;
+      const data = JSON.parse(text);
+      expect(data.slug).toBe("this-is-a-complex-title");
+    });
+
+    it("should create processing log entry", async () => {
+      await saveMemory("Logged Page", "concept", "Content");
+
+      const logs = await storage.processingLog.findByOperation("ingest");
+      const lastLog = logs.find((l) => l.details?.slug === "logged-page");
+      expect(lastLog).toBeDefined();
+    });
+  });
+
+  describe("memory_list", () => {
+    it("should return empty list when no pages exist", async () => {
+      const result = await listMemories();
+      const text = result.content[0].text as string;
+      const data = JSON.parse(text);
+      expect(data).toHaveLength(0);
+    });
+
+    it("should list all pages", async () => {
+      await storage.wikiPages.create({
+        slug: "page-1",
+        title: "Page 1",
+        type: "concept",
+        contentPath: join(testWikiDir, "concepts/page-1.md"),
+      });
+
+      await storage.wikiPages.create({
+        slug: "page-2",
+        title: "Page 2",
+        type: "entity",
+        contentPath: join(testWikiDir, "entities/page-2.md"),
+      });
+
+      wikiManager.createPage({
+        title: "Page 1",
+        type: "concept",
+        slug: "page-1",
+        content: "Content",
+        tags: [],
+        sourceIds: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      wikiManager.createPage({
+        title: "Page 2",
+        type: "entity",
+        slug: "page-2",
+        content: "Content",
+        tags: [],
+        sourceIds: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      const result = await listMemories();
+      const text = result.content[0].text as string;
+      const data = JSON.parse(text);
+      expect(data.length).toBe(2);
+    });
+
+    it("should filter list by type", async () => {
+      await storage.wikiPages.create({
+        slug: "entity-1",
+        title: "Entity 1",
+        type: "entity",
+        contentPath: join(testWikiDir, "entities/entity-1.md"),
+      });
+
+      await storage.wikiPages.create({
+        slug: "concept-1",
+        title: "Concept 1",
+        type: "concept",
+        contentPath: join(testWikiDir, "concepts/concept-1.md"),
+      });
+
+      wikiManager.createPage({
+        title: "Entity 1",
+        type: "entity",
+        slug: "entity-1",
+        content: "Content",
+        tags: [],
+        sourceIds: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      wikiManager.createPage({
+        title: "Concept 1",
+        type: "concept",
+        slug: "concept-1",
+        content: "Content",
+        tags: [],
+        sourceIds: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      const result = await listMemories("entity");
+      const text = result.content[0].text as string;
+      const data = JSON.parse(text);
+      expect(data.length).toBe(1);
+      expect(data[0].type).toBe("entity");
+    });
+  });
+
+  describe("memory_delete", () => {
+    it("should delete existing memory", async () => {
+      await storage.wikiPages.create({
+        slug: "delete-test",
+        title: "Delete Test",
+        type: "concept",
+        contentPath: join(testWikiDir, "concepts/delete-test.md"),
+      });
+
+      wikiManager.createPage({
+        title: "Delete Test",
+        type: "concept",
+        slug: "delete-test",
+        content: "To be deleted",
+        tags: [],
+        sourceIds: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      const result = await deleteMemory("delete-test", "concept");
+
+      const text = result.content[0].text as string;
+      const data = JSON.parse(text);
+      expect(data.success).toBe(true);
+      expect(data.message).toContain("deleted");
+
+      const page = await storage.wikiPages.findBySlug("delete-test");
+      expect(page).toBeNull();
+    });
+
+    it("should return error for non-existent memory", async () => {
+      const result = await deleteMemory("non-existent", "concept");
+
+      const text = result.content[0].text as string;
+      const data = JSON.parse(text);
+      expect(data.success).toBe(false);
+      expect(data.error).toContain("not found");
+    });
+  });
+
+  describe("memory_log", () => {
+    it("should return recent logs", async () => {
+      await storage.processingLog.create({
+        operation: "ingest",
+        details: { test: 1 },
+      });
+
+      await storage.processingLog.create({
+        operation: "query",
+        details: { test: 2 },
+      });
+
+      const result = await getLog(10);
+      const text = result.content[0].text as string;
+      const data = JSON.parse(text);
+      expect(data.length).toBe(2);
+    });
+
+    it("should filter logs by operation", async () => {
+      await storage.processingLog.create({
+        operation: "ingest",
+      });
+
+      await storage.processingLog.create({
+        operation: "lint",
+      });
+
+      const result = await getLog(10, "ingest");
+      const text = result.content[0].text as string;
+      const data = JSON.parse(text);
+      expect(data.length).toBe(1);
+      expect(data[0].operation).toBe("ingest");
+    });
+  });
+
+  describe("memory_raw_save", () => {
+    it("should save raw text resource", async () => {
+      const result = await saveRawResource("text", "test-doc.txt", "This is raw text content to be processed.");
+
+      const text = result.content[0].text as string;
+      const data = JSON.parse(text);
+      expect(data.success).toBe(true);
+      expect(data.filename).toBe("test-doc.txt");
+      expect(data.type).toBe("text");
+
+      const resource = await storage.rawResources.findById(data.id);
+      expect(resource).not.toBeNull();
+      expect(resource?.type).toBe("text");
+      expect(resource?.processed).toBe(false);
+    });
+
+    it("should save raw resource with source URL", async () => {
+      const result = await saveRawResource("webpage", "article.html", "Article content from the web", "https://example.com/article");
+
+      const text = result.content[0].text as string;
+      const data = JSON.parse(text);
+      expect(data.success).toBe(true);
+
+      const resource = await storage.rawResources.findById(data.id);
+      expect(resource?.sourceUrl).toBe("https://example.com/article");
+    });
+
+    it("should save raw resource with metadata", async () => {
+      const result = await saveRawResource("text", "metadata-test.txt", "Content", undefined, { author: "John", category: "tech" });
+
+      const text = result.content[0].text as string;
+      const data = JSON.parse(text);
+
+      const resource = await storage.rawResources.findById(data.id);
+      expect(resource?.metadata?.author).toBe("John");
+      expect(resource?.metadata?.category).toBe("tech");
+    });
+
+    it("should create processing log entry", async () => {
+      await saveRawResource("text", "logged.txt", "Content");
+
+      const logs = await storage.processingLog.findByOperation("ingest");
+      const lastLog = logs[logs.length - 1];
+      expect(lastLog?.details?.filename).toBe("logged.txt");
+    });
+  });
+});

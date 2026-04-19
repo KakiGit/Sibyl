@@ -5,3 +5,5 @@ export { WikiFileManager, wikiFileManager } from "./wiki/index.js";
 export type { WikiPageContent, IndexEntry, LogEntry } from "./wiki/index.js";
 export { createServer, startServer, stopServer } from "./server.js";
 export type { ServerOptions } from "./server.js";
+export { createMcpServer, startMcpServer } from "./mcp/index.js";
+export { registerMcpTools } from "./mcp/tools.js";
