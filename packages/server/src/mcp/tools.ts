@@ -276,4 +276,72 @@ export function registerMcpTools(server: McpServer) {
       };
     }
   );
+
+  server.tool(
+    "memory_ingest",
+    "Ingest text content directly into the wiki. Creates a raw resource, processes it, and generates a wiki page immediately.",
+    {
+      filename: z.string().describe("Filename for the ingested content"),
+      content: z.string().describe("Text content to ingest and process"),
+      title: z.string().optional().describe("Optional title for the wiki page (defaults to filename)"),
+      type: z.enum(["entity", "concept", "source", "summary"]).optional().describe("Optional wiki page type (defaults to 'concept' for text)"),
+      tags: z.array(z.string()).optional().describe("Optional tags for the wiki page"),
+    },
+    async ({ filename, content, title, type, tags }) => {
+      const { writeFileSync, existsSync, mkdirSync } = await import("fs");
+      const { join } = await import("path");
+      const { tmpdir } = await import("os");
+      const { ingestRawResource } = await import("../processors/ingest.js");
+
+      const slug = filename
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "");
+
+      const tempDir = join(tmpdir(), "sibyl-mcp-ingest");
+      if (!existsSync(tempDir)) {
+        mkdirSync(tempDir, { recursive: true });
+      }
+
+      const contentPath = join(tempDir, `${slug}.txt`);
+      writeFileSync(contentPath, content);
+
+      const rawResource = await storage.rawResources.create({
+        type: "text",
+        filename,
+        contentPath,
+        metadata: {
+          title,
+          tags,
+          contentLength: content.length,
+        },
+      });
+
+      const ingestResult = await ingestRawResource({
+        rawResourceId: rawResource.id,
+        title,
+        type: type === "entity" || type === "concept" || type === "source" || type === "summary" ? type : undefined,
+        tags,
+        wikiFileManager,
+      });
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({
+              success: true,
+              rawResourceId: ingestResult.rawResourceId,
+              wikiPageId: ingestResult.wikiPageId,
+              slug: ingestResult.slug,
+              title: ingestResult.title,
+              type: ingestResult.type,
+              processed: ingestResult.processed,
+              message: "Content ingested and wiki page created successfully",
+            }),
+          },
+        ],
+      };
+    }
+  );
 }

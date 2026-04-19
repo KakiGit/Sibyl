@@ -305,6 +305,18 @@ Sibyl also provides an MCP server for stdio-based communication:
 bun run --filter @sibyl/server mcp
 ```
 
+### MCP Tools
+
+The MCP server provides the following tools for MCP clients (like Claude Code, Cursor, OpenCode):
+
+- `memory_recall`: Search and retrieve memories from the wiki
+- `memory_save`: Save new information to the wiki
+- `memory_list`: List all wiki pages
+- `memory_delete`: Delete a wiki page
+- `memory_ingest`: Ingest text content directly and create wiki pages immediately
+- `memory_raw_save`: Save raw content for later processing
+- `memory_log`: Get processing log entries
+
 ## Testing
 
 ```bash

@@ -596,4 +596,167 @@ describe("MCP Tools Logic", () => {
       expect(lastLog?.details?.filename).toBe("logged.txt");
     });
   });
+
+  describe("memory_ingest", () => {
+    async function ingestContent(
+      filename: string,
+      content: string,
+      title?: string,
+      type?: string,
+      tags?: string[],
+      wikiManager?: WikiFileManager
+    ) {
+      const { writeFileSync, existsSync, mkdirSync } = await import("fs");
+      const { join } = await import("path");
+      const { tmpdir } = await import("os");
+      const { ingestRawResource } = await import("../processors/ingest.js");
+
+      const slug = filename
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "");
+
+      const tempDir = join(tmpdir(), "sibyl-mcp-test-ingest");
+      if (!existsSync(tempDir)) {
+        mkdirSync(tempDir, { recursive: true });
+      }
+
+      const contentPath = join(tempDir, `${slug}.txt`);
+      writeFileSync(contentPath, content);
+
+      const rawResource = await storage.rawResources.create({
+        type: "text",
+        filename,
+        contentPath,
+        metadata: {
+          title,
+          tags,
+          contentLength: content.length,
+        },
+      });
+
+      const ingestResult = await ingestRawResource({
+        rawResourceId: rawResource.id,
+        title,
+        type: type as "entity" | "concept" | "source" | "summary" | undefined,
+        tags,
+        wikiFileManager: wikiManager,
+      });
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({
+              success: true,
+              rawResourceId: ingestResult.rawResourceId,
+              wikiPageId: ingestResult.wikiPageId,
+              slug: ingestResult.slug,
+              title: ingestResult.title,
+              type: ingestResult.type,
+              processed: ingestResult.processed,
+              message: "Content ingested and wiki page created successfully",
+            }),
+          },
+        ],
+      };
+    }
+
+    it("should ingest content and create wiki page", async () => {
+      const result = await ingestContent("test-doc.txt", "This is test content for ingestion.", undefined, undefined, undefined, wikiManager);
+
+      const text = result.content[0].text as string;
+      const data = JSON.parse(text);
+      expect(data.success).toBe(true);
+      expect(data.slug).toBe("test-doc");
+      expect(data.processed).toBe(true);
+
+      const page = await storage.wikiPages.findBySlug("test-doc");
+      expect(page).not.toBeNull();
+      expect(page?.title).toBe("Test Doc");
+    });
+
+    it("should ingest content with custom title", async () => {
+      const result = await ingestContent("custom.txt", "Content here", "Custom Wiki Title", undefined, undefined, wikiManager);
+
+      const text = result.content[0].text as string;
+      const data = JSON.parse(text);
+      expect(data.title).toBe("Custom Wiki Title");
+      expect(data.slug).toBe("custom-wiki-title");
+
+      const page = await storage.wikiPages.findBySlug("custom-wiki-title");
+      expect(page?.title).toBe("Custom Wiki Title");
+    });
+
+    it("should ingest content with specific type", async () => {
+      const result = await ingestContent("entity-doc.txt", "Entity content", undefined, "entity", undefined, wikiManager);
+
+      const text = result.content[0].text as string;
+      const data = JSON.parse(text);
+      expect(data.type).toBe("entity");
+
+      const page = await storage.wikiPages.findBySlug("entity-doc");
+      expect(page?.type).toBe("entity");
+    });
+
+    it("should ingest content with tags", async () => {
+      const result = await ingestContent("tagged.txt", "Tagged content", undefined, undefined, ["test", "example", "demo"], wikiManager);
+
+      const text = result.content[0].text as string;
+      const data = JSON.parse(text);
+      expect(data.success).toBe(true);
+
+      const page = await storage.wikiPages.findBySlug("tagged");
+      expect(page?.tags).toContain("test");
+      expect(page?.tags).toContain("example");
+      expect(page?.tags).toContain("demo");
+    });
+
+    it("should mark raw resource as processed", async () => {
+      const result = await ingestContent("processed-check.txt", "Content for processing check", undefined, undefined, undefined, wikiManager);
+
+      const text = result.content[0].text as string;
+      const data = JSON.parse(text);
+
+      const resource = await storage.rawResources.findById(data.rawResourceId);
+      expect(resource?.processed).toBe(true);
+    });
+
+    it("should create wiki page content on disk", async () => {
+      await ingestContent("disk-content.txt", "This content should be written to disk.", undefined, undefined, undefined, wikiManager);
+
+      const page = await storage.wikiPages.findBySlug("disk-content");
+      const pageContent = wikiManager.readPage(page?.type || "concept", "disk-content");
+      expect(pageContent?.content).toContain("This content should be written to disk");
+    });
+
+    it("should create processing log entries", async () => {
+      await ingestContent("logged-ingest.txt", "Logged content", undefined, undefined, undefined, wikiManager);
+
+      const logs = await storage.processingLog.findByOperation("ingest");
+      const ingestLog = logs.find((l) => l.details?.slug === "logged-ingest");
+      expect(ingestLog).toBeDefined();
+      expect(ingestLog?.details?.action).toBe("created");
+    });
+
+    it("should update existing page when ingesting same content", async () => {
+      await ingestContent("update-test.txt", "Original content", "Update Test", undefined, undefined, wikiManager);
+
+      const firstPage = await storage.wikiPages.findBySlug("update-test");
+      expect(firstPage).not.toBeNull();
+
+      await ingestContent("update-test.txt", "Updated content here", "Update Test", undefined, undefined, wikiManager);
+
+      const updatedPage = await storage.wikiPages.findBySlug("update-test");
+      expect(updatedPage?.updatedAt).toBeGreaterThan(firstPage?.updatedAt || 0);
+    });
+
+    it("should handle complex filename for slug generation", async () => {
+      const result = await ingestContent("My Complex File Name!@#.txt", "Content", undefined, undefined, undefined, wikiManager);
+
+      const text = result.content[0].text as string;
+      const data = JSON.parse(text);
+      expect(data.slug).toBe("my-complex-file-name");
+    });
+  });
 });
