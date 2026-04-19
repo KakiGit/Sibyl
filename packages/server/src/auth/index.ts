@@ -1,0 +1,2 @@
+export { authenticate, optionalAuth, requireAuth, verifyApiKey, verifyJwt, generateToken, refreshToken, getAuthMiddleware } from "./middleware.js";
+export type { AuthUser, JwtPayload, AuthMiddlewareOptions } from "./middleware.js";

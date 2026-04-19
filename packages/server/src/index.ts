@@ -19,3 +19,5 @@ export { ingestWithLlm, generateWikiContent, generateWikiPageWithLlm } from "./p
 export type { LlmGeneratedContent, LlmContentOptions } from "./processors/index.js";
 export { wikiSearchStorage, WikiSearchStorage } from "./search/index.js";
 export { registerSearchRoutes } from "./routes/search.js";
+export { authenticate, optionalAuth, requireAuth, verifyApiKey, verifyJwt, generateToken, refreshToken, getAuthMiddleware } from "./auth/index.js";
+export type { AuthUser, JwtPayload, AuthMiddlewareOptions } from "./auth/index.js";

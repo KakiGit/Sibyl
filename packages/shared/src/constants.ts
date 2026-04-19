@@ -5,6 +5,12 @@ export const RAW_RESOURCE_TYPES = ["pdf", "image", "webpage", "text"] as const;
 export const WIKI_PAGE_TYPES = ["entity", "concept", "source", "summary"] as const;
 export const OPERATIONS = ["ingest", "query", "filing", "lint"] as const;
 
+export const JWT_SECRET_ENV = "SIBYL_JWT_SECRET";
+export const API_KEY_ENV = "SIBYL_API_KEY";
+export const AUTH_ENABLED_ENV = "SIBYL_AUTH_ENABLED";
+export const JWT_EXPIRY_SECONDS = 3600;
+export const JWT_REFRESH_EXPIRY_SECONDS = 86400;
+
 export const DATA_DIR = "data";
 export const RAW_DIR = `${DATA_DIR}/raw`;
 export const WIKI_DIR = `${DATA_DIR}/wiki`;

@@ -11,8 +11,19 @@ import { registerDocumentRoutes } from "./documents.js";
 import { registerWikiMetaRoutes } from "./wiki-meta.js";
 import { registerSchemaRoutes } from "./schema.js";
 import { registerSearchRoutes } from "./search.js";
+import { registerAuthRoutes } from "./auth.js";
+import { requireAuth } from "../auth/middleware.js";
 
 export async function registerRoutes(fastify: FastifyInstance) {
+  fastify.addHook("preHandler", requireAuth({
+    publicRoutes: [
+      "/api/health",
+      "/api/auth",
+    ],
+    skipAuthForHealth: true,
+  }));
+
+  await registerAuthRoutes(fastify);
   await registerRawResourceRoutes(fastify);
   await registerWikiPageRoutes(fastify);
   await registerWikiLinkRoutes(fastify);

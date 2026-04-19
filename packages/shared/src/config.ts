@@ -6,6 +6,11 @@ import {
   WIKI_DIR,
   SCHEMA_DIR,
   DB_DIR,
+  JWT_SECRET_ENV,
+  API_KEY_ENV,
+  AUTH_ENABLED_ENV,
+  JWT_EXPIRY_SECONDS,
+  JWT_REFRESH_EXPIRY_SECONDS,
 } from "./constants.js";
 
 export interface SibylConfig {
@@ -14,6 +19,14 @@ export interface SibylConfig {
   wikiPath: string;
   schemaPath: string;
   dbPath: string;
+}
+
+export interface AuthConfig {
+  enabled: boolean;
+  jwtSecret: string | undefined;
+  apiKey: string | undefined;
+  jwtExpirySeconds: number;
+  jwtRefreshExpirySeconds: number;
 }
 
 function getDefaultDataPath(): string {
@@ -52,4 +65,37 @@ export function initializeDataDirectories(): SibylConfig {
   ensureDir(config.dbPath);
   
   return config;
+}
+
+export function getAuthConfig(): AuthConfig {
+  const enabledEnv = process.env[AUTH_ENABLED_ENV];
+  const enabled = enabledEnv === "true" || enabledEnv === "1";
+  
+  return {
+    enabled,
+    jwtSecret: process.env[JWT_SECRET_ENV],
+    apiKey: process.env[API_KEY_ENV],
+    jwtExpirySeconds: JWT_EXPIRY_SECONDS,
+    jwtRefreshExpirySeconds: JWT_REFRESH_EXPIRY_SECONDS,
+  };
+}
+
+export function generateDefaultJwtSecret(): string {
+  const randomBytes = new Uint8Array(32);
+  for (let i = 0; i < 32; i++) {
+    randomBytes[i] = Math.floor(Math.random() * 256);
+  }
+  return Array.from(randomBytes)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+export function generateDefaultApiKey(): string {
+  const randomBytes = new Uint8Array(16);
+  for (let i = 0; i < 16; i++) {
+    randomBytes[i] = Math.floor(Math.random() * 256);
+  }
+  return `sibyl-${Array.from(randomBytes)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("")}`;
 }

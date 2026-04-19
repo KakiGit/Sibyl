@@ -384,6 +384,81 @@ When LLM is configured, the enhanced lint analyzes wiki content for:
 - Improvement suggestions for existing pages
 - New sources or topics to investigate
 
+## Authentication
+
+Sibyl supports optional authentication for securing API endpoints. When enabled, all API requests require valid authentication.
+
+### Enable Authentication
+
+Set environment variables to enable authentication:
+
+```bash
+# Enable authentication
+SIBYL_AUTH_ENABLED=true
+
+# Set JWT secret (for Web UI sessions)
+SIBYL_JWT_SECRET=your-secure-random-secret
+
+# Set API key (for MCP clients and API access)
+SIBYL_API_KEY=sibyl-your-api-key
+```
+
+### Authentication Methods
+
+**API Key Authentication**: Use the `x-api-key` header:
+
+```bash
+curl -H "x-api-key: sibyl-your-api-key" http://localhost:3000/api/wiki-pages
+```
+
+**JWT Authentication**: Use the `Authorization` header with Bearer token:
+
+```bash
+# Login to get JWT token
+curl -X POST http://localhost:3000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"apiKey": "sibyl-your-api-key"}'
+
+# Use the token
+curl -H "Authorization: Bearer <token>" http://localhost:3000/api/wiki-pages
+```
+
+### Auth API Endpoints
+
+```bash
+# Check authentication status
+curl http://localhost:3000/api/auth/status
+
+# Login with API key (returns JWT token)
+curl -X POST http://localhost:3000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"apiKey": "sibyl-your-api-key"}'
+
+# Refresh JWT token
+curl -X POST http://localhost:3000/api/auth/refresh \
+  -H "Content-Type: application/json" \
+  -d '{"token": "<current-token>"}'
+
+# Verify token validity
+curl -X POST http://localhost:3000/api/auth/verify \
+  -H "Authorization: Bearer <token>"
+```
+
+### Web UI Authentication
+
+When authentication is enabled, the Web UI displays an Authentication section where you can login using your API key. The JWT token is stored in localStorage and used for subsequent API requests.
+
+### MCP Plugin Authentication
+
+Configure the plugin with authentication:
+
+```typescript
+["@sibyl/plugin", { 
+  serverUrl: "http://localhost:3000",
+  apiKey: "sibyl-your-api-key"
+}]
+```
+
 ## Project Structure
 
 ```

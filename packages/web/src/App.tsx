@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { FileText, Brain, BookOpen, Layers, Search, Upload, Activity, FileDown, Network, Filter } from "lucide-react";
+import { FileText, Brain, BookOpen, Layers, Search, Upload, Activity, FileDown, Network, Filter, Shield } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { WikiPageList } from "@/components/wiki-page-list";
 import { QuerySynthesis } from "@/components/query-synthesis";
@@ -8,6 +8,7 @@ import { WikiLint } from "@/components/wiki-lint";
 import { ContentFiling } from "@/components/content-filing";
 import { WikiGraphView } from "@/components/wiki-graph-view";
 import { WikiSearch } from "@/components/wiki-search";
+import { AuthStatus } from "@/components/auth-status";
 
 async function fetchStats() {
   const response = await fetch("/api/wiki-pages");
@@ -112,6 +113,13 @@ export default function App() {
           <section>
             <h2 className="text-lg font-semibold mb-4">Dashboard</h2>
             <Dashboard />
+          </section>
+          <section>
+            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <Shield className="h-5 w-5" />
+              Authentication
+            </h2>
+            <AuthStatus />
           </section>
           <section>
             <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
