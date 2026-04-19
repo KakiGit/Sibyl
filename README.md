@@ -137,6 +137,35 @@ curl -X POST http://localhost:3000/api/documents/upload \
   -d '{"filename": "document.pdf", "content": "<base64-encoded-content>", "mimeType": "application/pdf"}'
 ```
 
+### Query Synthesis API
+
+The server provides endpoints for querying and synthesizing answers from wiki pages:
+
+#### Synthesize Answer
+
+```bash
+curl -X POST http://localhost:3000/api/synthesize \
+  -H "Content-Type: application/json" \
+  -d '{"query": "What is machine learning?"}'
+```
+
+Parameters:
+- `query`: The question to answer (required)
+- `types`: Filter by page types (`["entity", "concept", "source", "summary"]`)
+- `tags`: Filter by tags
+- `maxPages`: Maximum pages to use for synthesis (1-10, default: 5)
+- `skipLlm`: Skip LLM and return basic summary (boolean, default: false)
+
+#### Streaming Synthesis
+
+```bash
+curl -X POST http://localhost:3000/api/synthesize/stream \
+  -H "Content-Type: application/json" \
+  -d '{"query": "What is machine learning?"}'
+```
+
+Returns Server-Sent Events with `start`, `answer`, `citations`, and `done` events.
+
 ## Start the Web UI
 
 ```bash

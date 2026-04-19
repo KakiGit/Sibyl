@@ -114,7 +114,7 @@ describe("LLM Integration", () => {
     expect(result.answer.length).toBeGreaterThan(10);
     expect(result.citations.length).toBeGreaterThan(0);
     expect(result.model).toBeDefined();
-  });
+  }, 30000);
 
   it("should handle synthesis without LLM provider", async () => {
     resetLlmProvider();

@@ -10,6 +10,7 @@ const SynthesizeQuerySchema = z.object({
   types: z.array(WikiPageTypeSchema).optional(),
   tags: z.array(z.string()).optional(),
   maxPages: z.coerce.number().int().positive().max(10).default(5).optional(),
+  skipLlm: z.coerce.boolean().optional(),
 });
 
 export async function registerSynthesizeRoutes(fastify: FastifyInstance) {
@@ -30,6 +31,7 @@ export async function registerSynthesizeRoutes(fastify: FastifyInstance) {
         tags: body.tags,
         maxPages: body.maxPages,
         wikiFileManager,
+        skipLlm: body.skipLlm,
       });
 
       return {
@@ -73,6 +75,7 @@ export async function registerSynthesizeRoutes(fastify: FastifyInstance) {
         tags: body.tags,
         maxPages: body.maxPages,
         wikiFileManager,
+        skipLlm: body.skipLlm,
       });
 
       reply.raw.write(`event: answer\ndata: ${JSON.stringify({ answer: result.answer })}\n\n`);
