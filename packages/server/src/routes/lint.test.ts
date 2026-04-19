@@ -231,4 +231,100 @@ describe("Lint Routes", () => {
       expect(body.data).toBeDefined();
     });
   });
+
+  describe("POST /api/lint/llm", () => {
+    it("should return LLM-enhanced lint report with POST method", async () => {
+      const response = await fastify.inject({
+        method: "POST",
+        url: "/api/lint/llm",
+        payload: {},
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body.data).toBeDefined();
+      expect(body.data.analyzedPages).toBeDefined();
+      expect(body.data.issues).toBeDefined();
+      expect(body.data.analyzedAt).toBeDefined();
+      expect(Array.isArray(body.data.issues)).toBe(true);
+      expect(Array.isArray(body.data.contradictions)).toBe(true);
+      expect(Array.isArray(body.data.missingConcepts)).toBe(true);
+      expect(Array.isArray(body.data.improvementSuggestions)).toBe(true);
+      expect(Array.isArray(body.data.newSourceSuggestions)).toBe(true);
+    });
+
+    it("should accept LLM lint options in body", async () => {
+      await createWikiPage("test", "Test Page", "concept", "Content for testing.");
+
+      const response = await fastify.inject({
+        method: "POST",
+        url: "/api/lint/llm",
+        payload: {
+          maxPagesToAnalyze: 5,
+          skipLlm: true,
+        },
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body.data).toBeDefined();
+      expect(body.data.analyzedPages).toBe(1);
+    });
+
+    it("should return basic report when skipLlm is true", async () => {
+      const response = await fastify.inject({
+        method: "POST",
+        url: "/api/lint/llm",
+        payload: {
+          skipLlm: true,
+        },
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body.data.modelUsed).toBeUndefined();
+    });
+  });
+
+  describe("GET /api/lint/llm", () => {
+    it("should return LLM-enhanced lint report with GET method", async () => {
+      const response = await fastify.inject({
+        method: "GET",
+        url: "/api/lint/llm",
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body.data).toBeDefined();
+      expect(body.data.analyzedPages).toBeDefined();
+      expect(body.data.issues).toBeDefined();
+    });
+
+    it("should accept query parameters for LLM lint", async () => {
+      await createWikiPage("test1", "Test Page 1", "concept", "Content 1.");
+      await createWikiPage("test2", "Test Page 2", "entity", "Content 2.");
+
+      const response = await fastify.inject({
+        method: "GET",
+        url: "/api/lint/llm?maxPagesToAnalyze=2&skipLlm=true",
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body.data).toBeDefined();
+    });
+
+    it("should handle empty wiki gracefully", async () => {
+      const response = await fastify.inject({
+        method: "GET",
+        url: "/api/lint/llm?skipLlm=true",
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body.data.analyzedPages).toBe(0);
+      expect(body.data.issues.length).toBeGreaterThan(0);
+      expect(body.data.newSourceSuggestions.length).toBeGreaterThan(0);
+    });
+  });
 });

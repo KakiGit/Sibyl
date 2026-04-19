@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { lintWiki, findOrphanPages, findStalePages, findMissingReferences, findPotentialConflicts, getLintHistory } from "../processors/lint.js";
+import { lintWiki, findOrphanPages, findStalePages, findMissingReferences, findPotentialConflicts, getLintHistory, lintWikiWithLlm } from "../processors/lint.js";
 
 const LintOptionsSchema = z.object({
   checkOrphans: z.coerce.boolean().optional(),
@@ -12,6 +12,11 @@ const LintOptionsSchema = z.object({
 
 const LintHistoryQuerySchema = z.object({
   limit: z.coerce.number().int().positive().max(50).optional(),
+});
+
+const LlmLintOptionsSchema = z.object({
+  maxPagesToAnalyze: z.coerce.number().int().positive().max(50).optional(),
+  skipLlm: z.coerce.boolean().optional(),
 });
 
 export async function registerLintRoutes(fastify: FastifyInstance) {
@@ -65,5 +70,19 @@ export async function registerLintRoutes(fastify: FastifyInstance) {
     const limit = query.success ? query.data.limit : 10;
     const history = await getLintHistory(limit);
     return { data: history };
+  });
+
+  fastify.post("/api/lint/llm", async (request) => {
+    const parseResult = LlmLintOptionsSchema.safeParse(request.body);
+    const options = parseResult.success ? parseResult.data : {};
+    const report = await lintWikiWithLlm(options);
+    return { data: report };
+  });
+
+  fastify.get("/api/lint/llm", async (request) => {
+    const query = LlmLintOptionsSchema.safeParse(request.query);
+    const options = query.success ? query.data : {};
+    const report = await lintWikiWithLlm(options);
+    return { data: report };
   });
 }

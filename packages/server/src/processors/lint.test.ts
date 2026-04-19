@@ -5,7 +5,7 @@ import { tmpdir } from "os";
 import { createDatabase, migrateDatabase, closeDatabase, setDatabase } from "../index.js";
 import { storage } from "../storage/index.js";
 import { WikiFileManager } from "../wiki/index.js";
-import { lintWiki, findOrphanPages, findMissingReferences, getLintHistory } from "./lint.js";
+import { lintWiki, findOrphanPages, findMissingReferences, getLintHistory, lintWikiWithLlm } from "./lint.js";
 
 let testDbDir: string;
 let testDbPath: string;
@@ -416,6 +416,107 @@ describe("Lint Processor", () => {
 
       expect(report.suggestions.length).toBeGreaterThan(0);
       expect(report.suggestions.some((s) => s.includes("orphan") || s.includes("missing"))).toBe(true);
+    });
+  });
+
+  describe("lintWikiWithLlm", () => {
+    it("should return basic report when skipLlm is true", async () => {
+      await createWikiPage("test", "Test Page", "concept", "Test content for LLM analysis.");
+
+      const report = await lintWikiWithLlm({
+        skipLlm: true,
+        wikiFileManager: getTestWikiManager(),
+      });
+
+      expect(report.analyzedPages).toBe(1);
+      expect(report.issues.length).toBeGreaterThan(0);
+      expect(report.modelUsed).toBeUndefined();
+      expect(report.contradictions.length).toBe(0);
+      expect(report.missingConcepts.length).toBe(0);
+    });
+
+    it("should return report for empty wiki when skipLlm is true", async () => {
+      const report = await lintWikiWithLlm({
+        skipLlm: true,
+        wikiFileManager: getTestWikiManager(),
+      });
+
+      expect(report.analyzedPages).toBe(0);
+      expect(report.issues.length).toBe(1);
+      expect(report.newSourceSuggestions.length).toBeGreaterThan(0);
+      expect(report.issues[0]?.type).toBe("new_source_suggestion");
+    });
+
+    it("should limit pages analyzed with maxPagesToAnalyze option", async () => {
+      await createWikiPage("page1", "Page 1", "concept", "Content 1.");
+      await createWikiPage("page2", "Page 2", "concept", "Content 2.");
+      await createWikiPage("page3", "Page 3", "concept", "Content 3.");
+
+      const report = await lintWikiWithLlm({
+        skipLlm: true,
+        maxPagesToAnalyze: 2,
+        wikiFileManager: getTestWikiManager(),
+      });
+
+      expect(report.analyzedPages).toBe(2);
+    });
+
+    it("should create processing log entry for LLM lint", async () => {
+      await createWikiPage("test", "Test Page", "concept", "Test content.");
+
+      await lintWikiWithLlm({
+        skipLlm: true,
+        wikiFileManager: getTestWikiManager(),
+      });
+
+      const logs = await storage.processingLog.findByOperation("lint");
+      const llmLog = logs.find((l) => l.details?.skipped === true);
+      expect(llmLog).toBeDefined();
+      expect(llmLog?.details?.analyzedPages).toBe(1);
+    });
+
+    it("should append to wiki log file with LLM-enhanced title", async () => {
+      await createWikiPage("test", "Test Page", "concept", "Test content.");
+
+      await lintWikiWithLlm({
+        skipLlm: true,
+        wikiFileManager: getTestWikiManager(),
+      });
+
+      const logEntries = getTestWikiManager().readLog();
+      const lastEntry = logEntries[logEntries.length - 1];
+      expect(lastEntry?.operation).toBe("lint");
+      expect(lastEntry?.title).toBe("LLM-Enhanced Wiki Health Check");
+    });
+
+    it("should return appropriate issue types", async () => {
+      await createWikiPage("test", "Test Page", "concept", "Test content.");
+
+      const report = await lintWikiWithLlm({
+        skipLlm: true,
+        wikiFileManager: getTestWikiManager(),
+      });
+
+      const issueTypes = report.issues.map((i) => i.type);
+      expect(issueTypes.some((t) => 
+        t === "content_contradiction" || 
+        t === "missing_concept_page" || 
+        t === "improvement_suggestion" || 
+        t === "new_source_suggestion"
+      )).toBe(true);
+    });
+
+    it("should handle null LLM provider gracefully", async () => {
+      await createWikiPage("test", "Test Page", "concept", "Test content.");
+
+      const report = await lintWikiWithLlm({
+        llmProvider: null,
+        skipLlm: true,
+        wikiFileManager: getTestWikiManager(),
+      });
+
+      expect(report.analyzedPages).toBe(1);
+      expect(report.modelUsed).toBeUndefined();
     });
   });
 });

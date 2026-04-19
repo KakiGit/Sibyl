@@ -223,6 +223,30 @@ When LLM is configured, the Web UI shows a "Use LLM enhancement" checkbox for in
 - Summary and tags extracted from content
 - Cross-references to existing wiki pages
 
+### LLM-Enhanced Lint
+
+Sibyl provides an LLM-enhanced lint endpoint for deeper wiki analysis:
+
+```bash
+# Run LLM-enhanced lint (requires LLM configuration)
+curl -X POST http://localhost:3000/api/lint/llm
+
+# Or with GET method
+curl http://localhost:3000/api/lint/llm
+
+# Skip LLM and get basic suggestions
+curl http://localhost:3000/api/lint/llm?skipLlm=true
+
+# Limit pages to analyze
+curl http://localhost:3000/api/lint/llm?maxPagesToAnalyze=5
+```
+
+When LLM is configured, the enhanced lint analyzes wiki content for:
+- Content contradictions between pages
+- Important concepts mentioned but lacking their own page
+- Improvement suggestions for existing pages
+- New sources or topics to investigate
+
 ## Project Structure
 
 ```

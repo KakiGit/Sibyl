@@ -1,5 +1,6 @@
 import { storage } from "../storage/index.js";
 import { wikiFileManager, WikiFileManager } from "../wiki/index.js";
+import { getLlmProvider, type LlmProvider } from "../llm/index.js";
 import { logger } from "@sibyl/shared";
 import type { WikiPage } from "@sibyl/sdk";
 
@@ -280,6 +281,281 @@ export async function findPotentialConflicts(wikiFileManager?: WikiFileManager):
   return report.potentialConflicts;
 }
 
+export interface LlmLintIssue {
+  type: "content_contradiction" | "missing_concept_page" | "improvement_suggestion" | "new_source_suggestion";
+  severity: "high" | "medium" | "low";
+  pageTitle?: string;
+  pageSlug?: string;
+  details: string;
+  suggestedAction?: string;
+  relatedPages?: string[];
+}
+
+export interface LlmLintReport {
+  analyzedPages: number;
+  issues: LlmLintIssue[];
+  contradictions: { page1: string; page2: string; description: string }[];
+  missingConcepts: { concept: string; mentionedIn: string[]; suggestedAction: string }[];
+  improvementSuggestions: { pageTitle: string; suggestion: string }[];
+  newSourceSuggestions: string[];
+  analyzedAt: number;
+  modelUsed?: string;
+}
+
+export interface LlmLintOptions {
+  llmProvider?: LlmProvider | null;
+  wikiFileManager?: WikiFileManager;
+  maxPagesToAnalyze?: number;
+  skipLlm?: boolean;
+}
+
+const LLM_LINT_SYSTEM_PROMPT = `You are a knowledge base quality analyst. Analyze wiki pages for issues and suggest improvements.
+
+Your task is to:
+1. Identify content contradictions between pages (statements that conflict with each other)
+2. Find important concepts mentioned but lacking their own wiki page
+3. Suggest improvements for existing pages
+4. Recommend new sources or topics to investigate
+
+Format your response as JSON:
+{
+  "contradictions": [
+    { "page1": "slug1", "page2": "slug2", "description": "what contradicts" }
+  ],
+  "missingConcepts": [
+    { "concept": "concept name", "mentionedIn": ["slug1", "slug2"], "suggestedAction": "what to do" }
+  ],
+  "improvementSuggestions": [
+    { "pageTitle": "title", "suggestion": "specific improvement" }
+  ],
+  "newSourceSuggestions": ["suggested source/topic 1", "suggested source/topic 2"]
+}
+
+Only return valid JSON. If no issues found, return empty arrays.`;
+
+function buildWikiPagesContext(pages: WikiPage[], wikiManager: WikiFileManager): string {
+  const pageContents: string[] = [];
+  
+  for (const page of pages) {
+    const content = wikiManager.readPage(page.type, page.slug);
+    if (content) {
+      const truncatedContent = content.content.length > 500 
+        ? content.content.slice(0, 500) + "..." 
+        : content.content;
+      pageContents.push(`---\n[[${page.slug}]] (${page.type}): ${page.title}\nSummary: ${page.summary || "N/A"}\nContent: ${truncatedContent}\n---`);
+    }
+  }
+  
+  return pageContents.join("\n\n");
+}
+
+export async function lintWikiWithLlm(options: LlmLintOptions = {}): Promise<LlmLintReport> {
+  const wikiManager = options.wikiFileManager || wikiFileManager;
+  const llmProvider = options.llmProvider ?? getLlmProvider();
+  const maxPages = options.maxPagesToAnalyze ?? 10;
+  const skipLlm = options.skipLlm ?? false;
+  
+  const allPages = await storage.wikiPages.findAll({ limit: 100 });
+  const pagesToAnalyze = allPages.slice(0, maxPages);
+  
+  if (skipLlm || !llmProvider) {
+    logger.warn("LLM-enhanced lint skipped: no LLM provider or skipLlm=true");
+    const report = generateBasicLlmLintReport(pagesToAnalyze);
+    
+    await storage.processingLog.create({
+      operation: "lint",
+      details: {
+        llmEnhanced: false,
+        analyzedPages: pagesToAnalyze.length,
+        skipped: true,
+      },
+    });
+    
+    wikiManager.appendToLog({
+      timestamp: new Date().toISOString().split("T")[0],
+      operation: "lint",
+      title: "LLM-Enhanced Wiki Health Check",
+      details: `Skipped LLM analysis for ${pagesToAnalyze.length} pages`,
+    });
+    
+    return report;
+  }
+  
+  if (pagesToAnalyze.length === 0) {
+    await storage.processingLog.create({
+      operation: "lint",
+      details: {
+        llmEnhanced: true,
+        analyzedPages: 0,
+        contradictionCount: 0,
+        missingConceptCount: 0,
+        suggestionCount: 0,
+      },
+    });
+    
+    wikiManager.appendToLog({
+      timestamp: new Date().toISOString().split("T")[0],
+      operation: "lint",
+      title: "LLM-Enhanced Wiki Health Check",
+      details: `No wiki pages to analyze`,
+    });
+    
+    return {
+      analyzedPages: 0,
+      issues: [],
+      contradictions: [],
+      missingConcepts: [],
+      improvementSuggestions: [],
+      newSourceSuggestions: ["Start by ingesting some raw resources to create wiki pages"],
+      analyzedAt: Date.now(),
+    };
+  }
+  
+  const wikiContext = buildWikiPagesContext(pagesToAnalyze, wikiManager);
+  
+  const userPrompt = `Analyze these wiki pages for quality issues:
+
+${wikiContext}
+
+Total pages in wiki: ${allPages.length}
+Pages being analyzed: ${pagesToAnalyze.length}
+
+Identify contradictions, missing concept pages, and suggest improvements. Return JSON only.`;
+  
+  try {
+    const response = await llmProvider.call(LLM_LINT_SYSTEM_PROMPT, userPrompt);
+    
+    const jsonMatch = response.content.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      logger.warn("LLM lint response doesn't contain valid JSON");
+      return generateBasicLlmLintReport(pagesToAnalyze);
+    }
+    
+    const parsed = JSON.parse(jsonMatch[0]) as Record<string, unknown>;
+    
+    const contradictions = Array.isArray(parsed.contradictions) 
+      ? (parsed.contradictions as Array<{ page1: string; page2: string; description: string }>)
+      : [];
+    
+    const missingConcepts = Array.isArray(parsed.missingConcepts)
+      ? (parsed.missingConcepts as Array<{ concept: string; mentionedIn: string[]; suggestedAction: string }>)
+      : [];
+    
+    const improvementSuggestions = Array.isArray(parsed.improvementSuggestions)
+      ? (parsed.improvementSuggestions as Array<{ pageTitle: string; suggestion: string }>)
+      : [];
+    
+    const newSourceSuggestions = Array.isArray(parsed.newSourceSuggestions)
+      ? (parsed.newSourceSuggestions as string[])
+      : [];
+    
+    const issues: LlmLintIssue[] = [];
+    
+    for (const c of contradictions) {
+      issues.push({
+        type: "content_contradiction",
+        severity: "high",
+        details: `Contradiction between [[${c.page1}]] and [[${c.page2}]]: ${c.description}`,
+        suggestedAction: "Review both pages and resolve the contradiction",
+        relatedPages: [c.page1, c.page2],
+      });
+    }
+    
+    for (const mc of missingConcepts) {
+      issues.push({
+        type: "missing_concept_page",
+        severity: "medium",
+        details: `Concept "${mc.concept}" is mentioned in ${mc.mentionedIn.length} pages but lacks its own page`,
+        suggestedAction: mc.suggestedAction,
+        relatedPages: mc.mentionedIn,
+      });
+    }
+    
+    for (const imp of improvementSuggestions) {
+      issues.push({
+        type: "improvement_suggestion",
+        severity: "low",
+        pageTitle: imp.pageTitle,
+        details: imp.suggestion,
+        suggestedAction: "Consider updating the page content",
+      });
+    }
+    
+    for (const source of newSourceSuggestions.slice(0, 5)) {
+      issues.push({
+        type: "new_source_suggestion",
+        severity: "low",
+        details: source,
+        suggestedAction: "Investigate this source to expand the knowledge base",
+      });
+    }
+    
+    const now = Date.now();
+    
+    await storage.processingLog.create({
+      operation: "lint",
+      details: {
+        llmEnhanced: true,
+        analyzedPages: pagesToAnalyze.length,
+        contradictionCount: contradictions.length,
+        missingConceptCount: missingConcepts.length,
+        suggestionCount: improvementSuggestions.length + newSourceSuggestions.length,
+        model: response.model,
+      },
+    });
+    
+    wikiManager.appendToLog({
+      timestamp: new Date().toISOString().split("T")[0],
+      operation: "lint",
+      title: "LLM-Enhanced Wiki Health Check",
+      details: `Analyzed ${pagesToAnalyze.length} pages with LLM, found ${issues.length} insights`,
+    });
+    
+    logger.info("LLM-enhanced lint completed", {
+      analyzedPages: pagesToAnalyze.length,
+      issueCount: issues.length,
+      model: response.model,
+    });
+    
+    return {
+      analyzedPages: pagesToAnalyze.length,
+      issues,
+      contradictions,
+      missingConcepts,
+      improvementSuggestions,
+      newSourceSuggestions,
+      analyzedAt: now,
+      modelUsed: response.model,
+    };
+  } catch (error) {
+    logger.error("LLM-enhanced lint failed", { error: (error as Error).message });
+    return generateBasicLlmLintReport(pagesToAnalyze);
+  }
+}
+
+function generateBasicLlmLintReport(pages: WikiPage[]): LlmLintReport {
+  const suggestions: string[] = [];
+  
+  if (pages.length === 0) {
+    suggestions.push("No wiki pages found. Start by ingesting raw resources.");
+  } else {
+    suggestions.push("Configure LLM for enhanced analysis (set ~/.llm_secrets or environment variables)");
+    suggestions.push("Use the basic lint endpoints to check for orphans and missing references");
+  }
+  
+  return {
+    analyzedPages: pages.length,
+    issues: pages.length === 0 
+      ? [{ type: "new_source_suggestion", severity: "medium", details: "No wiki pages to analyze", suggestedAction: "Ingest raw resources to create wiki pages" }]
+      : [{ type: "improvement_suggestion", severity: "low", details: "LLM-enhanced analysis not available", suggestedAction: "Configure LLM provider for deeper analysis" }],
+    contradictions: [],
+    missingConcepts: [],
+    improvementSuggestions: [],
+    newSourceSuggestions: suggestions,
+    analyzedAt: Date.now(),
+  };
+}
+
 export async function getLintHistory(limit: number = 10): Promise<{
   totalPages: number;
   totalPagesWithIssues: number;
@@ -307,4 +583,5 @@ export const lintProcessor = {
   findMissingReferences,
   findPotentialConflicts,
   getLintHistory,
+  lintWikiWithLlm,
 };
