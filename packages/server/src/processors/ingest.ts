@@ -1,6 +1,6 @@
 import { readFileSync, existsSync } from "fs";
 import { storage } from "../storage/index.js";
-import { wikiFileManager, WikiFileManager } from "../wiki/index.js";
+import { wikiFileManager, WikiFileManager, syncWikiLinks } from "../wiki/index.js";
 import { logger } from "@sibyl/shared";
 import { generateWikiContent, type LlmGeneratedContent } from "./llm-content.js";
 import type { LlmProvider } from "../llm/index.js";
@@ -190,6 +190,8 @@ export async function ingestRawResource(options: IngestOptions): Promise<IngestR
       sourceIds: wikiPageContent.sourceIds,
     });
 
+    await syncWikiLinks(existingPage.id, content);
+
     await storage.rawResources.update(rawResource.id, { processed: true });
 
     await storage.processingLog.create({
@@ -251,6 +253,8 @@ export async function ingestRawResource(options: IngestOptions): Promise<IngestR
     tags,
     sourceIds: [rawResource.id],
   });
+
+  await syncWikiLinks(dbPage.id, content);
 
   await storage.rawResources.update(rawResource.id, { processed: true });
 
@@ -416,6 +420,8 @@ export async function ingestWithLlm(options: IngestOptions): Promise<IngestResul
       sourceIds: updatedPageContent.sourceIds,
     });
 
+    await syncWikiLinks(existingPage.id, wikiContent);
+
     await createCrossReferenceLinks(existingPage.id, generatedContent.crossReferences);
 
     await storage.rawResources.update(rawResource.id, { processed: true });
@@ -481,6 +487,8 @@ export async function ingestWithLlm(options: IngestOptions): Promise<IngestResul
     tags,
     sourceIds: [rawResource.id],
   });
+
+  await syncWikiLinks(dbPage.id, wikiContent);
 
   await createCrossReferenceLinks(dbPage.id, generatedContent.crossReferences);
 

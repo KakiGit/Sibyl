@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { storage } from "../storage/index.js";
-import { wikiFileManager } from "../wiki/index.js";
+import { wikiFileManager, syncWikiLinks } from "../wiki/index.js";
 import { WikiPageTypeSchema } from "@sibyl/sdk";
 
 const CreateWikiPageSchema = z.object({
@@ -207,6 +207,8 @@ export async function registerWikiPageRoutes(fastify: FastifyInstance) {
     };
 
     wikiFileManager.updatePage(updatedPageContent);
+
+    await syncWikiLinks(params.id, body.content);
 
     if (body.title && body.title !== existing.title) {
       await storage.wikiPages.update(params.id, {
