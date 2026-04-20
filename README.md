@@ -298,6 +298,8 @@ export default {
 - `memory_ingest`: Ingest text content
 - `memory_query`: Query the knowledge base
 - `memory_log`: Get processing log entries
+- `memory_filing`: File content or analysis as a wiki page
+- `memory_filing_history`: Get filing history
 
 ### Auto-Inject Context
 
@@ -328,6 +330,8 @@ The MCP server provides the following tools for MCP clients (like Claude Code, C
 - `memory_raw_save`: Save raw content for later processing
 - `memory_query`: Query the knowledge base with a question and return relevant pages
 - `memory_log`: Get processing log entries
+- `memory_filing`: File content or analysis as a new wiki page with links to source pages
+- `memory_filing_history`: Get history of recently filed wiki pages
 
 #### LLM-Enhanced Ingest via MCP
 
@@ -347,6 +351,37 @@ When `useLlm` is `true` and LLM is configured, the tool:
 - Extracts summary and tags from the content
 - Creates cross-references to existing wiki pages
 - Returns `crossReferences` array indicating linked pages
+
+#### Filing Content via MCP
+
+The `memory_filing` MCP tool allows saving valuable content or analysis back into the wiki:
+
+```json
+{
+  "title": "My Analysis Summary",
+  "content": "This analysis shows important trends...",
+  "type": "summary",
+  "tags": ["analysis", "important"],
+  "sourcePageSlugs": ["original-data", "source-concept"],
+  "summary": "Brief summary of the filed content"
+}
+```
+
+When filing content:
+- Creates a wiki page with links to source pages
+- Supports all wiki page types: entity, concept, source, summary
+- Creates wiki links to referenced source pages
+- Generates processing log entries
+
+To retrieve filing history:
+
+```json
+{
+  "limit": 10
+}
+```
+
+Returns recently filed pages with titles, slugs, and timestamps.
 
 ## Testing
 

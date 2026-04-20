@@ -451,4 +451,94 @@ export function registerMcpTools(server: McpServer) {
       };
     }
   );
+
+  server.tool(
+    "memory_filing",
+    "File content or analysis as a new wiki page. Useful for saving valuable answers, comparisons, or analyses back into the knowledge base. Creates links to source pages.",
+    {
+      title: z.string().describe("Title for the wiki page to create"),
+      content: z.string().describe("Content to file as the wiki page"),
+      type: z.enum(["entity", "concept", "source", "summary"]).optional().default("summary").describe("Type of wiki page (defaults to 'summary')"),
+      tags: z.array(z.string()).optional().describe("Tags for categorization"),
+      sourcePageSlugs: z.array(z.string()).optional().describe("Slugs of existing wiki pages to link as sources"),
+      summary: z.string().optional().describe("Brief summary of the content"),
+    },
+    async ({ title, content, type, tags, sourcePageSlugs, summary }) => {
+      const { fileContent } = await import("../processors/filing.js");
+
+      const sourcePageIds: string[] = [];
+      const linkedSlugs: string[] = [];
+
+      if (sourcePageSlugs && sourcePageSlugs.length > 0) {
+        for (const slug of sourcePageSlugs) {
+          const page = await storage.wikiPages.findBySlug(slug);
+          if (page) {
+            sourcePageIds.push(page.id);
+            linkedSlugs.push(slug);
+          }
+        }
+      }
+
+      const result = await fileContent({
+        title,
+        content,
+        type: type || "summary",
+        tags: tags || [],
+        sourcePageIds,
+        wikiFileManager,
+        summary,
+      });
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({
+              success: true,
+              wikiPageId: result.wikiPageId,
+              slug: result.slug,
+              title: result.title,
+              type: result.type,
+              linkedPages: linkedSlugs,
+              linkedCount: result.linkedPages.length,
+              filedAt: result.filedAt,
+              message: `Filed content as wiki page with ${result.linkedPages.length} linked source pages`,
+            }),
+          },
+        ],
+      };
+    }
+  );
+
+  server.tool(
+    "memory_filing_history",
+    "Get history of recently filed wiki pages. Shows what content has been saved to the wiki through filing operations.",
+    {
+      limit: z.number().int().positive().max(20).default(10).describe("Maximum number of history entries to return"),
+    },
+    async ({ limit }) => {
+      const { getFilingHistory } = await import("../processors/filing.js");
+
+      const history = await getFilingHistory(limit);
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({
+              success: true,
+              count: history.length,
+              history: history.map((entry) => ({
+                wikiPageId: entry.wikiPageId,
+                title: entry.title,
+                slug: entry.slug,
+                filedAt: entry.filedAt,
+                filedAtDate: new Date(entry.filedAt).toISOString(),
+              })),
+            }),
+          },
+        ],
+      };
+    }
+  );
 }

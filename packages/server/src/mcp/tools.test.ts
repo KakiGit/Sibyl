@@ -1123,4 +1123,362 @@ it("should handle complex filename for slug generation", async () => {
       expect(result.generatedContent.title).toBe("LLM Generated Page");
     });
   });
+
+  describe("memory_filing", () => {
+    async function fileContent(
+      title: string,
+      content: string,
+      type?: string,
+      tags?: string[],
+      sourcePageSlugs?: string[],
+      summary?: string,
+      wikiManager?: WikiFileManager
+    ) {
+      const { fileContent: filingProcessor } = await import("../processors/filing.js");
+
+      const sourcePageIds: string[] = [];
+      const linkedSlugs: string[] = [];
+
+      if (sourcePageSlugs && sourcePageSlugs.length > 0) {
+        for (const slug of sourcePageSlugs) {
+          const page = await storage.wikiPages.findBySlug(slug);
+          if (page) {
+            sourcePageIds.push(page.id);
+            linkedSlugs.push(slug);
+          }
+        }
+      }
+
+      const result = await filingProcessor({
+        title,
+        content,
+        type: (type || "summary") as "entity" | "concept" | "source" | "summary",
+        tags: tags || [],
+        sourcePageIds,
+        wikiFileManager: wikiManager,
+        summary,
+      });
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({
+              success: true,
+              wikiPageId: result.wikiPageId,
+              slug: result.slug,
+              title: result.title,
+              type: result.type,
+              linkedPages: linkedSlugs,
+              linkedCount: result.linkedPages.length,
+              filedAt: result.filedAt,
+              message: `Filed content as wiki page with ${result.linkedPages.length} linked source pages`,
+            }),
+          },
+        ],
+      };
+    }
+
+    it("should file content as a new wiki page", async () => {
+      const result = await fileContent("My Analysis", "This is an analysis of the data showing important trends.", undefined, undefined, undefined, undefined, wikiManager);
+
+      const text = result.content[0].text as string;
+      const data = JSON.parse(text);
+      expect(data.success).toBe(true);
+      expect(data.slug).toBe("my-analysis");
+      expect(data.type).toBe("summary");
+      expect(data.message).toContain("Filed content");
+
+      const page = await storage.wikiPages.findBySlug("my-analysis");
+      expect(page).not.toBeNull();
+      expect(page?.title).toBe("My Analysis");
+      expect(page?.type).toBe("summary");
+    });
+
+    it("should file content with specific type", async () => {
+      const result = await fileContent("Important Entity", "Description of an important entity.", "entity", undefined, undefined, undefined, wikiManager);
+
+      const text = result.content[0].text as string;
+      const data = JSON.parse(text);
+      expect(data.type).toBe("entity");
+
+      const page = await storage.wikiPages.findBySlug("important-entity");
+      expect(page?.type).toBe("entity");
+    });
+
+    it("should file content with tags", async () => {
+      const result = await fileContent("Tagged Summary", "Content with tags.", undefined, ["important", "analysis", "data"], undefined, undefined, wikiManager);
+
+      const text = result.content[0].text as string;
+      const data = JSON.parse(text);
+      expect(data.success).toBe(true);
+
+      const page = await storage.wikiPages.findBySlug("tagged-summary");
+      expect(page?.tags).toContain("important");
+      expect(page?.tags).toContain("analysis");
+      expect(page?.tags).toContain("data");
+    });
+
+    it("should link to existing source pages", async () => {
+      await storage.wikiPages.create({
+        slug: "source-concept",
+        title: "Source Concept",
+        type: "concept",
+        contentPath: join(testWikiDir, "concepts/source-concept.md"),
+        summary: "A concept used as source",
+      });
+
+      await storage.wikiPages.create({
+        slug: "source-entity",
+        title: "Source Entity",
+        type: "entity",
+        contentPath: join(testWikiDir, "entities/source-entity.md"),
+        summary: "An entity used as source",
+      });
+
+      wikiManager.createPage({
+        title: "Source Concept",
+        type: "concept",
+        slug: "source-concept",
+        content: "Concept content",
+        tags: [],
+        sourceIds: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      wikiManager.createPage({
+        title: "Source Entity",
+        type: "entity",
+        slug: "source-entity",
+        content: "Entity content",
+        tags: [],
+        sourceIds: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      const result = await fileContent("Combined Analysis", "Analysis combining both sources.", "summary", ["analysis"], ["source-concept", "source-entity"], undefined, wikiManager);
+
+      const text = result.content[0].text as string;
+      const data = JSON.parse(text);
+      expect(data.success).toBe(true);
+      expect(data.linkedPages).toContain("source-concept");
+      expect(data.linkedPages).toContain("source-entity");
+      expect(data.linkedCount).toBe(2);
+
+      const links = await storage.wikiLinks.findByFromPageId(data.wikiPageId);
+      expect(links.length).toBe(2);
+    });
+
+    it("should ignore non-existent source page slugs", async () => {
+      await storage.wikiPages.create({
+        slug: "existing-page",
+        title: "Existing Page",
+        type: "concept",
+        contentPath: join(testWikiDir, "concepts/existing-page.md"),
+      });
+
+      wikiManager.createPage({
+        title: "Existing Page",
+        type: "concept",
+        slug: "existing-page",
+        content: "Existing content",
+        tags: [],
+        sourceIds: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      const result = await fileContent("Partial Links", "Content with partial sources.", undefined, undefined, ["existing-page", "non-existent-page"], undefined, wikiManager);
+
+      const text = result.content[0].text as string;
+      const data = JSON.parse(text);
+      expect(data.success).toBe(true);
+      expect(data.linkedPages).toContain("existing-page");
+      expect(data.linkedPages).not.toContain("non-existent-page");
+      expect(data.linkedCount).toBe(1);
+    });
+
+    it("should file content with custom summary", async () => {
+      const result = await fileContent("Custom Summary Page", "Full content here.", undefined, undefined, undefined, "A brief custom summary for this page.", wikiManager);
+
+      const page = await storage.wikiPages.findBySlug("custom-summary-page");
+      expect(page?.summary).toBe("A brief custom summary for this page.");
+    });
+
+    it("should create wiki links to source pages", async () => {
+      await storage.wikiPages.create({
+        slug: "link-source",
+        title: "Link Source",
+        type: "concept",
+        contentPath: join(testWikiDir, "concepts/link-source.md"),
+      });
+
+      wikiManager.createPage({
+        title: "Link Source",
+        type: "concept",
+        slug: "link-source",
+        content: "Source content",
+        tags: [],
+        sourceIds: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      await fileContent("Linked Page", "Content that links to source.", undefined, undefined, ["link-source"], undefined, wikiManager);
+
+      const linkedPage = await storage.wikiPages.findBySlug("linked-page");
+      const links = await storage.wikiLinks.findByFromPageId(linkedPage!.id);
+      
+      expect(links.length).toBe(1);
+      expect(links[0].relationType).toBe("reference");
+    });
+
+    it("should create processing log entry", async () => {
+      await fileContent("Logged Filing", "Content for logging test.", undefined, undefined, undefined, undefined, wikiManager);
+
+      const logs = await storage.processingLog.findByOperation("filing");
+      const filingLog = logs.find((l) => l.details?.slug === "logged-filing");
+      expect(filingLog).toBeDefined();
+      expect(filingLog?.details?.action).toBe("created");
+    });
+
+    it("should write content to disk", async () => {
+      await fileContent("Disk Filing", "This content should be written to disk.", undefined, undefined, undefined, undefined, wikiManager);
+
+      const page = await storage.wikiPages.findBySlug("disk-filing");
+      const pageContent = wikiManager.readPage(page?.type || "summary", "disk-filing");
+      expect(pageContent?.content).toContain("This content should be written to disk");
+    });
+
+    it("should update existing page when filing same title", async () => {
+      await fileContent("Update Test", "Original content.", undefined, undefined, undefined, undefined, wikiManager);
+
+      const firstPage = await storage.wikiPages.findBySlug("update-test");
+      expect(firstPage).not.toBeNull();
+
+      await fileContent("Update Test", "Updated content for the same page.", undefined, ["updated"], undefined, undefined, wikiManager);
+
+      const updatedPage = await storage.wikiPages.findBySlug("update-test");
+      expect(updatedPage?.updatedAt).toBeGreaterThan(firstPage?.updatedAt || 0);
+      expect(updatedPage?.tags).toContain("updated");
+
+      const logs = await storage.processingLog.findByOperation("filing");
+      const updateLog = logs.find((l) => l.details?.slug === "update-test" && l.details?.action === "updated");
+      expect(updateLog).toBeDefined();
+    });
+  });
+
+  describe("memory_filing_history", () => {
+    async function getFilingHistory(limit?: number) {
+      const { getFilingHistory: filingHistoryProcessor } = await import("../processors/filing.js");
+
+      const history = await filingHistoryProcessor(limit || 10);
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({
+              success: true,
+              count: history.length,
+              history: history.map((entry) => ({
+                wikiPageId: entry.wikiPageId,
+                title: entry.title,
+                slug: entry.slug,
+                filedAt: entry.filedAt,
+                filedAtDate: new Date(entry.filedAt).toISOString(),
+              })),
+            }),
+          },
+        ],
+      };
+    }
+
+    it("should return empty history when no filings exist", async () => {
+      const result = await getFilingHistory();
+      const text = result.content[0].text as string;
+      const data = JSON.parse(text);
+      expect(data.success).toBe(true);
+      expect(data.count).toBe(0);
+      expect(data.history).toHaveLength(0);
+    });
+
+    it("should return filing history entries", async () => {
+      const { fileContent: filingProcessor } = await import("../processors/filing.js");
+
+      await filingProcessor({
+        title: "First Filed Page",
+        content: "First content",
+        type: "summary",
+        wikiFileManager: wikiManager,
+      });
+
+      await filingProcessor({
+        title: "Second Filed Page",
+        content: "Second content",
+        type: "summary",
+        wikiFileManager: wikiManager,
+      });
+
+      const result = await getFilingHistory(10);
+      const text = result.content[0].text as string;
+      const data = JSON.parse(text);
+      expect(data.success).toBe(true);
+      expect(data.count).toBe(2);
+      expect(data.history).toContainEqual(expect.objectContaining({ title: "First Filed Page" }));
+      expect(data.history).toContainEqual(expect.objectContaining({ title: "Second Filed Page" }));
+    });
+
+    it("should respect limit parameter", async () => {
+      const { fileContent: filingProcessor } = await import("../processors/filing.js");
+
+      for (let i = 0; i < 15; i++) {
+        await filingProcessor({
+          title: `History Page ${i}`,
+          content: `Content ${i}`,
+          type: "summary",
+          wikiFileManager: wikiManager,
+        });
+      }
+
+      const result = await getFilingHistory(5);
+      const text = result.content[0].text as string;
+      const data = JSON.parse(text);
+      expect(data.count).toBe(5);
+    });
+
+    it("should include ISO formatted dates", async () => {
+      const { fileContent: filingProcessor } = await import("../processors/filing.js");
+
+      await filingProcessor({
+        title: "Date Test Page",
+        content: "Testing date format",
+        type: "summary",
+        wikiFileManager: wikiManager,
+      });
+
+      const result = await getFilingHistory(1);
+      const text = result.content[0].text as string;
+      const data = JSON.parse(text);
+      expect(data.history[0].filedAtDate).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
+    });
+
+    it("should include wiki page IDs in history", async () => {
+      const { fileContent: filingProcessor } = await import("../processors/filing.js");
+
+      const filingResult = await filingProcessor({
+        title: "ID Test Page",
+        content: "Testing IDs",
+        type: "summary",
+        wikiFileManager: wikiManager,
+      });
+
+      const result = await getFilingHistory(1);
+      const text = result.content[0].text as string;
+      const data = JSON.parse(text);
+      expect(data.history[0].wikiPageId).toBe(filingResult.wikiPageId);
+    });
+  });
 });
