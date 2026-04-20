@@ -56,6 +56,34 @@ curl http://localhost:3000/api/wiki-log?limit=10
 curl -X POST http://localhost:3000/api/wiki-index/rebuild
 ```
 
+### Raw Resource Index API
+
+The server maintains a file-based index of raw resources at `data/raw/index.json`:
+
+```bash
+# Get raw resource index (file-based catalog of all raw resources)
+curl http://localhost:3000/api/raw-index
+
+# Get raw resource index statistics
+curl http://localhost:3000/api/raw-index/stats
+
+# Get unprocessed raw resources
+curl http://localhost:3000/api/raw-index/unprocessed
+
+# Get resources by type
+curl http://localhost:3000/api/raw-index/pdf
+curl http://localhost:3000/api/raw-index/webpage
+
+# Rebuild raw resource index from database
+curl -X POST http://localhost:3000/api/raw-index/rebuild
+```
+
+The raw resource index provides:
+- File-based metadata backup for raw resources
+- Quick offline browsing without database queries
+- Statistics by resource type (pdf, image, webpage, text)
+- Processing status tracking
+
 ### Schema API
 
 The schema defines wiki structure and LLM processing rules:
@@ -526,6 +554,10 @@ sibyl/
 │   └── shared/      # Utilities
 ├── data/
 │   ├── raw/         # Raw resources
+│   │   ├── documents/  # PDFs, text files
+│   │   ├── webpages/   # Saved web content
+│   │   ├── thumbnails/ # Image thumbnails
+│   │   └── index.json  # File-based raw resource index
 │   ├── wiki/        # Wiki pages
 │   ├── schema/      # Schema configuration
 │   └── db/          # SQLite database

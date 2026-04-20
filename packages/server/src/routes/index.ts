@@ -12,6 +12,7 @@ import { registerWikiMetaRoutes } from "./wiki-meta.js";
 import { registerSchemaRoutes } from "./schema.js";
 import { registerSearchRoutes } from "./search.js";
 import { registerAuthRoutes } from "./auth.js";
+import { registerRawIndexRoutes } from "./raw-index.js";
 import { requireAuth } from "../auth/middleware.js";
 import { getWebSocketStats } from "../websocket/index.js";
 
@@ -38,6 +39,7 @@ export async function registerRoutes(fastify: FastifyInstance) {
   await registerWikiMetaRoutes(fastify);
   await registerSchemaRoutes(fastify);
   await registerSearchRoutes(fastify);
+  await registerRawIndexRoutes(fastify);
 
   fastify.get("/api/health", async () => {
     return { status: "ok", timestamp: Date.now() };

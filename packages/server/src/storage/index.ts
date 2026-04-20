@@ -23,6 +23,7 @@ import {
   broadcastRawResourceCreated,
   broadcastProcessingLogCreated,
 } from "../websocket/broadcaster.js";
+import { rawResourceFileManager } from "../raw/index.js";
 
 export class RawResourceStorage {
   async create(input: CreateRawResourceInput): Promise<RawResource> {
@@ -53,6 +54,7 @@ export class RawResourceStorage {
     });
 
     broadcastRawResourceCreated({ id: resource.id, type: resource.type, filename: resource.filename });
+    rawResourceFileManager.addToIndex(resource);
     logger.debug("Created raw resource", { id: resource.id, type: resource.type });
     return resource;
   }
@@ -121,6 +123,7 @@ export class RawResourceStorage {
 
     if (Object.keys(updateData).length > 0) {
       await db.update(rawResources).set(updateData).where(eq(rawResources.id, id));
+      rawResourceFileManager.updateInIndex({ ...existing, ...updates });
       logger.debug("Updated raw resource", { id });
     }
 
@@ -129,7 +132,11 @@ export class RawResourceStorage {
 
   async delete(id: string): Promise<boolean> {
     const db = getDatabase();
+    const existing = await this.findById(id);
     await db.delete(rawResources).where(eq(rawResources.id, id));
+    if (existing) {
+      rawResourceFileManager.removeFromIndex(id);
+    }
     logger.debug("Deleted raw resource", { id });
     return true;
   }
