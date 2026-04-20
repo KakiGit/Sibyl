@@ -6,10 +6,13 @@ env.useBrowserCache = false;
 
 const DEFAULT_MODEL = "Xenova/all-MiniLM-L6-v2";
 const EMBEDDING_DIMENSION = 384;
+const MAX_CONTENT_LENGTH = 1000;
+const DEFAULT_BATCH_SIZE = 8;
 
 export interface EmbeddingOptions {
   model?: string;
   batchSize?: number;
+  maxConcurrency?: number;
 }
 
 export interface EmbeddingResult {
@@ -17,6 +20,12 @@ export interface EmbeddingResult {
   model: string;
   dimension: number;
   contentHash: string;
+}
+
+export interface BatchProgress {
+  processed: number;
+  total: number;
+  percentage: number;
 }
 
 let embedder: any = null;
@@ -87,8 +96,8 @@ export async function generateEmbedding(
   }
   
   try {
-    const truncatedContent = content.length > 1000 
-      ? content.slice(0, 1000) 
+    const truncatedContent = content.length > MAX_CONTENT_LENGTH 
+      ? content.slice(0, MAX_CONTENT_LENGTH) 
       : content;
     
     const output = await embedderInstance(truncatedContent, {
@@ -125,18 +134,76 @@ export async function generateEmbedding(
 
 export async function generateEmbeddingsBatch(
   contents: string[],
+  options?: EmbeddingOptions,
+  onProgress?: (progress: BatchProgress) => void
+): Promise<(EmbeddingResult | null)[]> {
+  const concurrencyLimit = options?.maxConcurrency ?? 4;
+  const batchSize = options?.batchSize ?? DEFAULT_BATCH_SIZE;
+  
+  const results: (EmbeddingResult | null)[] = new Array(contents.length);
+  let processedCount = 0;
+  
+  const chunks: string[][] = [];
+  for (let i = 0; i < contents.length; i += batchSize) {
+    chunks.push(contents.slice(i, i + batchSize));
+  }
+  
+  async function processChunk(chunkIndex: number, chunk: string[]): Promise<void> {
+    const startIndex = chunkIndex * batchSize;
+    for (let i = 0; i < chunk.length; i++) {
+      const globalIndex = startIndex + i;
+      results[globalIndex] = await generateEmbedding(chunk[i], options);
+      processedCount++;
+      
+      if (onProgress) {
+        if (processedCount % 5 === 0 || processedCount === contents.length) {
+          onProgress({
+            processed: processedCount,
+            total: contents.length,
+            percentage: Math.round((processedCount / contents.length) * 100),
+          });
+        }
+      }
+    }
+  }
+  
+  const workerPromises: Promise<void>[] = [];
+  let chunkIndex = 0;
+  
+  while (chunkIndex < chunks.length) {
+    if (workerPromises.length < concurrencyLimit) {
+      const currentChunkIndex = chunkIndex++;
+      workerPromises.push(processChunk(currentChunkIndex, chunks[currentChunkIndex]));
+    } else {
+      await Promise.race(workerPromises);
+      for (let j = workerPromises.length - 1; j >= 0; j--) {
+        const promise = workerPromises[j];
+        const result = await Promise.race([promise, Promise.resolve("pending")]);
+        if (result !== "pending") {
+          workerPromises.splice(j, 1);
+        }
+      }
+    }
+  }
+  
+  await Promise.all(workerPromises);
+  
+  return results;
+}
+
+export async function generateEmbeddingsParallel(
+  contents: string[],
   options?: EmbeddingOptions
 ): Promise<(EmbeddingResult | null)[]> {
-  const concurrencyLimit = options?.batchSize ?? 4;
+  const concurrencyLimit = options?.maxConcurrency ?? 4;
   
-  const results: (EmbeddingResult | null)[] = new Array(contents.length).fill(null);
+  const results: (EmbeddingResult | null)[] = new Array(contents.length);
   let currentIndex = 0;
   
   async function processNext(): Promise<void> {
     while (currentIndex < contents.length) {
       const index = currentIndex++;
-      const content = contents[index];
-      results[index] = await generateEmbedding(content, options);
+      results[index] = await generateEmbedding(contents[index], options);
     }
   }
   

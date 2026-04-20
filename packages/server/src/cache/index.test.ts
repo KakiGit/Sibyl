@@ -60,21 +60,36 @@ describe("Cache", () => {
     expect(cache.size()).toBe(5);
   });
 
-  it("should evict oldest entries when limit reached", () => {
-    cache.set("key1", "value1", 100);
-    cache.set("key2", "value2", 200);
+  it("should evict least recently used entries when limit reached", () => {
+    cache.set("key1", "value1");
+    cache.set("key2", "value2");
     cache.set("key3", "value3");
     cache.set("key4", "value4");
     cache.set("key5", "value5");
     
-    vi.useFakeTimers();
-    vi.advanceTimersByTime(50);
+    cache.get("key1");
+    cache.get("key2");
     
     cache.set("key6", "value6");
     
-    expect(cache.has("key1")).toBe(false);
+    expect(cache.has("key1")).toBe(true);
+    expect(cache.has("key2")).toBe(true);
+    expect(cache.has("key3")).toBe(false);
     
-    vi.useRealTimers();
+    cache.set("key7", "value7");
+    
+    expect(cache.has("key4")).toBe(false);
+  });
+
+  it("should provide cache stats", () => {
+    cache.set("key1", "value1");
+    cache.set("key2", "value2");
+    
+    const stats = cache.getStats();
+    expect(stats.size).toBe(2);
+    expect(stats.maxEntries).toBe(5);
+    expect(stats.oldestKey).toBe("key1");
+    expect(stats.newestKey).toBe("key2");
   });
 
   it("should support custom TTL for individual entries", () => {

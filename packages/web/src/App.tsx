@@ -1,5 +1,9 @@
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { FileText, Brain, BookOpen, Layers, Search, Upload, Activity, FileDown, Network, Filter, Shield, Archive, BarChart3, Presentation } from "lucide-react";
+import { 
+  FileText, Brain, BookOpen, Layers, Search, Upload, Network, 
+  Settings, Home, ChevronRight, Keyboard
+} from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { WikiPageList } from "@/components/wiki-page-list";
 import { QuerySynthesis } from "@/components/query-synthesis";
@@ -14,17 +18,18 @@ import { RawResourceList } from "@/components/raw-resource-list";
 import { WikiStatsView } from "@/components/wiki-stats";
 import { MarpSlides } from "@/components/marp-slides";
 import { ToastProvider } from "@/components/toast";
+import { useKeyboardShortcuts, KeyboardShortcut } from "@/hooks/use-keyboard-shortcuts";
 
 async function fetchStats() {
-  const response = await fetch("/api/wiki-pages");
+  const response = await fetch("/api/wiki-stats");
   if (!response.ok) throw new Error("Failed to fetch stats");
   const data = await response.json();
   return {
-    total: data.data?.length || 0,
-    entities: data.data?.filter((p: unknown) => (p as { type: string }).type === "entity").length || 0,
-    concepts: data.data?.filter((p: unknown) => (p as { type: string }).type === "concept").length || 0,
-    sources: data.data?.filter((p: unknown) => (p as { type: string }).type === "source").length || 0,
-    summaries: data.data?.filter((p: unknown) => (p as { type: string }).type === "summary").length || 0,
+    total: data.data?.totalPages || 0,
+    entities: data.data?.pagesByType?.entity || 0,
+    concepts: data.data?.pagesByType?.concept || 0,
+    sources: data.data?.pagesByType?.source || 0,
+    summaries: data.data?.pagesByType?.summary || 0,
   };
 }
 
@@ -94,109 +99,183 @@ function Dashboard() {
   );
 }
 
-function WikiPages() {
+const TABS_CONFIG = [
+  { id: "overview", label: "Overview", icon: Home },
+  { id: "search", label: "Search", icon: Search },
+  { id: "ingest", label: "Ingest", icon: Upload },
+  { id: "pages", label: "Wiki Pages", icon: BookOpen },
+  { id: "graph", label: "Graph", icon: Network },
+  { id: "tools", label: "Tools", icon: Settings },
+] as const;
+
+function ShortcutHelp({ shortcuts }: { shortcuts: KeyboardShortcut[] }) {
   return (
-    <div className="space-y-4">
-      <WikiPageList />
+    <div className="p-4 bg-muted/50 rounded-lg">
+      <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
+        <Keyboard className="h-4 w-4" />
+        Keyboard Shortcuts
+      </h4>
+      <div className="grid gap-1 text-xs">
+        {shortcuts.map((shortcut, index) => (
+          <div key={index} className="flex justify-between">
+            <span className="text-muted-foreground">{shortcut.description}</span>
+            <span className="font-mono">{shortcut.key}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
 
+function SidebarTab({
+  label,
+  icon: Icon,
+  active,
+  onClick,
+}: {
+  label: string;
+  icon: React.ElementType;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
+        active
+          ? "bg-primary text-primary-foreground"
+          : "hover:bg-muted text-muted-foreground hover:text-foreground"
+      }`}
+    >
+      <Icon className="h-4 w-4" />
+      <span>{label}</span>
+      {active && <ChevronRight className="h-3 w-3 ml-auto" />}
+    </button>
+  );
+}
+
 export default function App() {
+  const [activeTab, setActiveTab] = useState("overview");
+  const [showShortcuts, setShowShortcuts] = useState(false);
+
+  const shortcuts: KeyboardShortcut[] = useMemo(() => [
+    { key: "1", ctrl: true, action: () => setActiveTab("overview"), description: "Overview" },
+    { key: "2", ctrl: true, action: () => setActiveTab("search"), description: "Search" },
+    { key: "3", ctrl: true, action: () => setActiveTab("ingest"), description: "Ingest" },
+    { key: "4", ctrl: true, action: () => setActiveTab("pages"), description: "Wiki Pages" },
+    { key: "5", ctrl: true, action: () => setActiveTab("graph"), description: "Graph" },
+    { key: "6", ctrl: true, action: () => setActiveTab("tools"), description: "Tools" },
+    { key: "/", ctrl: true, action: () => setActiveTab("search"), description: "Quick search" },
+    { key: "?", shift: true, action: () => setShowShortcuts((prev) => !prev), description: "Show shortcuts" },
+  ], []);
+
+  useKeyboardShortcuts(shortcuts);
+
   return (
     <ToastProvider>
-      <div className="min-h-screen bg-background">
-        <header className="border-b">
-          <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight">Sibyl</h1>
-              <p className="text-muted-foreground text-sm">
-                Memory System for Knowledge Management
-              </p>
-            </div>
-            <WebSocketStatus />
+      <div className="min-h-screen bg-background flex">
+        <aside className="w-64 border-r bg-card/50 p-4 flex flex-col">
+          <div className="mb-6">
+            <h1 className="text-xl font-bold tracking-tight">Sibyl</h1>
+            <p className="text-muted-foreground text-xs">
+              Memory System for Knowledge Management
+            </p>
           </div>
-        </header>
-        <main className="container mx-auto px-4 py-8">
-          <div className="grid gap-8">
-            <section>
-              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <BarChart3 className="h-5 w-5" />
-                Wiki Statistics
-              </h2>
-              <WikiStatsView />
-            </section>
-            <section>
-              <h2 className="text-lg font-semibold mb-4">Dashboard</h2>
-              <Dashboard />
-            </section>
-            <section>
-              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <Shield className="h-5 w-5" />
-                Authentication
+          
+          <nav className="flex-1 space-y-1">
+            {TABS_CONFIG.map((tab) => (
+              <SidebarTab
+                key={tab.id}
+                label={tab.label}
+                icon={tab.icon}
+                active={activeTab === tab.id}
+                onClick={() => setActiveTab(tab.id)}
+              />
+            ))}
+          </nav>
+          
+          <div className="mt-4 pt-4 border-t">
+            <WebSocketStatus />
+            <button
+              onClick={() => setShowShortcuts(!showShortcuts)}
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm hover:bg-muted text-muted-foreground hover:text-foreground mt-2"
+            >
+              <Keyboard className="h-4 w-4" />
+              <span>Shortcuts</span>
+            </button>
+          </div>
+          
+          {showShortcuts && (
+            <div className="mt-4">
+              <ShortcutHelp shortcuts={shortcuts} />
+            </div>
+          )}
+        </aside>
+        
+        <main className="flex-1 overflow-auto">
+          <header className="border-b bg-card/30 px-6 py-3 sticky top-0 z-10">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold flex items-center gap-2">
+                {TABS_CONFIG.find((t) => t.id === activeTab)?.icon && (
+                  <span className="text-muted-foreground">
+                    {(() => {
+                      const Icon = TABS_CONFIG.find((t) => t.id === activeTab)?.icon;
+                      return Icon ? <Icon className="h-5 w-5" /> : null;
+                    })()}
+                  </span>
+                )}
+                {TABS_CONFIG.find((t) => t.id === activeTab)?.label}
               </h2>
               <AuthStatus />
-            </section>
-            <section>
-              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <Filter className="h-5 w-5" />
-                Wiki Search
-              </h2>
-              <WikiSearch />
-            </section>
-            <section>
-              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <Upload className="h-5 w-5" />
-                Content Ingestion
-              </h2>
-              <ContentIngestion />
-            </section>
-            <section>
-              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <Archive className="h-5 w-5" />
-                Raw Resources
-              </h2>
-              <RawResourceList />
-            </section>
-            <section>
-              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <Search className="h-5 w-5" />
-                Query Synthesis
-              </h2>
-              <QuerySynthesis />
-            </section>
-            <section>
-              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <FileDown className="h-5 w-5" />
-                Content Filing
-              </h2>
-              <ContentFiling />
-            </section>
-            <section>
-              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <Activity className="h-5 w-5" />
-                Wiki Health Check (Lint)
-              </h2>
-              <WikiLint />
-            </section>
-            <section>
-              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <Presentation className="h-5 w-5" />
-                Marp Slide Generation
-              </h2>
-              <MarpSlides />
-            </section>
-            <section>
-              <h2 className="text-lg font-semibold mb-4">Wiki Pages</h2>
-              <WikiPages />
-            </section>
-            <section>
-              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <Network className="h-5 w-5" />
-                Wiki Graph View
-              </h2>
-              <WikiGraphView />
-            </section>
+            </div>
+          </header>
+          
+          <div className="p-6">
+            {activeTab === "overview" && (
+              <div className="space-y-6">
+                <section>
+                  <WikiStatsView />
+                </section>
+                <section>
+                  <h3 className="text-md font-semibold mb-4">Dashboard</h3>
+                  <Dashboard />
+                </section>
+              </div>
+            )}
+            
+            {activeTab === "search" && (
+              <div className="space-y-6">
+                <WikiSearch />
+                <QuerySynthesis />
+              </div>
+            )}
+            
+            {activeTab === "ingest" && (
+              <div className="space-y-6">
+                <ContentIngestion />
+                <RawResourceList />
+              </div>
+            )}
+            
+            {activeTab === "pages" && (
+              <div className="space-y-6">
+                <WikiPageList />
+              </div>
+            )}
+            
+            {activeTab === "graph" && (
+              <div className="space-y-6">
+                <WikiGraphView />
+              </div>
+            )}
+            
+            {activeTab === "tools" && (
+              <div className="space-y-6">
+                <ContentFiling />
+                <WikiLint />
+                <MarpSlides />
+              </div>
+            )}
           </div>
         </main>
       </div>

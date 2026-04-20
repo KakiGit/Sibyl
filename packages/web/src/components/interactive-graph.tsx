@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { Brain, Layers, FileText, BookOpen, X, ExternalLink, ArrowLeft, ArrowRight } from "lucide-react";
+import { Brain, Layers, FileText, BookOpen, X, ExternalLink, ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -48,7 +48,17 @@ const PAGE_TYPE_CONFIG = {
 
 function useForceDirectedLayout(nodes: GraphNode[], edges: GraphEdge[], width: number, height: number) {
   const [simulatedNodes, setSimulatedNodes] = useState<SimulatedNode[]>([]);
+  const [isLayoutReady, setIsLayoutReady] = useState(false);
+  const [layoutProgress, setLayoutProgress] = useState(0);
   const animationRef = useRef<number | null>(null);
+  
+  const nodeCount = nodes.length;
+  const maxIterations = useMemo(() => {
+    if (nodeCount <= 20) return 150;
+    if (nodeCount <= 50) return 100;
+    if (nodeCount <= 100) return 75;
+    return 50;
+  }, [nodeCount]);
   
   const initializeNodes = useCallback(() => {
     if (nodes.length === 0) return [];
@@ -73,9 +83,13 @@ function useForceDirectedLayout(nodes: GraphNode[], edges: GraphEdge[], width: n
   useEffect(() => {
     if (nodes.length === 0 || width === 0 || height === 0) {
       setSimulatedNodes([]);
+      setIsLayoutReady(false);
+      setLayoutProgress(0);
       return;
     }
     
+    setIsLayoutReady(false);
+    setLayoutProgress(0);
     const initialNodes = initializeNodes();
     setSimulatedNodes(initialNodes);
     
@@ -161,13 +175,15 @@ function useForceDirectedLayout(nodes: GraphNode[], edges: GraphEdge[], width: n
     };
     
     let iterations = 0;
-    const maxIterations = 300;
     
     const animate = () => {
       if (iterations < maxIterations) {
         simulate();
         iterations++;
+        setLayoutProgress(Math.round((iterations / maxIterations) * 100));
         animationRef.current = requestAnimationFrame(animate);
+      } else {
+        setIsLayoutReady(true);
       }
     };
     
@@ -178,9 +194,9 @@ function useForceDirectedLayout(nodes: GraphNode[], edges: GraphEdge[], width: n
         cancelAnimationFrame(animationRef.current);
       }
     };
-  }, [nodes, edges, width, height, initializeNodes]);
+  }, [nodes, edges, width, height, maxIterations, initializeNodes]);
   
-  return simulatedNodes;
+  return { simulatedNodes, isLayoutReady, layoutProgress };
 }
 
 interface SelectedNodeDetailsProps {
@@ -264,7 +280,7 @@ export function InteractiveGraph({ graph }: InteractiveGraphProps) {
     return () => resizeObserver.disconnect();
   }, []);
   
-  const simulatedNodes = useForceDirectedLayout(
+  const { simulatedNodes, isLayoutReady, layoutProgress } = useForceDirectedLayout(
     graph.nodes,
     graph.edges,
     dimensions.width,
@@ -285,10 +301,52 @@ export function InteractiveGraph({ graph }: InteractiveGraphProps) {
     setSelectedNode(null);
   }, []);
   
-  if (dimensions.width === 0 || simulatedNodes.length === 0) {
+  if (dimensions.width === 0) {
     return (
       <div ref={containerRef} className="h-[400px] bg-muted/30 rounded-lg flex items-center justify-center">
-        <p className="text-muted-foreground">Initializing graph...</p>
+        <div className="flex items-center gap-2">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <span className="text-muted-foreground">Preparing canvas...</span>
+        </div>
+      </div>
+    );
+  }
+  
+  if (simulatedNodes.length === 0) {
+    return (
+      <div ref={containerRef} className="h-[400px] bg-muted/30 rounded-lg flex items-center justify-center">
+        <p className="text-muted-foreground">No nodes to display</p>
+      </div>
+    );
+  }
+  
+  if (!isLayoutReady) {
+    return (
+      <div ref={containerRef} className="relative h-[400px] bg-muted/30 rounded-lg overflow-hidden">
+        <svg width={dimensions.width} height={dimensions.height} className="absolute inset-0">
+          {simulatedNodes.map((node) => {
+            const config = PAGE_TYPE_CONFIG[node.type];
+            const radius = node.isHub ? 24 : node.isOrphan ? 16 : 20;
+            return (
+              <g key={node.id} transform={`translate(${node.x}, ${node.y})`}>
+                <circle r={radius} fill={config.bgColor} stroke={config.color} strokeWidth={2} opacity={0.7} />
+              </g>
+            );
+          })}
+        </svg>
+        <div className="absolute inset-0 flex items-center justify-center bg-background/50">
+          <div className="flex flex-col items-center gap-2">
+            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            <div className="text-sm text-muted-foreground">Optimizing layout...</div>
+            <div className="w-48 h-2 bg-muted rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-primary transition-all duration-100" 
+                style={{ width: `${layoutProgress}%` }}
+              />
+            </div>
+            <div className="text-xs text-muted-foreground">{layoutProgress}%</div>
+          </div>
+        </div>
       </div>
     );
   }

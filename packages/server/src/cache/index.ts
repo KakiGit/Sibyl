@@ -6,12 +6,14 @@ export interface CacheOptions {
 export interface CacheEntry<T> {
   value: T;
   expiresAt: number;
+  lastAccessed: number;
 }
 
 export class Cache<T> {
   private cache: Map<string, CacheEntry<T>> = new Map();
   private ttl: number;
   private maxEntries: number;
+  private accessOrder: string[] = [];
 
   constructor(options: CacheOptions = {}) {
     this.ttl = options.ttl || 3600000;
@@ -24,19 +26,27 @@ export class Cache<T> {
     
     if (Date.now() > entry.expiresAt) {
       this.cache.delete(key);
+      this.removeFromAccessOrder(key);
       return undefined;
     }
+    
+    entry.lastAccessed = Date.now();
+    this.updateAccessOrder(key);
     
     return entry.value;
   }
 
   set(key: string, value: T, ttl?: number): void {
-    if (this.cache.size >= this.maxEntries) {
-      this.evictOldest();
+    if (this.cache.has(key)) {
+      this.removeFromAccessOrder(key);
+    } else if (this.cache.size >= this.maxEntries) {
+      this.evictLRU();
     }
     
-    const expiresAt = Date.now() + (ttl || this.ttl);
-    this.cache.set(key, { value, expiresAt });
+    const now = Date.now();
+    const expiresAt = now + (ttl || this.ttl);
+    this.cache.set(key, { value, expiresAt, lastAccessed: now });
+    this.accessOrder.push(key);
   }
 
   has(key: string): boolean {
@@ -45,6 +55,7 @@ export class Cache<T> {
     
     if (Date.now() > entry.expiresAt) {
       this.cache.delete(key);
+      this.removeFromAccessOrder(key);
       return false;
     }
     
@@ -52,30 +63,65 @@ export class Cache<T> {
   }
 
   delete(key: string): boolean {
+    this.removeFromAccessOrder(key);
     return this.cache.delete(key);
   }
 
   clear(): void {
     this.cache.clear();
+    this.accessOrder = [];
   }
 
   size(): number {
     return this.cache.size;
   }
 
-  private evictOldest(): void {
-    let oldestKey: string | null = null;
-    let oldestExpiry = Infinity;
+  getStats(): { size: number; maxEntries: number; oldestKey: string | null; newestKey: string | null } {
+    this.cleanupExpired();
+    
+    return {
+      size: this.cache.size,
+      maxEntries: this.maxEntries,
+      oldestKey: this.accessOrder[0] || null,
+      newestKey: this.accessOrder[this.accessOrder.length - 1] || null,
+    };
+  }
+
+  private updateAccessOrder(key: string): void {
+    this.removeFromAccessOrder(key);
+    this.accessOrder.push(key);
+  }
+
+  private removeFromAccessOrder(key: string): void {
+    const index = this.accessOrder.indexOf(key);
+    if (index !== -1) {
+      this.accessOrder.splice(index, 1);
+    }
+  }
+
+  private evictLRU(): void {
+    this.cleanupExpired();
+    
+    if (this.cache.size >= this.maxEntries && this.accessOrder.length > 0) {
+      const lruKey = this.accessOrder[0];
+      this.cache.delete(lruKey);
+      this.accessOrder.shift();
+    }
+  }
+
+  private cleanupExpired(): void {
+    const now = Date.now();
+    const expiredKeys: string[] = [];
     
     for (const [key, entry] of this.cache.entries()) {
-      if (entry.expiresAt < oldestExpiry) {
-        oldestExpiry = entry.expiresAt;
-        oldestKey = key;
+      if (now > entry.expiresAt) {
+        expiredKeys.push(key);
       }
     }
     
-    if (oldestKey) {
-      this.cache.delete(oldestKey);
+    for (const key of expiredKeys) {
+      this.cache.delete(key);
+      this.removeFromAccessOrder(key);
     }
   }
 }

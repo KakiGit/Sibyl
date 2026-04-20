@@ -235,7 +235,7 @@ function StatsDisplay() {
 export function RawResourceList({ type, processed }: { type?: string; processed?: boolean }) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [page, setPage] = useState(0);
-  const pageSize = 50;
+  const pageSize = 20;
   const queryClient = useQueryClient();
 
   const { data, isLoading, error } = useQuery({

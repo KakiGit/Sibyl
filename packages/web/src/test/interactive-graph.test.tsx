@@ -1,6 +1,6 @@
 import "@happy-dom/global-registrator";
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { render, screen, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { InteractiveGraph } from "../components/interactive-graph";
 
@@ -66,32 +66,108 @@ const mockGraphData = {
 describe("InteractiveGraph", () => {
   beforeEach(() => {
     originalFetch = global.fetch;
+    vi.useFakeTimers();
   });
 
   afterEach(() => {
     global.fetch = originalFetch;
+    vi.useRealTimers();
   });
 
-  it("renders initializing state when container has no dimensions", () => {
+  it("shows preparing canvas when container has no dimensions", () => {
     render(<InteractiveGraph graph={mockGraphData} />, { wrapper: createWrapper() });
-    expect(screen.getByText("Initializing graph...")).toBeTruthy();
+    expect(screen.getByText("Preparing canvas...")).toBeTruthy();
   });
 
-  it("handles empty graph", () => {
+  it("shows no nodes message for empty graph", () => {
     const emptyGraph = {
       nodes: [],
       edges: [],
       stats: { totalPages: 0, totalLinks: 0, orphanCount: 0, hubCount: 0 },
     };
-
     render(<InteractiveGraph graph={emptyGraph} />, { wrapper: createWrapper() });
-    expect(screen.getByText("Initializing graph...")).toBeTruthy();
+    expect(screen.getByText("No nodes to display")).toBeTruthy();
   });
 
-  it("has expected DOM structure with initializing state", () => {
-    const { container } = render(<InteractiveGraph graph={mockGraphData} />, { wrapper: createWrapper() });
+  it("shows layout optimization progress indicator", async () => {
+    const largeGraph = {
+      nodes: Array.from({ length: 50 }, (_, i) => ({
+        id: `page-${i}`,
+        slug: `page-${i}`,
+        title: `Page ${i}`,
+        type: "concept" as const,
+        incomingLinks: Math.floor(Math.random() * 5),
+        outgoingLinks: Math.floor(Math.random() * 5),
+        isOrphan: i % 10 === 0,
+        isHub: i % 5 === 0,
+      })),
+      edges: [],
+      stats: { totalPages: 50, totalLinks: 0, orphanCount: 5, hubCount: 10 },
+    };
+
+    render(<InteractiveGraph graph={largeGraph} />, { wrapper: createWrapper() });
     
-    expect(screen.getByText("Initializing graph...")).toBeTruthy();
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+    });
+
+    expect(screen.getByText("Optimizing layout...")).toBeTruthy();
+  });
+
+  it("reduces iterations based on node count", async () => {
+    const smallGraph = {
+      nodes: Array.from({ length: 10 }, (_, i) => ({
+        id: `page-${i}`,
+        slug: `page-${i}`,
+        title: `Page ${i}`,
+        type: "concept" as const,
+        incomingLinks: 0,
+        outgoingLinks: 0,
+        isOrphan: true,
+        isHub: false,
+      })),
+      edges: [],
+      stats: { totalPages: 10, totalLinks: 0, orphanCount: 10, hubCount: 0 },
+    };
+
+    render(<InteractiveGraph graph={smallGraph} />, { wrapper: createWrapper() });
+
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+    });
+
+    expect(screen.getByText("Optimizing layout...")).toBeTruthy();
+  });
+
+  it("shows progress percentage during layout optimization", async () => {
+    const mediumGraph = {
+      nodes: Array.from({ length: 30 }, (_, i) => ({
+        id: `page-${i}`,
+        slug: `page-${i}`,
+        title: `Page ${i}`,
+        type: "concept" as const,
+        incomingLinks: 0,
+        outgoingLinks: 0,
+        isOrphan: true,
+        isHub: false,
+      })),
+      edges: [],
+      stats: { totalPages: 30, totalLinks: 0, orphanCount: 30, hubCount: 0 },
+    };
+
+    render(<InteractiveGraph graph={mediumGraph} />, { wrapper: createWrapper() });
+
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+    });
+
+    const progressText = screen.getByText(/\d+%/);
+    expect(progressText).toBeTruthy();
+  });
+
+  it("has expected DOM structure with loading state", () => {
+    const { container } = render(<InteractiveGraph graph={mockGraphData} />, { wrapper: createWrapper() });
+    expect(screen.getByText("Preparing canvas...")).toBeTruthy();
     expect(container.querySelector(".bg-muted\\/30")).toBeTruthy();
   });
 });

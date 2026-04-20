@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Activity, AlertTriangle, CheckCircle, Loader2, RefreshCw, Link2Off, Clock, FileWarning, GitMerge, AlertCircle, Brain, Lightbulb, BookOpen, Search } from "lucide-react";
+import { Activity, AlertTriangle, CheckCircle, Loader2, RefreshCw, Link2Off, Clock, FileWarning, GitMerge, AlertCircle, Brain, Lightbulb, BookOpen, Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -203,11 +203,16 @@ function IssueStats({ report }: { report: LintReport }) {
   );
 }
 
+const ISSUES_PAGE_SIZE = 20;
+
 export function WikiLint() {
   const [report, setReport] = useState<LintReport | null>(null);
   const [llmReport, setLlmReport] = useState<LlmLintReport | null>(null);
   const [filter, setFilter] = useState<"all" | "high" | "medium" | "low">("all");
   const [llmFilter, setLlmFilter] = useState<"all" | "high" | "medium" | "low">("all");
+  const [issuePage, setIssuePage] = useState(0);
+  const [llmIssuePage, setLlmIssuePage] = useState(0);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const { data: initialReport, isLoading: initialLoading } = useQuery({
     queryKey: ["lintReport"],
@@ -218,6 +223,7 @@ export function WikiLint() {
     mutationFn: runLint,
     onSuccess: (data) => {
       setReport(data.data);
+      setIssuePage(0);
     },
   });
 
@@ -225,18 +231,58 @@ export function WikiLint() {
     mutationFn: () => runLlmLint(false, 10),
     onSuccess: (data) => {
       setLlmReport(data.data);
+      setLlmIssuePage(0);
     },
   });
 
   const currentReport = report || initialReport?.data;
 
-  const filteredIssues = currentReport
-    ? currentReport.issues.filter((issue) => filter === "all" || issue.severity === filter)
-    : [];
+  const filteredIssues = useMemo(() => {
+    return currentReport
+      ? currentReport.issues.filter((issue) => {
+          const matchesSeverity = filter === "all" || issue.severity === filter;
+          const matchesSearch = !searchQuery || 
+            (issue.pageTitle?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+             issue.details.toLowerCase().includes(searchQuery.toLowerCase()) ||
+             issue.pageSlug?.toLowerCase().includes(searchQuery.toLowerCase()));
+          return matchesSeverity && matchesSearch;
+        })
+      : [];
+  }, [currentReport, filter, searchQuery]);
 
-  const filteredLlmIssues = llmReport
-    ? llmReport.issues.filter((issue) => llmFilter === "all" || issue.severity === llmFilter)
-    : [];
+  const filteredLlmIssues = useMemo(() => {
+    return llmReport
+      ? llmReport.issues.filter((issue) => llmFilter === "all" || issue.severity === llmFilter)
+      : [];
+  }, [llmReport, llmFilter]);
+
+  const paginatedIssues = useMemo(() => {
+    const start = issuePage * ISSUES_PAGE_SIZE;
+    return filteredIssues.slice(start, start + ISSUES_PAGE_SIZE);
+  }, [filteredIssues, issuePage]);
+
+  const paginatedLlmIssues = useMemo(() => {
+    const start = llmIssuePage * ISSUES_PAGE_SIZE;
+    return filteredLlmIssues.slice(start, start + ISSUES_PAGE_SIZE);
+  }, [filteredLlmIssues, llmIssuePage]);
+
+  const totalIssuePages = Math.ceil(filteredIssues.length / ISSUES_PAGE_SIZE);
+  const totalLlmIssuePages = Math.ceil(filteredLlmIssues.length / ISSUES_PAGE_SIZE);
+
+  const handleFilterChange = (newFilter: "all" | "high" | "medium" | "low") => {
+    setFilter(newFilter);
+    setIssuePage(0);
+  };
+
+  const handleSearchChange = (query: string) => {
+    setSearchQuery(query);
+    setIssuePage(0);
+  };
+
+  const handleLlmFilterChange = (newFilter: "all" | "high" | "medium" | "low") => {
+    setLlmFilter(newFilter);
+    setLlmIssuePage(0);
+  };
 
   return (
     <div className="space-y-6">
@@ -306,16 +352,26 @@ export function WikiLint() {
         </Card>
       )}
 
-      {currentReport && currentReport.issues.length > 0 && (
+{currentReport && currentReport.issues.length > 0 && (
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle className="text-lg">Issues ({filteredIssues.length})</CardTitle>
-              <div className="flex gap-2">
+              <div className="flex gap-2 items-center">
+                <div className="relative">
+                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+                  <input
+                    type="text"
+                    placeholder="Search issues..."
+                    value={searchQuery}
+                    onChange={(e) => handleSearchChange(e.target.value)}
+                    className="pl-6 pr-2 py-1 text-sm border rounded-md w-40 focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                </div>
                 {(["all", "high", "medium", "low"] as const).map((sev) => (
                   <button
                     key={sev}
-                    onClick={() => setFilter(sev)}
+                    onClick={() => handleFilterChange(sev)}
                     className={`px-3 py-1 text-sm rounded-lg transition-colors ${
                       filter === sev ? "bg-primary text-white" : "bg-muted hover:bg-muted/80"
                     }`}
@@ -328,16 +384,41 @@ export function WikiLint() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {filteredIssues.length === 0 ? (
+              {paginatedIssues.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-4">
                   No issues with {filter} severity
                 </p>
               ) : (
-                filteredIssues.map((issue, i) => (
+                paginatedIssues.map((issue, i) => (
                   <IssueCard key={`${issue.pageId}-${issue.type}-${i}`} issue={issue} />
                 ))
               )}
             </div>
+            {filteredIssues.length > ISSUES_PAGE_SIZE && (
+              <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                <span className="text-sm text-muted-foreground">
+                  Page {issuePage + 1} of {totalIssuePages} ({filteredIssues.length} total)
+                </span>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIssuePage((p) => Math.max(0, p - 1))}
+                    disabled={issuePage === 0}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIssuePage((p) => Math.min(totalIssuePages - 1, p + 1))}
+                    disabled={issuePage >= totalIssuePages - 1}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
@@ -402,7 +483,7 @@ export function WikiLint() {
                 {(["all", "high", "medium", "low"] as const).map((sev) => (
                   <button
                     key={sev}
-                    onClick={() => setLlmFilter(sev)}
+                    onClick={() => handleLlmFilterChange(sev)}
                     className={`px-3 py-1 text-sm rounded-lg transition-colors ${
                       llmFilter === sev ? "bg-primary text-white" : "bg-muted hover:bg-muted/80"
                     }`}
@@ -415,16 +496,41 @@ export function WikiLint() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {filteredLlmIssues.length === 0 ? (
+              {paginatedLlmIssues.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-4">
                   No issues with {llmFilter} severity
                 </p>
               ) : (
-                filteredLlmIssues.map((issue, i) => (
+                paginatedLlmIssues.map((issue, i) => (
                   <LlmIssueCard key={`${issue.type}-${i}`} issue={issue} />
                 ))
               )}
             </div>
+            {filteredLlmIssues.length > ISSUES_PAGE_SIZE && (
+              <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                <span className="text-sm text-muted-foreground">
+                  Page {llmIssuePage + 1} of {totalLlmIssuePages} ({filteredLlmIssues.length} total)
+                </span>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setLlmIssuePage((p) => Math.max(0, p - 1))}
+                    disabled={llmIssuePage === 0}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setLlmIssuePage((p) => Math.min(totalLlmIssuePages - 1, p + 1))}
+                    disabled={llmIssuePage >= totalLlmIssuePages - 1}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

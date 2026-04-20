@@ -877,3 +877,64 @@ Embedding generation for batch processing uses concurrent processing (up to 4 wo
 ### Embedding Content Hash Cache
 
 Embeddings are cached by content hash to avoid recomputation when processing identical content multiple times.
+
+### LRU Cache Eviction
+
+Server caches use Least Recently Used (LRU) eviction strategy for optimal memory management:
+- wikiStatsCache: 5-minute TTL, 20 max entries
+- searchCache: 1-minute TTL, 50 max entries  
+- synthesisCache: 1-hour TTL, 30 max entries
+
+### Virtualized Wiki Page List
+
+The Web UI Wiki Page List uses infinite scroll with lazy loading to handle large datasets:
+- Loads pages in batches of 20
+- Intersection observer triggers automatic loading
+- Shows count of loaded pages vs total
+- Refresh button to reload data
+
+### Sidebar Navigation
+
+The Web UI uses a sidebar-based navigation with 6 tabs:
+- Overview: Wiki statistics and dashboard
+- Search: Wiki search and query synthesis
+- Ingest: Content ingestion and raw resources
+- Wiki Pages: Paginated wiki page list
+- Graph: Wiki graph visualization
+- Tools: Content filing, lint, and Marp slides
+
+### Keyboard Shortcuts
+
+The Web UI supports keyboard shortcuts for quick navigation:
+- `Ctrl+1`: Overview
+- `Ctrl+2`: Search
+- `Ctrl+3`: Ingest
+- `Ctrl+4`: Wiki Pages
+- `Ctrl+5`: Graph
+- `Ctrl+6`: Tools
+- `Ctrl+/`: Quick search
+- `Shift+?`: Show shortcuts panel
+
+### Optimized Batch Embedding Generation
+
+Batch embedding generation now supports:
+- Chunk-based processing for better memory management
+- Configurable batch size (default: 8)
+- Configurable concurrency limit (default: 4)
+- Progress callbacks for long-running operations
+
+### Lint Issues Search
+
+The Wiki Health Check (Lint) section now supports text search for issues:
+- Search by page title, slug, or details
+- Case-insensitive matching
+- Combines with severity filter for refined results
+- Resets pagination on search query change
+
+### Graph Visualization Optimization
+
+The Wiki Graph visualization has been optimized for better performance:
+- Dynamic iteration limits based on node count (fewer iterations for larger graphs)
+- Loading progress indicator with percentage
+- Canvas preparation state shown before layout starts
+- Layout optimization message during force-directed simulation
