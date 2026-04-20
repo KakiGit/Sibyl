@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
-import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
+import { useQuery, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { Brain, Layers, FileText, BookOpen, RefreshCw } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -68,9 +68,11 @@ async function fetchWikiPagesPage({ type, limit, offset }: { type?: string; limi
 function WikiPageCard({
   page,
   onClick,
+  onHover,
 }: {
   page: WikiPage;
   onClick: () => void;
+  onHover?: () => void;
 }) {
   const config = PAGE_TYPE_CONFIG[page.type];
   const Icon = config.icon;
@@ -79,6 +81,7 @@ function WikiPageCard({
     <Card
       className="hover:shadow-md transition-shadow cursor-pointer hover:border-primary/50"
       onClick={onClick}
+      onMouseEnter={onHover}
     >
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
@@ -135,6 +138,19 @@ export function WikiPageList({ type }: { type?: string }) {
   const toast = useToast();
   const observerRef = useRef<IntersectionObserver | null>(null);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  const queryClient = useQueryClient();
+
+  const prefetchPage = useCallback((pageId: string) => {
+    queryClient.prefetchQuery({
+      queryKey: ["wikiPageContent", pageId],
+      queryFn: async () => {
+        const response = await fetch(`/api/wiki-pages/${pageId}/content`);
+        if (!response.ok) throw new Error("Failed to fetch");
+        return response.json();
+      },
+      staleTime: 60000,
+    });
+  }, [queryClient]);
 
   const { data: totalCount } = useQuery({
     queryKey: ["wikiPagesCount", type],
@@ -262,6 +278,7 @@ export function WikiPageList({ type }: { type?: string }) {
               key={page.id}
               page={page}
               onClick={() => setSelectedPageId(page.id)}
+              onHover={() => prefetchPage(page.id)}
             />
           ))}
         </div>

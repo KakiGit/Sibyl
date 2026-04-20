@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
@@ -11,12 +11,14 @@ import {
   Loader2,
   CheckCircle,
   XCircle,
+  Trash2,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { WikiContentRenderer } from "@/components/wiki-link-renderer";
 import { useToast } from "@/components/toast";
+import { ConfirmDialog } from "@/components/ui/dialog";
 
 const PAGE_TYPE_CONFIG = {
   entity: { label: "Entity", color: "bg-blue-100 text-blue-800" },
@@ -177,12 +179,23 @@ function WikiLinksSection({ pageId }: { pageId: string }) {
   );
 }
 
+async function deleteWikiPage(pageId: string): Promise<void> {
+  const response = await fetch(`/api/wiki-pages/${pageId}`, {
+    method: "DELETE",
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Failed to delete wiki page");
+  }
+}
+
 export function WikiPageDetail({ pageId, onBack }: WikiPageDetailProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState("");
   const [editTitle, setEditTitle] = useState("");
   const [editSummary, setEditSummary] = useState("");
   const [editTags, setEditTags] = useState("");
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const queryClient = useQueryClient();
   const toast = useToast();
 
@@ -201,6 +214,7 @@ export function WikiPageDetail({ pageId, onBack }: WikiPageDetailProps) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["wikiPageContent", pageId] });
       queryClient.invalidateQueries({ queryKey: ["wikiPages"] });
+      queryClient.invalidateQueries({ queryKey: ["wikiGraph"] });
       setIsEditing(false);
       toast.success("Page updated", "Wiki page content saved successfully");
     },
@@ -208,6 +222,46 @@ export function WikiPageDetail({ pageId, onBack }: WikiPageDetailProps) {
       toast.error("Update failed", (error as Error).message);
     },
   });
+
+  const deleteMutation = useMutation({
+    mutationFn: () => deleteWikiPage(pageId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["wikiPages"] });
+      queryClient.invalidateQueries({ queryKey: ["wikiGraph"] });
+      queryClient.invalidateQueries({ queryKey: ["wikiStats"] });
+      setShowDeleteDialog(false);
+      toast.success("Page deleted", "Wiki page has been removed");
+      onBack?.();
+    },
+    onError: (error) => {
+      setShowDeleteDialog(false);
+      toast.error("Delete failed", (error as Error).message);
+    },
+  });
+
+  const handleCancelEdit = useCallback(() => {
+    setIsEditing(false);
+    setEditContent("");
+    setEditTitle("");
+    setEditSummary("");
+    setEditTags("");
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (isEditing) {
+          handleCancelEdit();
+        } else if (showDeleteDialog) {
+          setShowDeleteDialog(false);
+        } else {
+          onBack?.();
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isEditing, showDeleteDialog, onBack, handleCancelEdit]);
 
   if (isLoading) {
     return (
@@ -270,14 +324,6 @@ export function WikiPageDetail({ pageId, onBack }: WikiPageDetailProps) {
     });
   };
 
-  const handleCancelEdit = () => {
-    setIsEditing(false);
-    setEditContent("");
-    setEditTitle("");
-    setEditSummary("");
-    setEditTags("");
-  };
-
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
@@ -292,10 +338,20 @@ export function WikiPageDetail({ pageId, onBack }: WikiPageDetailProps) {
           <p className="text-sm text-muted-foreground">{page.slug}</p>
         </div>
         {!isEditing && (
-          <Button variant="outline" onClick={handleStartEdit}>
-            <Edit className="h-4 w-4 mr-2" />
-            Edit
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={handleStartEdit}>
+              <Edit className="h-4 w-4 mr-2" />
+              Edit
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={() => setShowDeleteDialog(true)}
+              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete
+            </Button>
+          </div>
         )}
       </div>
 
@@ -437,6 +493,18 @@ export function WikiPageDetail({ pageId, onBack }: WikiPageDetailProps) {
           <p className="text-sm text-green-600">Page updated successfully!</p>
         </div>
       )}
+
+      <ConfirmDialog
+        open={showDeleteDialog}
+        onOpenChange={setShowDeleteDialog}
+        title="Delete Wiki Page"
+        description={`Are you sure you want to delete "${page.title}"? This action cannot be undone and will remove all associated content and links.`}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        variant="destructive"
+        loading={deleteMutation.isPending}
+        onConfirm={() => deleteMutation.mutate()}
+      />
     </div>
   );
 }

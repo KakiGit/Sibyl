@@ -864,6 +864,29 @@ The Web UI provides toast notifications for feedback on operations:
 
 Wiki links in the format `[[slug]]` are clickable in the Web UI, allowing navigation between wiki pages directly from the content. Click on any wiki link to navigate to that page.
 
+### Confirmation Dialogs
+
+Destructive actions (like deleting wiki pages) require confirmation before execution. The confirmation dialog shows:
+- Action description with the item name
+- Warning message about irreversible changes
+- Cancel and Confirm buttons with loading state
+
+### Keyboard Navigation
+
+The Web UI supports keyboard shortcuts for efficient navigation:
+- `Escape`: Navigate back from wiki page detail, close dialogs, or cancel editing
+- `Ctrl+1-6`: Quick navigation between sidebar tabs
+- `Ctrl+/`: Focus on search
+- `Shift+?`: Show keyboard shortcuts panel
+
+### Prefetching on Hover
+
+Wiki page content is prefetched when hovering over page cards in the list, improving perceived performance when navigating to a page.
+
+### Character Count in Content Ingestion
+
+The content ingestion form shows a character count for the content field, with a minimum recommendation warning for short content.
+
 ## Performance Improvements
 
 ### LLM Response Caching

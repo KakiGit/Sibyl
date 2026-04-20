@@ -49,6 +49,19 @@ test.describe('Performance and UX Tests', () => {
     await expect(ingestButton).toBeEnabled();
   });
 
+  test('Content Ingestion shows character count', async ({ page }) => {
+    await page.getByRole('button', { name: 'Ingest' }).click();
+    
+    const contentTextarea = page.getByPlaceholder('Enter the content to be ingested into the wiki...');
+    await contentTextarea.fill('Test content');
+    
+    const charCount = page.getByText('characters');
+    await expect(charCount).toBeVisible();
+    
+    const countValue = await charCount.locator('..').textContent();
+    expect(countValue).toContain('12');
+  });
+
   test('Raw Resources pagination works correctly', async ({ page }) => {
     await page.waitForTimeout(1000);
     
@@ -130,5 +143,75 @@ test.describe('Performance and UX Tests', () => {
     
     const sourcesHeading = page.getByRole('heading', { name: 'Sources' });
     await expect(sourcesHeading).toBeVisible();
+  });
+
+  test('Wiki Page List shows pagination info', async ({ page }) => {
+    await page.getByRole('button', { name: 'Wiki Pages' }).click();
+    
+    const showingText = page.getByText(/Showing \d+ of \d+ pages/);
+    await expect(showingText).toBeVisible({ timeout: 3000 });
+    
+    const loadMoreButton = page.getByRole('button', { name: 'Load more pages' });
+    await expect(loadMoreButton).toBeVisible();
+  });
+
+  test('Wiki Page Detail shows edit and delete buttons', async ({ page }) => {
+    await page.getByRole('button', { name: 'Wiki Pages' }).click();
+    await page.waitForTimeout(500);
+    
+    const firstCard = page.getByRole('button', { name: /Test Webpage|test|TypeScript/ }).first();
+    await firstCard.click();
+    await page.waitForTimeout(500);
+    
+    const editButton = page.getByRole('button', { name: 'Edit' });
+    await expect(editButton).toBeVisible();
+    
+    const deleteButton = page.getByRole('button', { name: 'Delete' });
+    await expect(deleteButton).toBeVisible();
+  });
+
+  test('Delete confirmation dialog appears and can be cancelled', async ({ page }) => {
+    await page.getByRole('button', { name: 'Wiki Pages' }).click();
+    await page.waitForTimeout(500);
+    
+    const firstCard = page.getByRole('button', { name: /Test Webpage|test|TypeScript/ }).first();
+    await firstCard.click();
+    await page.waitForTimeout(500);
+    
+    const deleteButton = page.getByRole('button', { name: 'Delete' });
+    await deleteButton.click();
+    
+    const dialogTitle = page.getByText('Delete Wiki Page');
+    await expect(dialogTitle).toBeVisible();
+    
+    const cancelButton = page.getByRole('button', { name: 'Cancel' });
+    await cancelButton.click();
+    
+    await expect(dialogTitle).not.toBeVisible();
+  });
+
+  test('Keyboard shortcut Escape navigates back from wiki page detail', async ({ page }) => {
+    await page.getByRole('button', { name: 'Wiki Pages' }).click();
+    await page.waitForTimeout(500);
+    
+    const firstCard = page.getByRole('button', { name: /Test Webpage|test|TypeScript/ }).first();
+    await firstCard.click();
+    await page.waitForTimeout(500);
+    
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(300);
+    
+    const showingText = page.getByText(/Showing \d+ of \d+ pages/);
+    await expect(showingText).toBeVisible();
+  });
+
+  test('Sidebar navigation shows shortcuts button', async ({ page }) => {
+    const shortcutsButton = page.getByRole('button', { name: 'Shortcuts' });
+    await expect(shortcutsButton).toBeVisible();
+    
+    await shortcutsButton.click();
+    
+    const shortcutsPanel = page.getByText('Keyboard Shortcuts');
+    await expect(shortcutsPanel).toBeVisible();
   });
 });

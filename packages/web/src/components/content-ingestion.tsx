@@ -253,17 +253,27 @@ export function ContentIngestion() {
               </div>
             </div>
 
-            <div>
-              <label className="text-sm font-medium mb-2 block">Content</label>
-              <textarea
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                placeholder="Enter the content to be ingested into the wiki..."
-                rows={6}
-                className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary resize-none"
-                disabled={isPending}
-              />
-            </div>
+<div>
+                <label className="text-sm font-medium mb-2 block">Content</label>
+                <textarea
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  placeholder="Enter the content to be ingested into the wiki..."
+                  rows={6}
+                  className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+                  disabled={isPending}
+                />
+                <div className="flex items-center justify-between mt-1">
+                  <span className="text-xs text-muted-foreground">
+                    {content.length} characters
+                  </span>
+                  {content.length > 0 && content.length < 10 && (
+                    <span className="text-xs text-orange-600">
+                      Minimum 10 characters recommended
+                    </span>
+                  )}
+                </div>
+              </div>
 
             <div className="grid gap-4 md:grid-cols-2">
               <div>
