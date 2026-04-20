@@ -192,6 +192,64 @@ curl -X POST http://localhost:3000/api/documents/upload \
   -d '{"filename": "document.pdf", "content": "<base64-encoded-content>", "mimeType": "application/pdf"}'
 ```
 
+### Wiki Import API
+
+The server provides endpoints for importing existing markdown files as wiki pages:
+
+#### Import Single Markdown File
+
+```bash
+curl -X POST http://localhost:3000/api/wiki-pages/import \
+  -H "Content-Type: application/json" \
+  -d '{"filePath": "/path/to/document.md"}'
+```
+
+Parameters:
+- `filePath`: Path to the markdown file (required)
+- `type`: Wiki page type (`entity`, `concept`, `source`, `summary`, auto-detected from frontmatter if not provided)
+- `slug`: Custom slug (auto-generated from filename if not provided)
+
+The markdown file can contain YAML frontmatter with metadata:
+- `title`: Page title
+- `type`: Page type
+- `summary`: Brief summary
+- `tags`: Array of tags
+- `slug`: Custom slug
+
+Example markdown file:
+```markdown
+---
+title: Machine Learning Overview
+type: concept
+tags: [ai, ml, tutorial]
+summary: Introduction to machine learning concepts
+---
+
+# Machine Learning Overview
+
+Content with [[wiki-links]] to other pages.
+```
+
+#### Import Directory of Markdown Files
+
+```bash
+# Import all markdown files from a directory
+curl -X POST http://localhost:3000/api/wiki-pages/import-directory \
+  -H "Content-Type: application/json" \
+  -d '{"directoryPath": "/path/to/wiki", "recursive": true}'
+```
+
+Parameters:
+- `directoryPath`: Path to the directory (required)
+- `type`: Wiki page type for all files (auto-detected if not provided)
+- `recursive`: Search subdirectories recursively (default: false)
+
+Features:
+- Batch import of multiple markdown files
+- Auto-detects page type from frontmatter
+- Handles duplicate slugs by updating existing pages
+- Returns import statistics with success/failure counts
+
 ### Query Synthesis API
 
 The server provides endpoints for querying and synthesizing answers from wiki pages:
@@ -327,7 +385,40 @@ bun run --filter @sibyl/client lint
 
 # View graph
 bun run --filter @sibyl/client graph
+
+# Export wiki pages
+bun run --filter @sibyl/client export --format json --output backup.json
+bun run --filter @sibyl/client export --format markdown --output wiki-bundle.md
 ```
+
+### Export API
+
+Export wiki pages for backup, sharing, or migration:
+
+```bash
+# Export all pages in JSON format (default)
+curl http://localhost:3000/api/export
+
+# Export as markdown bundle
+curl http://localhost:3000/api/export?format=markdown
+
+# Filter by type
+curl http://localhost:3000/api/export?type=concept
+
+# Exclude content or links
+curl http://localhost:3000/api/export?includeContent=false
+curl http://localhost:3000/api/export?includeLinks=false
+
+# Get export statistics
+curl http://localhost:3000/api/export/stats
+```
+
+Export features:
+- JSON format: Full page data including content, links, and metadata
+- Markdown bundle: All pages in one file with wiki link syntax
+- Type filtering: Export only specific page types
+- Link preservation: Include incoming and outgoing wiki links
+- Content options: Include or exclude page content
 
 ## Use the Plugin
 
