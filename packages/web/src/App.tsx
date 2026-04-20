@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { FileText, Brain, BookOpen, Layers, Search, Upload, Activity, FileDown, Network, Filter, Shield } from "lucide-react";
+import { FileText, Brain, BookOpen, Layers, Search, Upload, Activity, FileDown, Network, Filter, Shield, Archive, BarChart3 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { WikiPageList } from "@/components/wiki-page-list";
 import { QuerySynthesis } from "@/components/query-synthesis";
@@ -10,6 +10,8 @@ import { WikiGraphView } from "@/components/wiki-graph-view";
 import { WikiSearch } from "@/components/wiki-search";
 import { AuthStatus } from "@/components/auth-status";
 import { WebSocketStatus } from "@/components/websocket-status";
+import { RawResourceList } from "@/components/raw-resource-list";
+import { WikiStatsView } from "@/components/wiki-stats";
 
 async function fetchStats() {
   const response = await fetch("/api/wiki-pages");
@@ -115,6 +117,13 @@ export default function App() {
       <main className="container mx-auto px-4 py-8">
         <div className="grid gap-8">
           <section>
+            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <BarChart3 className="h-5 w-5" />
+              Wiki Statistics
+            </h2>
+            <WikiStatsView />
+          </section>
+          <section>
             <h2 className="text-lg font-semibold mb-4">Dashboard</h2>
             <Dashboard />
           </section>
@@ -138,6 +147,13 @@ export default function App() {
               Content Ingestion
             </h2>
             <ContentIngestion />
+          </section>
+          <section>
+            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <Archive className="h-5 w-5" />
+              Raw Resources
+            </h2>
+            <RawResourceList />
           </section>
           <section>
             <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">

@@ -695,6 +695,35 @@ sibyl/
 - **MCP**: @modelcontextprotocol/sdk
 - **WebSocket**: @fastify/websocket (real-time updates)
 
+## Wiki Statistics API
+
+The server provides aggregate statistics about wiki pages, similar to what Dataview in Obsidian provides:
+
+```bash
+# Get comprehensive wiki statistics
+curl http://localhost:3000/api/wiki-stats
+
+# Get tag distribution sorted by count
+curl http://localhost:3000/api/wiki-stats/tags
+
+# Get page activity by time period
+curl http://localhost:3000/api/wiki-stats/activity
+```
+
+Wiki statistics include:
+- Total pages count and breakdown by type (entity, concept, source, summary)
+- Total unique tags and their distribution
+- Average and total content length
+- Pages with summaries, tags, and wiki links
+- Most recently updated pages
+- Timeline showing oldest and newest page creation dates
+
+Activity statistics classify pages by update time:
+- Pages updated in last 24 hours
+- Pages updated in last 7 days
+- Pages updated in last 30 days
+- Older pages
+
 ## WebSocket Real-Time Updates
 
 Sibyl provides WebSocket support for real-time updates to the Web UI. When changes occur in the knowledge base, connected clients receive notifications instantly.

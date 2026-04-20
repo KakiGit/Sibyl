@@ -17,6 +17,7 @@ import { registerWikiPageVersionsRoutes } from "./wiki-page-versions.js";
 import { registerExportRoutes } from "./export.js";
 import { registerWikiImportRoutes } from "./wiki-import.js";
 import { registerMarpRoutes } from "./marp.js";
+import { registerWikiStatsRoutes } from "./wiki-stats.js";
 import { requireAuth } from "../auth/middleware.js";
 import { getWebSocketStats } from "../websocket/index.js";
 
@@ -48,6 +49,7 @@ export async function registerRoutes(fastify: FastifyInstance) {
   await registerExportRoutes(fastify);
   await registerWikiImportRoutes(fastify);
   await registerMarpRoutes(fastify);
+  await registerWikiStatsRoutes(fastify);
 
   fastify.get("/api/health", async () => {
     return { status: "ok", timestamp: Date.now() };
