@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { FileText, Image, Globe, TextIcon, Trash2, Loader2, CheckCircle, Clock, ExternalLink, RefreshCw, ChevronLeft, ChevronRight, Eye } from "lucide-react";
+import { FileText, Image, Globe, TextIcon, Trash2, Loader2, CheckCircle, Clock, ExternalLink, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -115,7 +115,10 @@ function RawResourceCard({
   const contentPreview = resource.metadata?.contentPreview as string | undefined;
 
   return (
-    <Card className="hover:shadow-md transition-shadow">
+    <Card
+      className="hover:shadow-md transition-shadow cursor-pointer hover:border-primary/50"
+      onClick={onView}
+    >
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-2">
@@ -153,6 +156,7 @@ function RawResourceCard({
                 target="_blank"
                 rel="noopener noreferrer"
                 className="truncate hover:text-primary underline"
+                onClick={(e) => e.stopPropagation()}
               >
                 {resource.sourceUrl}
               </a>
@@ -164,15 +168,10 @@ function RawResourceCard({
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={onView}
-                className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-              >
-                <Eye className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={onDelete}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete();
+                }}
                 disabled={isDeleting}
                 className="text-red-600 hover:text-red-700 hover:bg-red-50"
               >

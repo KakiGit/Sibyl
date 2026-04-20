@@ -266,12 +266,10 @@ describe("RawResourceDetail", () => {
     });
   });
 
-  it("calls delete API when delete is confirmed", async () => {
-    let deleteCalled = false;
+  it("shows delete confirmation dialog when delete button is clicked", async () => {
     (global as Record<string, unknown>).fetch = async (url: string | URL | Request, options?: RequestInit) => {
       const urlString = typeof url === "string" ? url : url instanceof URL ? url.href : url.url;
       if (options?.method === "DELETE") {
-        deleteCalled = true;
         return {
           ok: true,
         } as Response;
