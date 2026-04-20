@@ -371,14 +371,17 @@ bun run --filter @sibyl/web preview
 # List wiki pages
 bun run --filter @sibyl/client list
 
+# List with type filter
+bun run --filter @sibyl/client list -- --type entity
+
 # Ingest content
-bun run --filter @sibyl/client ingest --type text --file content.txt
+bun run --filter @sibyl/client ingest -- --type text --file content.txt
 
 # Query the wiki
-bun run --filter @sibyl/client query "search query"
+bun run --filter @sibyl/client query -- --query "search query"
 
 # File a query result
-bun run --filter @sibyl/client file --page <page-id>
+bun run --filter @sibyl/client file -- --page <page-id>
 
 # Run lint check
 bun run --filter @sibyl/client lint
@@ -387,8 +390,8 @@ bun run --filter @sibyl/client lint
 bun run --filter @sibyl/client graph
 
 # Export wiki pages
-bun run --filter @sibyl/client export --format json --output backup.json
-bun run --filter @sibyl/client export --format markdown --output wiki-bundle.md
+bun run --filter @sibyl/client export -- --format json --output backup.json
+bun run --filter @sibyl/client export -- --format markdown --output wiki-bundle.md
 ```
 
 ### Export API
