@@ -47,8 +47,8 @@ async function fetchRawResourceStats(): Promise<{ data: { total: number; process
   if (!response.ok) {
     const fallbackResponse = await fetch("/api/raw-resources");
     if (!fallbackResponse.ok) throw new Error("Failed to fetch stats");
-    const data = await fallbackResponse.json();
-    const resources = data.data || [];
+    const fallbackData = await fallbackResponse.json();
+    const resources = fallbackData.data || [];
     return {
       data: {
         total: resources.length,
@@ -61,7 +61,21 @@ async function fetchRawResourceStats(): Promise<{ data: { total: number; process
       },
     };
   }
-  return response.json();
+  const json = await response.json();
+  const stats = json.data?.stats || { pdfCount: 0, imageCount: 0, webpageCount: 0, textCount: 0, processedCount: 0, unprocessedCount: 0 };
+  return {
+    data: {
+      total: stats.pdfCount + stats.imageCount + stats.webpageCount + stats.textCount,
+      processed: stats.processedCount,
+      unprocessed: stats.unprocessedCount,
+      byType: {
+        pdf: stats.pdfCount,
+        image: stats.imageCount,
+        webpage: stats.webpageCount,
+        text: stats.textCount,
+      },
+    },
+  };
 }
 
 function RawResourceCard({
