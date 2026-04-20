@@ -1,12 +1,21 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { rawResourceFileManager } from "../raw/index.js";
+import { rawResourceFileManager, RawResourceFileManager } from "../raw/index.js";
 import { storage } from "../storage/index.js";
 import { logger } from "@sibyl/shared";
 
-export async function registerRawIndexRoutes(fastify: FastifyInstance) {
+export interface RawIndexRouteOptions {
+  rawResourceFileManager?: RawResourceFileManager;
+}
+
+export async function registerRawIndexRoutes(
+  fastify: FastifyInstance,
+  options?: RawIndexRouteOptions
+) {
+  const rawManager = options?.rawResourceFileManager || rawResourceFileManager;
+
   fastify.get("/api/raw-index", async () => {
-    const index = rawResourceFileManager.readIndex();
+    const index = rawManager.readIndex();
     
     return {
       data: {
@@ -15,24 +24,24 @@ export async function registerRawIndexRoutes(fastify: FastifyInstance) {
         totalResources: index.totalResources,
         stats: index.stats,
         entries: index.entries,
-        indexPath: rawResourceFileManager.getIndexPath(),
+        indexPath: rawManager.getIndexPath(),
       },
     };
   });
 
   fastify.get("/api/raw-index/stats", async () => {
-    const stats = rawResourceFileManager.getStats();
+    const stats = rawManager.getStats();
     
     return {
       data: {
         stats,
-        indexPath: rawResourceFileManager.getIndexPath(),
+        indexPath: rawManager.getIndexPath(),
       },
     };
   });
 
   fastify.get("/api/raw-index/unprocessed", async () => {
-    const entries = rawResourceFileManager.findUnprocessed();
+    const entries = rawManager.findUnprocessed();
     
     return {
       data: {
@@ -51,7 +60,7 @@ export async function registerRawIndexRoutes(fastify: FastifyInstance) {
       return { error: "Invalid resource type. Must be one of: pdf, image, webpage, text" };
     }
     
-    const entries = rawResourceFileManager.findByType(parseResult.data);
+    const entries = rawManager.findByType(parseResult.data);
     
     return {
       data: {
@@ -65,7 +74,7 @@ export async function registerRawIndexRoutes(fastify: FastifyInstance) {
   fastify.post("/api/raw-index/rebuild", async () => {
     const allResources = await storage.rawResources.findAll({ limit: 500 });
     
-    rawResourceFileManager.rebuildIndex(allResources);
+    rawManager.rebuildIndex(allResources);
     
     logger.info("Rebuilt raw resource index from database", { 
       totalResources: allResources.length 
