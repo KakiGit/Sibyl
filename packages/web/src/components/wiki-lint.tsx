@@ -4,6 +4,7 @@ import { Activity, AlertTriangle, CheckCircle, Loader2, RefreshCw, Link2Off, Clo
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useDebounce } from "@/hooks/use-debounce";
 
 interface LintIssue {
   type: "orphan" | "missing_page" | "stale" | "missing_reference" | "potential_conflict";
@@ -213,6 +214,7 @@ export function WikiLint() {
   const [issuePage, setIssuePage] = useState(0);
   const [llmIssuePage, setLlmIssuePage] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
   const { data: initialReport, isLoading: initialLoading } = useQuery({
     queryKey: ["lintReport"],
@@ -241,14 +243,14 @@ export function WikiLint() {
     return currentReport
       ? currentReport.issues.filter((issue) => {
           const matchesSeverity = filter === "all" || issue.severity === filter;
-          const matchesSearch = !searchQuery || 
-            (issue.pageTitle?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-             issue.details.toLowerCase().includes(searchQuery.toLowerCase()) ||
-             issue.pageSlug?.toLowerCase().includes(searchQuery.toLowerCase()));
+          const matchesSearch = !debouncedSearchQuery || 
+            (issue.pageTitle?.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+             issue.details.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+             issue.pageSlug?.toLowerCase().includes(debouncedSearchQuery.toLowerCase()));
           return matchesSeverity && matchesSearch;
         })
       : [];
-  }, [currentReport, filter, searchQuery]);
+  }, [currentReport, filter, debouncedSearchQuery]);
 
   const filteredLlmIssues = useMemo(() => {
     return llmReport

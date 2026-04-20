@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach, beforeAll } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useWebSocket } from "./use-websocket";
 
@@ -49,7 +49,9 @@ class MockWebSocket {
   }
 }
 
-vi.stubGlobal("WebSocket", MockWebSocket);
+beforeAll(() => {
+  vi.stubGlobal("WebSocket", MockWebSocket);
+});
 
 describe("useWebSocket", () => {
   beforeEach(() => {

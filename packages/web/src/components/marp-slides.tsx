@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Presentation, Loader2, FileText, CheckCircle, XCircle, Copy, Download, Sparkles, BookOpen, RefreshCw } from "lucide-react";
+import { Presentation, Loader2, FileText, CheckCircle, XCircle, Copy, Download, Sparkles, BookOpen, RefreshCw, Search } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useDebounce } from "@/hooks/use-debounce";
 
 interface WikiPage {
   id: string;
@@ -119,6 +120,8 @@ export function MarpSlides() {
   const [useLlm, setUseLlm] = useState(false);
   const [maxPages, setMaxPages] = useState(10);
   const [copied, setCopied] = useState(false);
+  const [pageSearchQuery, setPageSearchQuery] = useState("");
+  const debouncedPageSearch = useDebounce(pageSearchQuery, 300);
   const queryClient = useQueryClient();
 
   const { data: pagesData, isLoading: pagesLoading } = useQuery({
@@ -198,7 +201,17 @@ export function MarpSlides() {
     );
   };
 
-  const pages = pagesData?.data || [];
+  const pages = useMemo(() => {
+    const allPages = pagesData?.data || [];
+    const uniquePages = allPages.filter((page, index, self) => 
+      index === self.findIndex((p) => p.slug === page.slug)
+    );
+    if (!debouncedPageSearch) return uniquePages;
+    return uniquePages.filter((page) => 
+      page.title.toLowerCase().includes(debouncedPageSearch.toLowerCase()) ||
+      page.slug.toLowerCase().includes(debouncedPageSearch.toLowerCase())
+    );
+  }, [pagesData, debouncedPageSearch]);
   const result = generateMutation.data?.data;
 
   return (
@@ -232,6 +245,17 @@ export function MarpSlides() {
             {mode === "select" && (
               <div>
                 <label className="text-sm font-medium mb-2 block">Select Wiki Pages</label>
+                <div className="relative mb-2">
+                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+                  <input
+                    type="text"
+                    placeholder="Search pages..."
+                    value={pageSearchQuery}
+                    onChange={(e) => setPageSearchQuery(e.target.value)}
+                    className="w-full pl-6 pr-2 py-1 text-sm border rounded-md focus:outline-none focus:ring-1 focus:ring-primary"
+                    disabled={generateMutation.isPending}
+                  />
+                </div>
                 {pagesLoading ? (
                   <div className="space-y-2">
                     {[1, 2, 3].map((i) => (
