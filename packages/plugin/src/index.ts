@@ -152,11 +152,11 @@ async function triggerLlmIngestion(
 }
 
 export const SibylPlugin: Plugin = async (input, options?: SibylPluginOptions) => {
-  const serverUrl = options?.serverUrl || DEFAULT_SERVER_URL;
-  const autoInject = options?.autoInject !== false;
-  const apiKey = options?.apiKey;
-  const autoSave = options?.autoSave ?? true;
-  const autoSaveThreshold = options?.autoSaveThreshold ?? 1;
+  const serverUrl = options?.serverUrl || process.env.SIBYL_SERVER_URL || DEFAULT_SERVER_URL;
+  const autoInject = options?.autoInject !== false && process.env.SIBYL_AUTO_INJECT !== "false";
+  const apiKey = options?.apiKey || process.env.SIBYL_API_KEY;
+  const autoSave = options?.autoSave ?? process.env.SIBYL_AUTO_SAVE !== "false";
+  const autoSaveThreshold = options?.autoSaveThreshold ?? parseInt(process.env.SIBYL_AUTO_SAVE_THRESHOLD || "1", 10);
 
   const hooks: Hooks = {
     tool: {
