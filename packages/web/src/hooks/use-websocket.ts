@@ -231,6 +231,9 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
 }
 
 function getWebSocketUrl(): string {
+  if (import.meta.env.DEV) {
+    return "ws://localhost:3000/ws";
+  }
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
   const host = window.location.host;
   return `${protocol}//${host}/ws`;
