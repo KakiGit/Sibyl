@@ -237,6 +237,62 @@ export async function registerIngestRoutes(fastify: FastifyInstance) {
     };
   });
 
+  fastify.post("/api/ingest/llm/:id", async (request, reply) => {
+    const params = request.params as { id: string };
+
+    const llmProvider = getLlmProvider();
+    if (!llmProvider) {
+      reply.code(503);
+      return { error: "LLM provider not configured. Check ~/.llm_secrets file." };
+    }
+
+    try {
+      const rawResource = await storage.rawResources.findById(params.id);
+      if (!rawResource) {
+        reply.code(404);
+        return { error: "Raw resource not found" };
+      }
+
+      if (rawResource.processed) {
+        reply.code(400);
+        return { error: "Raw resource already processed" };
+      }
+
+      const ingestResult = await ingestWithLlm({
+        rawResourceId: params.id,
+        wikiFileManager,
+        llmProvider,
+      });
+
+      logger.info("Ingested existing raw resource with LLM via API", {
+        rawResourceId: params.id,
+        wikiPageId: ingestResult.wikiPageId,
+        crossReferences: ingestResult.generatedContent.crossReferences.length,
+        model: llmProvider.getConfig().model,
+      });
+
+      return {
+        data: {
+          rawResourceId: ingestResult.rawResourceId,
+          wikiPageId: ingestResult.wikiPageId,
+          slug: ingestResult.slug,
+          title: ingestResult.title,
+          type: ingestResult.type,
+          processed: ingestResult.processed,
+          crossReferences: ingestResult.generatedContent.crossReferences,
+          llmGenerated: true,
+        },
+      };
+    } catch (error) {
+      logger.error("LLM ingest by ID failed", {
+        rawResourceId: params.id,
+        error: (error as Error).message,
+      });
+      reply.code(500);
+      return { error: "Failed to ingest with LLM", message: (error as Error).message };
+    }
+  });
+
   fastify.post("/api/ingest/llm", async (request, reply) => {
     const bodySchema = z.object({
       filename: z.string().min(1),

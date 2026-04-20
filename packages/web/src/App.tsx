@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { 
   FileText, Brain, BookOpen, Layers, Search, Upload, Network, 
-  Settings, Home, ChevronRight, Keyboard
+  Settings, Home, ChevronRight, Keyboard, Database
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { WikiPageList } from "@/components/wiki-page-list";
@@ -105,6 +105,7 @@ const TABS_CONFIG = [
   { id: "search", label: "Search", icon: Search },
   { id: "ingest", label: "Ingest", icon: Upload },
   { id: "pages", label: "Wiki Pages", icon: BookOpen },
+  { id: "raw", label: "Raw Resources", icon: Database },
   { id: "graph", label: "Graph", icon: Network },
   { id: "tools", label: "Tools", icon: Settings },
 ] as const;
@@ -164,8 +165,9 @@ export default function App() {
     { key: "2", ctrl: true, action: () => setActiveTab("search"), description: "Search" },
     { key: "3", ctrl: true, action: () => setActiveTab("ingest"), description: "Ingest" },
     { key: "4", ctrl: true, action: () => setActiveTab("pages"), description: "Wiki Pages" },
-    { key: "5", ctrl: true, action: () => setActiveTab("graph"), description: "Graph" },
-    { key: "6", ctrl: true, action: () => setActiveTab("tools"), description: "Tools" },
+    { key: "5", ctrl: true, action: () => setActiveTab("raw"), description: "Raw Resources" },
+    { key: "6", ctrl: true, action: () => setActiveTab("graph"), description: "Graph" },
+    { key: "7", ctrl: true, action: () => setActiveTab("tools"), description: "Tools" },
     { key: "/", ctrl: true, action: () => setActiveTab("search"), description: "Quick search" },
     { key: "?", shift: true, action: () => setShowShortcuts((prev) => !prev), description: "Show shortcuts" },
   ], []);
@@ -255,13 +257,18 @@ export default function App() {
             {activeTab === "ingest" && (
               <div className="space-y-6">
                 <ContentIngestion />
-                <RawResourceList />
               </div>
             )}
             
             {activeTab === "pages" && (
               <div className="space-y-6">
                 <WikiPageList />
+              </div>
+            )}
+            
+            {activeTab === "raw" && (
+              <div className="space-y-6">
+                <RawResourceList />
               </div>
             )}
             

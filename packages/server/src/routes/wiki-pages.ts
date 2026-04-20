@@ -4,6 +4,55 @@ import { storage } from "../storage/index.js";
 import { wikiFileManager, syncWikiLinks } from "../wiki/index.js";
 import { WikiPageTypeSchema } from "@sibyl/sdk";
 import { wikiStatsCache, searchCache } from "../cache/index.js";
+import { wikiSearchStorage } from "../search/index.js";
+import { logger } from "@sibyl/shared";
+
+async function buildGraphForNewPage(newPageId: string, newPage: { title: string; summary?: string | null }): Promise<void> {
+  try {
+    const existingPages = await storage.wikiPages.findAll({ limit: 50 });
+    const otherPages = existingPages.filter(p => p.id !== newPageId);
+    
+    if (otherPages.length === 0) return;
+    
+    const searchQuery = `${newPage.title} ${newPage.summary || ""}`;
+    const searchResults = await wikiSearchStorage.hybridSearch(
+      { query: searchQuery, limit: 5, useSemantic: true },
+      otherPages
+    );
+    
+    if (searchResults.length === 0) return;
+    
+    const existingLinks = await storage.wikiLinks.findByFromPageId(newPageId);
+    const alreadyLinkedIds = new Set(existingLinks.map(l => l.toPageId));
+    
+    for (const result of searchResults.slice(0, 3)) {
+      if (alreadyLinkedIds.has(result.page.id)) continue;
+      
+      await storage.wikiLinks.create({
+        fromPageId: newPageId,
+        toPageId: result.page.id,
+        relationType: "reference",
+      });
+      
+      logger.debug("Auto-created wiki link", {
+        fromPageId: newPageId,
+        toPageId: result.page.id,
+        toSlug: result.page.slug,
+        score: result.combinedScore,
+      });
+    }
+    
+    logger.info("Auto-built graph for new wiki page", {
+      pageId: newPageId,
+      linksCreated: Math.min(searchResults.length, 3),
+    });
+  } catch (error) {
+    logger.warn("Failed to auto-build graph for wiki page", {
+      pageId: newPageId,
+      error: (error as Error).message,
+    });
+  }
+}
 
 const STATS_CACHE_KEY = "wiki_stats";
 const PAGES_CACHE_KEY = "search_pages";
@@ -111,6 +160,9 @@ export async function registerWikiPageRoutes(fastify: FastifyInstance) {
     const page = await storage.wikiPages.create(body);
     wikiStatsCache.delete(STATS_CACHE_KEY);
     searchCache.delete(PAGES_CACHE_KEY);
+    
+    buildGraphForNewPage(page.id, { title: page.title, summary: page.summary }).catch(() => {});
+    
     return { data: page };
   });
 
