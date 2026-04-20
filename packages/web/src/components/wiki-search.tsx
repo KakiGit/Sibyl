@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Search, Loader2, RefreshCw, BookOpen, XCircle, CheckCircle, Sparkles } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -27,7 +27,7 @@ interface SearchResponse {
   data: SearchResult[];
 }
 
-async function hybridSearch(options: {
+async function searchWiki(options: {
   query: string;
   type?: "entity" | "concept" | "source" | "summary";
   tags?: string[];
@@ -35,14 +35,6 @@ async function hybridSearch(options: {
   semanticThreshold?: number;
   limit?: number;
 }): Promise<SearchResponse> {
-  const params = new URLSearchParams();
-  params.set("query", options.query);
-  if (options.type) params.set("type", options.type);
-  if (options.tags?.length) params.set("tags", options.tags.join(","));
-  if (options.useSemantic !== undefined) params.set("useSemantic", String(options.useSemantic));
-  if (options.semanticThreshold) params.set("semanticThreshold", String(options.semanticThreshold));
-  if (options.limit) params.set("limit", String(options.limit));
-
   const response = await fetch(`/api/wiki-pages/search`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -160,8 +152,45 @@ export function WikiSearch() {
   const debouncedQuery = useDebounce(query, 300);
   const debouncedTags = useDebounce(tags, 300);
 
-  const searchMutation = useMutation({
-    mutationFn: hybridSearch,
+  const autoSearchQuery = useQuery({
+    queryKey: ["wikiAutoSearch", debouncedQuery, type, debouncedTags, useSemantic, limit],
+    queryFn: async ({ signal }) => {
+      if (!debouncedQuery.trim() || debouncedQuery.length < 2) return { data: [] };
+      
+      const tagArray = debouncedTags.trim()
+        ? debouncedTags.split(",").map((t) => t.trim()).filter(Boolean)
+        : undefined;
+
+      const response = await fetch(`/api/wiki-pages/search`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: debouncedQuery.trim(),
+          type: type || undefined,
+          tags: tagArray?.join(","),
+          useSemantic,
+          semanticThreshold: 0.3,
+          limit,
+        }),
+        signal,
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Failed to search");
+      }
+      return response.json();
+    },
+    enabled: autoSearch && debouncedQuery.trim().length >= 2,
+    retry: 1,
+    staleTime: 30000,
+  });
+
+  const manualSearchMutation = useMutation({
+    mutationFn: searchWiki,
+    onSuccess: (data) => {
+      queryClient.setQueryData(["wikiManualSearch"], data);
+    },
     onError: (error) => {
       toast.error("Search failed", (error as Error).message);
     },
@@ -178,31 +207,19 @@ export function WikiSearch() {
     },
   });
 
-  const executeSearch = useCallback((searchQuery: string, searchTags: string) => {
-    if (searchQuery.trim()) {
-      const tagArray = searchTags.trim()
-        ? searchTags.split(",").map((t) => t.trim()).filter(Boolean)
-        : undefined;
-
-      searchMutation.mutate({
-        query: searchQuery.trim(),
-        type: type || undefined,
-        tags: tagArray,
-        useSemantic,
-        limit,
-      });
-    }
-  }, [type, useSemantic, limit, searchMutation]);
-
-  useEffect(() => {
-    if (autoSearch && debouncedQuery.trim() && debouncedQuery.length >= 2) {
-      executeSearch(debouncedQuery, debouncedTags);
-    }
-  }, [debouncedQuery, debouncedTags, autoSearch, executeSearch]);
-
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    executeSearch(query, tags);
+    const tagArray = tags.trim()
+      ? tags.split(",").map((t) => t.trim()).filter(Boolean)
+      : undefined;
+
+    manualSearchMutation.mutate({
+      query: query.trim(),
+      type: type || undefined,
+      tags: tagArray,
+      useSemantic,
+      limit,
+    });
   };
 
   const handleClear = () => {
@@ -211,16 +228,24 @@ export function WikiSearch() {
     setTags("");
     setUseSemantic(true);
     setLimit(10);
-    searchMutation.reset();
+    manualSearchMutation.reset();
+    queryClient.removeQueries({ queryKey: ["wikiAutoSearch"] });
   };
 
   const handleRebuild = () => {
     rebuildMutation.mutate();
   };
 
-  const results = searchMutation.data?.data || [];
-  const isPending = searchMutation.isPending || rebuildMutation.isPending;
-  const showAutoSearchIndicator = autoSearch && debouncedQuery !== query && query.length >= 2;
+  const autoSearchResults = autoSearchQuery.data?.data || [];
+  const manualSearchResults = manualSearchMutation.data?.data || [];
+  
+  const results = manualSearchMutation.data ? manualSearchResults : autoSearchResults;
+  const isAutoSearching = autoSearchQuery.isLoading && !manualSearchMutation.data;
+  const isManualSearching = manualSearchMutation.isPending;
+  const isPending = isAutoSearching || isManualSearching || rebuildMutation.isPending;
+  
+  const searchError = manualSearchMutation.data ? null : (autoSearch ? autoSearchQuery.error : manualSearchMutation.error);
+  const showAutoSearchIndicator = autoSearch && debouncedQuery !== query && query.length >= 2 && !manualSearchMutation.data;
 
   return (
     <div className="space-y-6">
@@ -331,7 +356,7 @@ export function WikiSearch() {
 
             <div className="flex gap-3">
               <Button type="submit" disabled={isPending || !query.trim()}>
-                {searchMutation.isPending ? (
+                {isManualSearching ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <Search className="h-4 w-4" />
@@ -352,17 +377,17 @@ export function WikiSearch() {
               </Button>
             </div>
 
-            {searchMutation.error && (
+            {searchError && !autoSearch && (
               <div className="flex items-center gap-2 p-3 bg-red-50 rounded-lg">
                 <XCircle className="h-4 w-4 text-red-600" />
                 <p className="text-sm text-red-600">
-                  {(searchMutation.error as Error).message}
+                  {(searchError as Error).message}
                 </p>
               </div>
             )}
           </form>
 
-          {!searchMutation.isPending && rebuildMutation.isSuccess && (
+          {!isPending && rebuildMutation.isSuccess && (
             <div className="flex items-center gap-2 p-3 bg-green-50 rounded-lg">
               <CheckCircle className="h-4 w-4 text-green-600" />
               <p className="text-sm text-green-600">
@@ -371,18 +396,18 @@ export function WikiSearch() {
             </div>
           )}
 
-          {!searchMutation.isPending && results.length > 0 && (
+          {!isPending && results.length > 0 && (
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
-                Found {results.length} results for "{query}"
+                Found {results.length} results for "{autoSearch ? debouncedQuery : query}"
               </p>
-              {results.map((result) => (
+              {results.map((result: SearchResult) => (
                 <ResultCard key={result.page.id} result={result} />
               ))}
             </div>
           )}
 
-          {!searchMutation.isPending && searchMutation.data && results.length === 0 && (
+          {!isPending && (autoSearchQuery.data || manualSearchMutation.data) && results.length === 0 && (
             <Card>
               <CardContent className="p-6 text-center">
                 <p className="text-muted-foreground">No results found for this query.</p>

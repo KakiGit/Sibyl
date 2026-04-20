@@ -245,10 +245,14 @@ describe("RawResourceList", () => {
           ok: true,
           json: async () => ({
             data: {
-              total: 10,
-              processed: 6,
-              unprocessed: 4,
-              byType: { pdf: 3, text: 2, webpage: 3, image: 2 },
+              stats: {
+                pdfCount: 3,
+                textCount: 2,
+                webpageCount: 3,
+                imageCount: 2,
+                processedCount: 6,
+                unprocessedCount: 4,
+              },
             },
           }),
         } as Response;
