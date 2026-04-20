@@ -378,20 +378,15 @@ export const SibylPlugin: Plugin = async (input, options?: SibylPluginOptions) =
         
         if (!session) return;
         
-        const messageCount = session.messageMetadata.size;
-        if (messageCount < autoSaveThreshold) return;
-        
         const messagesWithParts = [...session.messageMetadata.values()].filter(
           m => (session.messageParts.get(m.messageId)?.length || 0) > 0
         );
-        if (messagesWithParts.length < messageCount) return;
+        
+        if (messagesWithParts.length < autoSaveThreshold) return;
         
         let rawResourceId = session.rawResourceId;
-        if (!rawResourceId || session.lastSyncVersion < messageCount) {
+        if (!rawResourceId) {
           rawResourceId = await syncSessionToRawResource(serverUrl, session, apiKey);
-          if (rawResourceId) {
-            session.rawResourceId = rawResourceId;
-          }
         }
         
         if (rawResourceId) {
@@ -438,20 +433,17 @@ export const SibylPlugin: Plugin = async (input, options?: SibylPluginOptions) =
           timestamp: message.time?.created || Date.now(),
         });
 
-        const messageCount = session.messageMetadata.size;
-        if (messageCount < autoSaveThreshold) return;
-        if (messageCount <= session.lastSyncVersion) return;
-
         const messagesWithParts = [...session.messageMetadata.values()].filter(
           m => (session.messageParts.get(m.messageId)?.length || 0) > 0
         );
-        if (messagesWithParts.length < messageCount) return;
+        if (messagesWithParts.length < autoSaveThreshold) return;
+        if (messagesWithParts.length <= session.lastSyncVersion) return;
 
         const rawResourceId = await syncSessionToRawResource(serverUrl, session, apiKey);
         if (rawResourceId) {
           session.rawResourceId = rawResourceId;
         }
-        session.lastSyncVersion = messageCount;
+        session.lastSyncVersion = messagesWithParts.length;
         return;
       }
 
@@ -502,20 +494,17 @@ export const SibylPlugin: Plugin = async (input, options?: SibylPluginOptions) =
         
         session.messageParts.set(messageId, messageParts);
 
-        const messageCount = session.messageMetadata.size;
-        if (messageCount < autoSaveThreshold) return;
-        if (messageCount <= session.lastSyncVersion) return;
-
         const messagesWithParts = [...session.messageMetadata.values()].filter(
           m => (session.messageParts.get(m.messageId)?.length || 0) > 0
         );
-        if (messagesWithParts.length < messageCount) return;
+        if (messagesWithParts.length < autoSaveThreshold) return;
+        if (messagesWithParts.length <= session.lastSyncVersion) return;
 
         const rawResourceId = await syncSessionToRawResource(serverUrl, session, apiKey);
         if (rawResourceId) {
           session.rawResourceId = rawResourceId;
         }
-        session.lastSyncVersion = messageCount;
+        session.lastSyncVersion = messagesWithParts.length;
         return;
       }
     },

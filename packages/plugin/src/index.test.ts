@@ -553,6 +553,61 @@ describe("auto-save functionality", () => {
     expect(body?.content).toContain("Hi there!");
   });
 
+  it("session.idle triggers ingestion even when some messages lack text parts", async () => {
+    mockResponses["/api/raw-resources"] = { id: "raw-id-mixed", filename: "session-mixed.txt" };
+    mockResponses["/api/ingest/llm/raw-id-mixed"] = { 
+      data: { rawResourceId: "raw-id-mixed", processed: true } 
+    };
+
+    const hooks = await SibylPlugin({} as any, { 
+      serverUrl: "http://localhost:3000",
+      autoSave: true,
+      autoSaveThreshold: 2
+    });
+
+    await hooks.event?.({ event: { 
+      type: "message.updated", 
+      properties: { 
+        info: { sessionID: "mixed-session", id: "msg-user-1", role: "user", time: { created: 1000 } } 
+      } 
+    } as any });
+    await hooks.event?.({ event: { 
+      type: "message.part.updated", 
+      properties: { 
+        part: { sessionID: "mixed-session", messageID: "msg-user-1", type: "text", text: "User text" } 
+      } 
+    } as any });
+    await hooks.event?.({ event: { 
+      type: "message.updated", 
+      properties: { 
+        info: { sessionID: "mixed-session", id: "msg-assistant-1", role: "assistant", time: { created: 2000 } } 
+      } 
+    } as any });
+    await hooks.event?.({ event: { 
+      type: "message.updated", 
+      properties: { 
+        info: { sessionID: "mixed-session", id: "msg-tool-1", role: "assistant", time: { created: 3000 } } 
+      } 
+    } as any });
+    await hooks.event?.({ event: { 
+      type: "message.part.updated", 
+      properties: { 
+        part: { sessionID: "mixed-session", messageID: "msg-assistant-1", type: "text", text: "Assistant text" } 
+      } 
+    } as any });
+    await hooks.event?.({ event: { 
+      type: "session.idle", 
+      properties: { sessionID: "mixed-session" } 
+    } as any });
+
+    expect(fetchCalls.length).toBe(2);
+    expect(fetchCalls[0].url).toBe("http://localhost:3000/api/raw-resources");
+    expect(fetchCalls[1].url).toBe("http://localhost:3000/api/ingest/llm/raw-id-mixed");
+    const body = fetchCalls[0].options?.body as any;
+    expect(body?.content).toContain("User text");
+    expect(body?.content).toContain("Assistant text");
+  });
+
   it("session.idle triggers LLM ingestion", async () => {
     mockResponses["/api/raw-resources"] = { id: "raw-id-123", filename: "session-idle-test.txt" };
     mockResponses["/api/ingest/llm/raw-id-123"] = { 
