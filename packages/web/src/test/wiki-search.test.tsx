@@ -56,9 +56,12 @@ const createWrapper = () => {
 };
 
 describe("WikiSearch", () => {
+  const mockFetch = vi.fn();
+
   beforeEach(() => {
     vi.resetAllMocks();
-    global.fetch = vi.fn();
+    mockFetch.mockReset();
+    global.fetch = mockFetch as unknown as typeof fetch;
   });
 
   it("should render search input", () => {
@@ -116,7 +119,7 @@ describe("WikiSearch", () => {
   });
 
   it("should perform search when form is submitted", async () => {
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+    mockFetch.mockResolvedValueOnce({
       ok: true,
       json: () => Promise.resolve(mockSearchResponse),
     });
@@ -130,10 +133,10 @@ describe("WikiSearch", () => {
     fireEvent.click(searchButton);
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalled();
+      expect(mockFetch).toHaveBeenCalled();
     });
 
-    const fetchCall = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+    const fetchCall = mockFetch.mock.calls[0];
     expect(fetchCall[0]).toBe("/api/wiki-pages/search");
     expect(fetchCall[1].method).toBe("POST");
     const body = JSON.parse(fetchCall[1].body);
@@ -141,7 +144,7 @@ describe("WikiSearch", () => {
   });
 
   it("should display search results after successful search", async () => {
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+    mockFetch.mockResolvedValueOnce({
       ok: true,
       json: () => Promise.resolve(mockSearchResponse),
     });
@@ -161,7 +164,7 @@ describe("WikiSearch", () => {
   });
 
   it("should display result count after search", async () => {
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+    mockFetch.mockResolvedValueOnce({
       ok: true,
       json: () => Promise.resolve(mockSearchResponse),
     });
@@ -180,7 +183,7 @@ describe("WikiSearch", () => {
   });
 
   it("should display match type badges on results", async () => {
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+    mockFetch.mockResolvedValueOnce({
       ok: true,
       json: () => Promise.resolve(mockSearchResponse),
     });
@@ -204,7 +207,7 @@ describe("WikiSearch", () => {
   });
 
   it("should display page type badges on results", async () => {
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+    mockFetch.mockResolvedValueOnce({
       ok: true,
       json: () => Promise.resolve(mockSearchResponse),
     });
@@ -226,7 +229,7 @@ describe("WikiSearch", () => {
   });
 
   it("should display tags on results", async () => {
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+    mockFetch.mockResolvedValueOnce({
       ok: true,
       json: () => Promise.resolve(mockSearchResponse),
     });
@@ -250,7 +253,7 @@ describe("WikiSearch", () => {
   });
 
   it("should show no results message when search returns empty", async () => {
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+    mockFetch.mockResolvedValueOnce({
       ok: true,
       json: () => Promise.resolve({ data: [] }),
     });
@@ -269,7 +272,7 @@ describe("WikiSearch", () => {
   });
 
   it("should show error message when search fails", async () => {
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+    mockFetch.mockResolvedValueOnce({
       ok: false,
       json: () => Promise.resolve({ message: "Search failed" }),
     });
@@ -300,7 +303,7 @@ describe("WikiSearch", () => {
   });
 
   it("should rebuild index when rebuild button clicked", async () => {
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+    mockFetch.mockResolvedValueOnce({
       ok: true,
       json: () => Promise.resolve(mockRebuildResponse),
     });
@@ -311,14 +314,14 @@ describe("WikiSearch", () => {
     fireEvent.click(rebuildButton);
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith("/api/wiki-pages/search/rebuild-index", {
+      expect(mockFetch).toHaveBeenCalledWith("/api/wiki-pages/search/rebuild-index", {
         method: "POST",
       });
     });
   });
 
   it("should show success message after index rebuild", async () => {
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+    mockFetch.mockResolvedValueOnce({
       ok: true,
       json: () => Promise.resolve(mockRebuildResponse),
     });
@@ -347,7 +350,7 @@ describe("WikiSearch", () => {
   });
 
   it("should search with type filter", async () => {
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+    mockFetch.mockResolvedValueOnce({
       ok: true,
       json: () => Promise.resolve(mockSearchResponse),
     });
@@ -364,16 +367,16 @@ describe("WikiSearch", () => {
     fireEvent.click(searchButton);
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalled();
+      expect(mockFetch).toHaveBeenCalled();
     });
 
-    const fetchCall = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+    const fetchCall = mockFetch.mock.calls[0];
     const body = JSON.parse(fetchCall[1].body);
     expect(body.type).toBe("concept");
   });
 
   it("should search with tags filter", async () => {
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+    mockFetch.mockResolvedValueOnce({
       ok: true,
       json: () => Promise.resolve(mockSearchResponse),
     });
@@ -390,16 +393,16 @@ describe("WikiSearch", () => {
     fireEvent.click(searchButton);
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalled();
+      expect(mockFetch).toHaveBeenCalled();
     });
 
-    const fetchCall = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+    const fetchCall = mockFetch.mock.calls[0];
     const body = JSON.parse(fetchCall[1].body);
     expect(body.tags).toBe("ai,ml");
   });
 
   it("should search with custom limit", async () => {
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+    mockFetch.mockResolvedValueOnce({
       ok: true,
       json: () => Promise.resolve(mockSearchResponse),
     });
@@ -416,10 +419,10 @@ describe("WikiSearch", () => {
     fireEvent.click(searchButton);
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalled();
+      expect(mockFetch).toHaveBeenCalled();
     });
 
-    const fetchCall = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+    const fetchCall = mockFetch.mock.calls[0];
     const body = JSON.parse(fetchCall[1].body);
     expect(body.limit).toBe(20);
   });

@@ -1,6 +1,6 @@
 import "@happy-dom/global-registrator";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { render, screen, waitFor, fireEvent, within } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ContentFiling } from "../components/content-filing";
 
@@ -50,11 +50,11 @@ const mockFilingHistory = {
   ],
 };
 
-function getSubmitButton(container: HTMLElement, buttonText: RegExp) {
+function getSubmitButton(container: HTMLElement, buttonText: RegExp): HTMLElement | null {
   const buttons = container.querySelectorAll("button[type='submit']");
   for (const button of buttons) {
     if (button.textContent?.match(buttonText)) {
-      return button;
+      return button as HTMLElement;
     }
   }
   return null;
@@ -285,7 +285,7 @@ describe("ContentFiling", () => {
       fireEvent.change(contentTextarea, { target: { value: "Test content for filing" } });
 
       const submitButton = getSubmitButton(container, /File Content/i);
-      submitButton?.click();
+      if (submitButton) fireEvent.click(submitButton);
 
       await waitFor(() => {
         expect(fetchCalls.some(c => c.url === "/api/filing")).toBe(true);
@@ -320,7 +320,7 @@ describe("ContentFiling", () => {
       fireEvent.change(contentTextarea, { target: { value: "Test content for filing" } });
 
       const submitButton = getSubmitButton(container, /File Content/i);
-      submitButton?.click();
+      if (submitButton) fireEvent.click(submitButton);
 
       await waitFor(() => {
         expect(screen.getByText(/Content filed successfully/i)).toBeTruthy();
@@ -355,7 +355,7 @@ describe("ContentFiling", () => {
       fireEvent.change(contentTextarea, { target: { value: "Test content for filing" } });
 
       const submitButton = getSubmitButton(container, /File Content/i);
-      submitButton?.click();
+      if (submitButton) fireEvent.click(submitButton);
 
       await waitFor(() => {
         expect(screen.getByText("Test Filing")).toBeTruthy();
@@ -391,7 +391,7 @@ describe("ContentFiling", () => {
       fireEvent.change(contentTextarea, { target: { value: "Test content for filing" } });
 
       const submitButton = getSubmitButton(container, /File Content/i);
-      submitButton?.click();
+      if (submitButton) fireEvent.click(submitButton);
 
       await waitFor(() => {
         expect(screen.getByText("Summary")).toBeTruthy();
@@ -426,7 +426,7 @@ describe("ContentFiling", () => {
       fireEvent.change(contentTextarea, { target: { value: "Test content for filing" } });
 
       const submitButton = getSubmitButton(container, /File Content/i);
-      submitButton?.click();
+      if (submitButton) fireEvent.click(submitButton);
 
       await waitFor(() => {
         expect(screen.getByText("2")).toBeTruthy();
@@ -461,7 +461,7 @@ describe("ContentFiling", () => {
       fireEvent.change(contentTextarea, { target: { value: "Test content for filing" } });
 
       const submitButton = getSubmitButton(container, /File Content/i);
-      submitButton?.click();
+      if (submitButton) fireEvent.click(submitButton);
 
       await waitFor(() => {
         expect(screen.getByText(/Failed to file content/i)).toBeTruthy();
@@ -646,7 +646,7 @@ describe("ContentFiling", () => {
       fireEvent.change(queryInput, { target: { value: "test query" } });
 
       const submitButton = getSubmitButton(container, /File Query Result/i);
-      submitButton?.click();
+      if (submitButton) fireEvent.click(submitButton);
 
       await waitFor(() => {
         expect(fetchCalls.some(c => c.url === "/api/filing/query")).toBe(true);
@@ -685,7 +685,7 @@ describe("ContentFiling", () => {
       fireEvent.change(queryInput, { target: { value: "test query" } });
 
       const submitButton = getSubmitButton(container, /File Query Result/i);
-      submitButton?.click();
+      if (submitButton) fireEvent.click(submitButton);
 
       await waitFor(() => {
         expect(screen.getByText(/Content filed successfully/i)).toBeTruthy();
@@ -724,7 +724,7 @@ describe("ContentFiling", () => {
       fireEvent.change(queryInput, { target: { value: "test query" } });
 
       const submitButton = getSubmitButton(container, /File Query Result/i);
-      submitButton?.click();
+      if (submitButton) fireEvent.click(submitButton);
 
       await waitFor(() => {
         expect(screen.getByText(/Failed to file query result/i)).toBeTruthy();
@@ -788,7 +788,7 @@ describe("ContentFiling", () => {
       fireEvent.change(contentTextarea, { target: { value: "Test content" } });
 
       const submitButton = getSubmitButton(container, /File Content/i);
-      submitButton?.click();
+      if (submitButton) fireEvent.click(submitButton);
 
       await waitFor(() => {
         expect(historyCallCount).toBeGreaterThan(initialCallCount);
@@ -834,7 +834,7 @@ describe("ContentFiling", () => {
       fireEvent.change(contentTextarea, { target: { value: "Test content" } });
 
       const submitButton = getSubmitButton(container, /File Content/i);
-      submitButton?.click();
+      if (submitButton) fireEvent.click(submitButton);
 
       await waitFor(() => {
         expect(screen.getByText(/Network error/i)).toBeTruthy();

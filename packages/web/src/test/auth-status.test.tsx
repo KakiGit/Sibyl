@@ -43,8 +43,8 @@ describe("AuthStatus", () => {
   });
 
   it("should not render when auth is disabled", async () => {
-    vi.spyOn(global, "fetch").mockImplementation((url: string) => {
-      if (url === "/api/auth/status") {
+    vi.spyOn(global, "fetch").mockImplementation((url: string | URL | Request) => {
+      if (String(url) === "/api/auth/status") {
         return Promise.resolve({
           ok: true,
           json: () => Promise.resolve({ data: { enabled: false } }),
@@ -61,8 +61,8 @@ describe("AuthStatus", () => {
   });
 
   it("should show not authenticated when auth enabled and no token", async () => {
-    vi.spyOn(global, "fetch").mockImplementation((url: string) => {
-      if (url === "/api/auth/status") {
+    vi.spyOn(global, "fetch").mockImplementation((url: string | URL | Request) => {
+      if (String(url) === "/api/auth/status") {
         return Promise.resolve({
           ok: true,
           json: () => Promise.resolve({ data: { enabled: true } }),
@@ -82,8 +82,8 @@ describe("AuthStatus", () => {
   it("should show authenticated when token stored", async () => {
     window.localStorage.setItem("sibyl_token", "test-token");
 
-    vi.spyOn(global, "fetch").mockImplementation((url: string) => {
-      if (url === "/api/auth/status") {
+    vi.spyOn(global, "fetch").mockImplementation((url: string | URL | Request) => {
+      if (String(url) === "/api/auth/status") {
         return Promise.resolve({
           ok: true,
           json: () => Promise.resolve({ data: { enabled: true } }),
@@ -101,8 +101,8 @@ describe("AuthStatus", () => {
   });
 
   it("should show API key input when not authenticated", async () => {
-    vi.spyOn(global, "fetch").mockImplementation((url: string) => {
-      if (url === "/api/auth/status") {
+    vi.spyOn(global, "fetch").mockImplementation((url: string | URL | Request) => {
+      if (String(url) === "/api/auth/status") {
         return Promise.resolve({
           ok: true,
           json: () => Promise.resolve({ data: { enabled: true } }),
@@ -120,14 +120,14 @@ describe("AuthStatus", () => {
   });
 
   it("should login with API key", async () => {
-    vi.spyOn(global, "fetch").mockImplementation((url: string, options?: RequestInit) => {
-      if (url === "/api/auth/status") {
+    vi.spyOn(global, "fetch").mockImplementation((url: string | URL | Request, options?: RequestInit) => {
+      if (String(url) === "/api/auth/status") {
         return Promise.resolve({
           ok: true,
           json: () => Promise.resolve({ data: { enabled: true } }),
         } as Response);
       }
-      if (url === "/api/auth/login" && options?.method === "POST") {
+      if (String(url) === "/api/auth/login" && options?.method === "POST") {
         return Promise.resolve({
           ok: true,
           json: () => Promise.resolve({ data: { token: "new-token" } }),
@@ -155,14 +155,14 @@ describe("AuthStatus", () => {
   });
 
   it("should show error on login failure", async () => {
-    vi.spyOn(global, "fetch").mockImplementation((url: string, options?: RequestInit) => {
-      if (url === "/api/auth/status") {
+    vi.spyOn(global, "fetch").mockImplementation((url: string | URL | Request, options?: RequestInit) => {
+      if (String(url) === "/api/auth/status") {
         return Promise.resolve({
           ok: true,
           json: () => Promise.resolve({ data: { enabled: true } }),
         } as Response);
       }
-      if (url === "/api/auth/login" && options?.method === "POST") {
+      if (String(url) === "/api/auth/login" && options?.method === "POST") {
         return Promise.resolve({
           ok: false,
           json: () => Promise.resolve({ error: "Invalid API key" }),
@@ -191,8 +191,8 @@ describe("AuthStatus", () => {
   it("should logout and clear token", async () => {
     window.localStorage.setItem("sibyl_token", "test-token");
 
-    vi.spyOn(global, "fetch").mockImplementation((url: string) => {
-      if (url === "/api/auth/status") {
+    vi.spyOn(global, "fetch").mockImplementation((url: string | URL | Request) => {
+      if (String(url) === "/api/auth/status") {
         return Promise.resolve({
           ok: true,
           json: () => Promise.resolve({ data: { enabled: true } }),
@@ -217,8 +217,8 @@ describe("AuthStatus", () => {
   });
 
   it("should disable login button when API key empty", async () => {
-    vi.spyOn(global, "fetch").mockImplementation((url: string) => {
-      if (url === "/api/auth/status") {
+    vi.spyOn(global, "fetch").mockImplementation((url: string | URL | Request) => {
+      if (String(url) === "/api/auth/status") {
         return Promise.resolve({
           ok: true,
           json: () => Promise.resolve({ data: { enabled: true } }),
@@ -238,8 +238,8 @@ describe("AuthStatus", () => {
   });
 
   it("should enable login button when API key provided", async () => {
-    vi.spyOn(global, "fetch").mockImplementation((url: string) => {
-      if (url === "/api/auth/status") {
+    vi.spyOn(global, "fetch").mockImplementation((url: string | URL | Request) => {
+      if (String(url) === "/api/auth/status") {
         return Promise.resolve({
           ok: true,
           json: () => Promise.resolve({ data: { enabled: true } }),
