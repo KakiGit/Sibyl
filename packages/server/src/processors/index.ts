@@ -12,3 +12,12 @@ export type { FilingOptions, FilingResult, FileQueryResultOptions } from "./fili
 
 export { lintProcessor, lintWiki, findOrphanPages, findStalePages, findMissingReferences, findPotentialConflicts, getLintHistory } from "./lint.js";
 export type { LintIssue, LintReport, LintOptions } from "./lint.js";
+
+export {
+  generateMarpSlides,
+  generateMarpFromPageIds,
+  generateMarpFromSlugs,
+  generateMarpFromQuery,
+  generateMarpFromType,
+} from "./marp.js";
+export type { MarpOptions, MarpSlide, MarpResult } from "./marp.js";

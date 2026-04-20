@@ -699,6 +699,72 @@ sibyl/
 
 Sibyl provides WebSocket support for real-time updates to the Web UI. When changes occur in the knowledge base, connected clients receive notifications instantly.
 
+## Marp Slide Deck Generation
+
+Sibyl can generate Marp-compatible slide decks from wiki content. Marp is a markdown-based presentation format that can be rendered with tools like Marp CLI or VS Code Marp extension.
+
+### Generate Slides from Wiki Pages
+
+```bash
+# Generate slides from specific wiki pages by slug
+curl -X POST http://localhost:3000/api/marp \
+  -H "Content-Type: application/json" \
+  -d '{"pageSlugs": ["concept-1", "concept-2"], "title": "My Presentation"}'
+
+# Generate slides from search query
+curl -X POST http://localhost:3000/api/marp \
+  -H "Content-Type: application/json" \
+  -d '{"query": "machine learning", "title": "ML Overview"}'
+
+# Generate slides with custom theme
+curl -X POST http://localhost:3000/api/marp \
+  -H "Content-Type: application/json" \
+  -d '{"pageSlugs": ["topic"], "theme": "gaia"}'
+
+# Generate slides from specific page
+curl http://localhost:3000/api/marp/topic-slug?theme=uncover
+```
+
+Parameters:
+- `pageIds`: Array of wiki page IDs
+- `pageSlugs`: Array of wiki page slugs
+- `query`: Search query to find relevant pages
+- `type`: Filter by page type (`entity`, `concept`, `source`, `summary`)
+- `title`: Custom presentation title
+- `theme`: Marp theme (`default`, `gaia`, `uncover`)
+- `paginate`: Enable slide pagination (default: true)
+- `useLlm`: Use LLM to generate enhanced slides (requires LLM configuration)
+- `maxPages`: Maximum wiki pages to include (default: 10)
+
+### Save Marp Content
+
+```bash
+# Save generated slides as a wiki page
+curl -X POST http://localhost:3000/api/marp/file \
+  -H "Content-Type: application/json" \
+  -d '{"marpContent": "---\nmarp: true\n---\n# My Deck\n\n---\n# Slide 2\n\nContent", "title": "Saved Presentation", "type": "summary"}'
+```
+
+### Marp Themes
+
+- **default**: Standard Marp theme
+- **gaia**: Elegant, professional theme
+- **uncover**: Modern, minimal theme
+
+### LLM-Enhanced Slides
+
+When LLM is configured, slide generation can use AI to:
+- Create structured slide layouts
+- Summarize content into bullet points
+- Generate cross-references between slides
+- Optimize content for presentation format
+
+```bash
+curl -X POST http://localhost:3000/api/marp \
+  -H "Content-Type: application/json" \
+  -d '{"pageSlugs": ["topic"], "useLlm": true, "title": "AI-Generated Presentation"}'
+```
+
 ### WebSocket Events
 
 The server broadcasts the following events:

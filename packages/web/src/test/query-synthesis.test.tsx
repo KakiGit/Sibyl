@@ -137,7 +137,7 @@ describe("QuerySynthesis Quick Filing", () => {
 
     await waitFor(() => {
       const greenAlert = screen.getByText((content, element) => {
-        return element?.className?.includes?.("text-green-600") && content.includes("Answer filed");
+        return Boolean(element?.className?.includes?.("text-green-600") && content.includes("Answer filed"));
       });
       expect(greenAlert).toBeInTheDocument();
     });
