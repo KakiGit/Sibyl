@@ -463,3 +463,272 @@ describe("memory_save slug generation", () => {
     expect(body?.slug).toBe("multi-space-title");
   });
 });
+
+describe("auto-save functionality", () => {
+  beforeEach(() => {
+    originalFetch = global.fetch;
+    fetchCalls = [];
+    mockResponses = {};
+    (global as any).fetch = mockFetch;
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  it("event hook accumulates text parts from message events", async () => {
+    mockResponses["/api/wiki-pages"] = { id: "transcript-id", slug: "session-test" };
+
+    const hooks = await SibylPlugin({} as any, { 
+      serverUrl: "http://localhost:3000",
+      autoSave: true,
+      autoSaveThreshold: 3
+    });
+
+    await hooks.event?.({ event: { 
+      type: "message.updated", 
+      properties: { 
+        info: { sessionID: "test-session-123", id: "msg-user-1", role: "user", time: { created: 1000 } } 
+      } 
+    } as any });
+    await hooks.event?.({ event: { 
+      type: "message.part.updated", 
+      properties: { 
+        part: { sessionID: "test-session-123", messageID: "msg-user-1", type: "text", text: "Hello" } 
+      } 
+    } as any });
+    await hooks.event?.({ event: { 
+      type: "message.updated", 
+      properties: { 
+        info: { sessionID: "test-session-123", id: "msg-assistant-1", role: "assistant", time: { created: 2000 } } 
+      } 
+    } as any });
+    await hooks.event?.({ event: { 
+      type: "message.part.updated", 
+      properties: { 
+        part: { sessionID: "test-session-123", messageID: "msg-assistant-1", type: "text", text: "Hi there!" } 
+      } 
+    } as any });
+
+    expect(fetchCalls.length).toBe(0);
+  });
+
+  it("saves transcript after threshold messages", async () => {
+    mockResponses["/api/wiki-pages"] = { id: "transcript-id", slug: "session-test" };
+
+    const hooks = await SibylPlugin({} as any, { 
+      serverUrl: "http://localhost:3000",
+      autoSave: true,
+      autoSaveThreshold: 1
+    });
+
+    await hooks.event?.({ event: { 
+      type: "message.updated", 
+      properties: { 
+        info: { sessionID: "test-session-abc", id: "msg-user-1", role: "user", time: { created: 1000 } } 
+      } 
+    } as any });
+    await hooks.event?.({ event: { 
+      type: "message.part.updated", 
+      properties: { 
+        part: { sessionID: "test-session-abc", messageID: "msg-user-1", type: "text", text: "Question 1" } 
+      } 
+    } as any });
+    await hooks.event?.({ event: { 
+      type: "message.updated", 
+      properties: { 
+        info: { sessionID: "test-session-abc", id: "msg-assistant-1", role: "assistant", time: { created: 2000 } } 
+      } 
+    } as any });
+    await hooks.event?.({ event: { 
+      type: "message.part.updated", 
+      properties: { 
+        part: { sessionID: "test-session-abc", messageID: "msg-assistant-1", type: "text", text: "Answer 1" } 
+      } 
+    } as any });
+
+    expect(fetchCalls.length).toBe(1);
+    expect(fetchCalls[0].url).toBe("http://localhost:3000/api/wiki-pages");
+    expect(fetchCalls[0].options?.method).toBe("POST");
+    const body = fetchCalls[0].options?.body as any;
+    expect(body?.type).toBe("source");
+    expect(body?.tags).toContain("auto-saved");
+    expect(body?.content).toContain("Session Transcript");
+    expect(body?.content).toContain("Question 1");
+    expect(body?.content).toContain("Answer 1");
+  });
+
+  it("does not save when autoSave is false", async () => {
+    const hooks = await SibylPlugin({} as any, { 
+      serverUrl: "http://localhost:3000",
+      autoSave: false
+    });
+
+    await hooks.event?.({ event: { 
+      type: "message.updated", 
+      properties: { 
+        info: { sessionID: "test-session", id: "msg-user-1", role: "user", time: { created: 1000 } } 
+      } 
+    } as any });
+    await hooks.event?.({ event: { 
+      type: "message.part.updated", 
+      properties: { 
+        part: { sessionID: "test-session", messageID: "msg-user-1", type: "text", text: "Hello" } 
+      } 
+    } as any });
+
+    expect(fetchCalls.length).toBe(0);
+  });
+
+  it("formats transcript with timestamps and roles", async () => {
+    mockResponses["/api/wiki-pages"] = { id: "transcript-id", slug: "session-test" };
+
+    const hooks = await SibylPlugin({} as any, { 
+      serverUrl: "http://localhost:3000",
+      autoSave: true,
+      autoSaveThreshold: 1
+    });
+
+    await hooks.event?.({ event: { 
+      type: "message.updated", 
+      properties: { 
+        info: { sessionID: "test-format", id: "msg-user-1", role: "user", time: { created: 1000 } } 
+      } 
+    } as any });
+    await hooks.event?.({ event: { 
+      type: "message.part.updated", 
+      properties: { 
+        part: { sessionID: "test-format", messageID: "msg-user-1", type: "text", text: "User message" } 
+      } 
+    } as any });
+    await hooks.event?.({ event: { 
+      type: "message.updated", 
+      properties: { 
+        info: { sessionID: "test-format", id: "msg-assistant-1", role: "assistant", time: { created: 2000 } } 
+      } 
+    } as any });
+    await hooks.event?.({ event: { 
+      type: "message.part.updated", 
+      properties: { 
+        part: { sessionID: "test-format", messageID: "msg-assistant-1", type: "text", text: "Assistant message" } 
+      } 
+    } as any });
+
+    const body = fetchCalls[0].options?.body as any;
+    expect(body?.content).toContain("**User**");
+    expect(body?.content).toContain("**Assistant**");
+    expect(body?.content).toContain("User message");
+    expect(body?.content).toContain("Assistant message");
+  });
+
+  it("handles delta updates for streaming", async () => {
+    mockResponses["/api/wiki-pages"] = { id: "transcript-id", slug: "session-test" };
+
+    const hooks = await SibylPlugin({} as any, { 
+      serverUrl: "http://localhost:3000",
+      autoSave: true,
+      autoSaveThreshold: 5
+    });
+
+    await hooks.event?.({ event: { 
+      type: "message.updated", 
+      properties: { 
+        info: { sessionID: "test-delta", id: "msg-user-1", role: "user", time: { created: 1000 } } 
+      } 
+    } as any });
+    await hooks.event?.({ event: { 
+      type: "message.part.updated", 
+      properties: { 
+        part: { sessionID: "test-delta", messageID: "msg-user-1", type: "text", text: "Hello" } 
+      } 
+    } as any });
+    await hooks.event?.({ event: { 
+      type: "message.updated", 
+      properties: { 
+        info: { sessionID: "test-delta", id: "msg-assistant-1", role: "assistant", time: { created: 2000 } } 
+      } 
+    } as any });
+    await hooks.event?.({ event: { 
+      type: "message.part.updated", 
+      properties: { 
+        part: { sessionID: "test-delta", messageID: "msg-assistant-1", type: "text", text: "Hi" }
+      } 
+    } as any });
+    await hooks.event?.({ event: { 
+      type: "message.part.updated", 
+      properties: { 
+        part: { sessionID: "test-delta", messageID: "msg-assistant-1", type: "text", text: "Hi" },
+        delta: " there!"
+      } 
+    } as any });
+    await hooks.event?.({ event: { 
+      type: "message.updated", 
+      properties: { 
+        info: { sessionID: "test-delta", id: "msg-user-2", role: "user", time: { created: 3000 } } 
+      } 
+    } as any });
+    await hooks.event?.({ event: { 
+      type: "message.part.updated", 
+      properties: { 
+        part: { sessionID: "test-delta", messageID: "msg-user-2", type: "text", text: "Another question" } 
+      } 
+    } as any });
+    await hooks.event?.({ event: { 
+      type: "message.updated", 
+      properties: { 
+        info: { sessionID: "test-delta", id: "msg-assistant-2", role: "assistant", time: { created: 4000 } } 
+      } 
+    } as any });
+    await hooks.event?.({ event: { 
+      type: "message.part.updated", 
+      properties: { 
+        part: { sessionID: "test-delta", messageID: "msg-assistant-2", type: "text", text: "Another answer" } 
+      } 
+    } as any });
+
+    expect(fetchCalls.length).toBe(0);
+  });
+
+  it("uses default threshold of 1", async () => {
+    mockResponses["/api/wiki-pages"] = { id: "transcript-id", slug: "session-test" };
+
+    const hooks = await SibylPlugin({} as any, { 
+      serverUrl: "http://localhost:3000",
+      autoSave: true
+    });
+
+    await hooks.event?.({ event: { type: "message.updated", properties: { info: { sessionID: "default-thresh", id: "msg-user-1", role: "user", time: { created: 1000 } } } } as any });
+    await hooks.event?.({ event: { type: "message.part.updated", properties: { part: { sessionID: "default-thresh", messageID: "msg-user-1", type: "text", text: "Q1" } } } as any });
+    await hooks.event?.({ event: { type: "message.updated", properties: { info: { sessionID: "default-thresh", id: "msg-assistant-1", role: "assistant", time: { created: 2000 } } } } as any });
+    await hooks.event?.({ event: { type: "message.part.updated", properties: { part: { sessionID: "default-thresh", messageID: "msg-assistant-1", type: "text", text: "A1" } } } as any });
+    expect(fetchCalls.length).toBe(1);
+  });
+
+  it("ignores non-text parts", async () => {
+    const hooks = await SibylPlugin({} as any, { 
+      serverUrl: "http://localhost:3000",
+      autoSave: true
+    });
+
+    await hooks.event?.({ event: { 
+      type: "message.part.updated", 
+      properties: { 
+        part: { sessionID: "test-non-text", messageID: "msg-1", type: "tool" } 
+      } 
+    } as any });
+
+    expect(fetchCalls.length).toBe(0);
+  });
+
+  it("ignores other events", async () => {
+    const hooks = await SibylPlugin({} as any, { 
+      serverUrl: "http://localhost:3000",
+      autoSave: true
+    });
+
+    await hooks.event?.({ event: { type: "session.updated", properties: { info: { id: "test" } } } as any });
+    await hooks.event?.({ event: { type: "file.edited", properties: { file: "test.ts" } } as any });
+
+    expect(fetchCalls.length).toBe(0);
+  });
+});

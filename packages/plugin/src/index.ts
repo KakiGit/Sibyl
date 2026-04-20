@@ -6,6 +6,8 @@ export interface SibylPluginOptions {
   dbPath?: string;
   autoInject?: boolean;
   apiKey?: string;
+  autoSave?: boolean;
+  autoSaveThreshold?: number;
 }
 
 const DEFAULT_SERVER_URL = "http://localhost:3000";
@@ -36,10 +38,58 @@ async function fetchSibylApi(
   return response.json();
 }
 
+interface MessageMetadata {
+  messageId: string;
+  sessionId: string;
+  role: "user" | "assistant";
+  timestamp: number;
+}
+
+interface MessagePart {
+  messageId: string;
+  text: string;
+  timestamp: number;
+}
+
+const messageMetadata: Map<string, Map<string, MessageMetadata>> = new Map();
+const sessionParts: Map<string, Map<string, MessagePart[]>> = new Map();
+const savedTranscriptVersions: Map<string, number> = new Map();
+
+function formatTranscript(metadata: Map<string, MessageMetadata>, parts: Map<string, MessagePart[]>): string {
+  const lines: string[] = ["# Session Transcript", ""];
+  
+  const sortedMessageIds = [...metadata.keys()].sort((a, b) => {
+    const aTime = metadata.get(a)?.timestamp || 0;
+    const bTime = metadata.get(b)?.timestamp || 0;
+    return aTime - bTime;
+  });
+  
+  for (const messageId of sortedMessageIds) {
+    const meta = metadata.get(messageId);
+    if (!meta) continue;
+    
+    const messageParts = parts.get(messageId) || [];
+    if (messageParts.length === 0) continue;
+    
+    const roleLabel = meta.role === "user" ? "**User**" : "**Assistant**";
+    const timestamp = new Date(meta.timestamp).toISOString();
+    lines.push(`### ${roleLabel} (${timestamp})`);
+    lines.push("");
+    const text = messageParts.map(p => p.text).join("");
+    lines.push(text);
+    lines.push("");
+    lines.push("---");
+    lines.push("");
+  }
+  return lines.join("\n");
+}
+
 export const SibylPlugin: Plugin = async (input, options?: SibylPluginOptions) => {
   const serverUrl = options?.serverUrl || DEFAULT_SERVER_URL;
   const autoInject = options?.autoInject !== false;
   const apiKey = options?.apiKey;
+  const autoSave = options?.autoSave ?? true;
+  const autoSaveThreshold = options?.autoSaveThreshold ?? 1;
 
   const hooks: Hooks = {
     tool: {
@@ -480,6 +530,109 @@ export const SibylPlugin: Plugin = async (input, options?: SibylPluginOptions) =
 
         output.system.push(memoryContext.join("\n"));
       } catch {
+      }
+    },
+
+event: async ({ event }) => {
+      if (!autoSave) return;
+
+      if (event.type === "message.updated") {
+        const message = (event as any).properties?.info;
+        if (!message) return;
+
+        const sessionId = message.sessionID || "default";
+        const messageId = message.id || "unknown";
+        const role = message.role || "";
+        
+        if (!role) return;
+
+        const sessionMeta = messageMetadata.get(sessionId) || new Map();
+        sessionMeta.set(messageId, {
+          messageId,
+          sessionId,
+          role,
+          timestamp: message.time?.created || Date.now(),
+        });
+        messageMetadata.set(sessionId, sessionMeta);
+        return;
+      }
+
+      if (event.type === "message.part.updated" || (event.type as string) === "message.part.delta") {
+        let sessionId, messageId, text, delta;
+        
+        if ((event.type as string) === "message.part.delta") {
+          sessionId = (event as any).properties?.sessionID || "default";
+          messageId = (event as any).properties?.messageID || "unknown";
+          delta = (event as any).properties?.delta || "";
+          text = "";
+        } else {
+          const part = (event as any).properties?.part;
+          if (!part) return;
+          if (part.type && part.type !== "text") return;
+          sessionId = part.sessionID || "default";
+          messageId = part.messageID || "unknown";
+          text = part.text || "";
+          delta = (event as any).properties?.delta || "";
+        }
+
+        if (!text && !delta) return;
+
+        const sessionPartMap = sessionParts.get(sessionId) || new Map();
+        const messageParts = sessionPartMap.get(messageId) || [];
+        
+        if (delta && messageParts.length > 0) {
+          messageParts[messageParts.length - 1].text += delta;
+        } else if (text) {
+          messageParts.push({
+            messageId,
+            text,
+            timestamp: Date.now(),
+          });
+        }
+        
+        sessionPartMap.set(messageId, messageParts);
+        sessionParts.set(sessionId, sessionPartMap);
+
+        const sessionMeta = messageMetadata.get(sessionId) || new Map();
+        const assistantMessages = [...sessionMeta.values()].filter(m => m.role === "assistant");
+        if (assistantMessages.length === 0) return;
+
+        const currentVersion = savedTranscriptVersions.get(sessionId) || 0;
+        const messageCount = sessionMeta.size;
+        
+        if (messageCount < autoSaveThreshold) return;
+        if (messageCount <= currentVersion) return;
+
+        const messagesWithParts = [...sessionMeta.values()].filter(
+          m => (sessionPartMap.get(m.messageId)?.length || 0) > 0
+        );
+        if (messagesWithParts.length < messageCount) return;
+
+        try {
+          const transcript = formatTranscript(sessionMeta, sessionPartMap);
+          const timestamp = new Date().toISOString().replace(/[:.]/g, "-").toLowerCase();
+          const sessionIdSlug = sessionId.replace(/_/g, "-").slice(0, 8).toLowerCase();
+          const slug = `session-${sessionIdSlug}-${timestamp}`;
+
+          await fetchSibylApi(serverUrl, "/api/wiki-pages", {
+            method: "POST",
+            body: {
+              slug,
+              title: `Session Transcript ${sessionIdSlug}`,
+              type: "source",
+              contentPath: `data/wiki/source/${slug}.md`,
+              content: transcript,
+              summary: `Auto-saved transcript with ${messageCount} messages`,
+              tags: ["auto-saved", "transcript", "session"],
+              sourceIds: [],
+            },
+            apiKey,
+          });
+
+          savedTranscriptVersions.set(sessionId, messageCount);
+        } catch {
+        }
+        return;
       }
     },
   };
