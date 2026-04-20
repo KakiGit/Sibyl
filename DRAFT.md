@@ -48,7 +48,7 @@ It tells LLM how to handle new knowledge.
 
 #### Inguest
 
-LLM reading Rawresources, discussing main points and updating Wiki Pages.
+LLM reading Raw Resources, discussing main points and updating Wiki Pages.
 
 #### Query
 
