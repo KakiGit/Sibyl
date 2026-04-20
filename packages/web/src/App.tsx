@@ -9,6 +9,7 @@ import { ContentFiling } from "@/components/content-filing";
 import { WikiGraphView } from "@/components/wiki-graph-view";
 import { WikiSearch } from "@/components/wiki-search";
 import { AuthStatus } from "@/components/auth-status";
+import { WebSocketStatus } from "@/components/websocket-status";
 
 async function fetchStats() {
   const response = await fetch("/api/wiki-pages");
@@ -101,11 +102,14 @@ export default function App() {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b">
-        <div className="container mx-auto px-4 py-4">
-          <h1 className="text-2xl font-bold tracking-tight">Sibyl</h1>
-          <p className="text-muted-foreground text-sm">
-            Memory System for Knowledge Management
-          </p>
+        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Sibyl</h1>
+            <p className="text-muted-foreground text-sm">
+              Memory System for Knowledge Management
+            </p>
+          </div>
+          <WebSocketStatus />
         </div>
       </header>
       <main className="container mx-auto px-4 py-8">

@@ -1,6 +1,7 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import { registerRoutes } from "./routes/index.js";
+import { registerWebSocketRoutes } from "./websocket/index.js";
 import { closeDatabase, migrateDatabase, createDatabase } from "./database.js";
 import { DB_FILE } from "@sibyl/shared";
 import { resolve } from "path";
@@ -25,6 +26,8 @@ export async function createServer(options: ServerOptions = {}) {
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
   });
+
+  await registerWebSocketRoutes(fastify);
 
   const dbPath = options.dbPath || resolve(DB_FILE);
   const db = createDatabase(dbPath);

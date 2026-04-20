@@ -16,6 +16,13 @@ import type {
   QueryRawResourcesOptions,
 } from "@sibyl/sdk";
 import { logger } from "@sibyl/shared";
+import {
+  broadcastWikiPageCreated,
+  broadcastWikiPageUpdated,
+  broadcastWikiPageDeleted,
+  broadcastRawResourceCreated,
+  broadcastProcessingLogCreated,
+} from "../websocket/broadcaster.js";
 
 export class RawResourceStorage {
   async create(input: CreateRawResourceInput): Promise<RawResource> {
@@ -45,6 +52,7 @@ export class RawResourceStorage {
       processed: resource.processed ? 1 : 0,
     });
 
+    broadcastRawResourceCreated({ id: resource.id, type: resource.type, filename: resource.filename });
     logger.debug("Created raw resource", { id: resource.id, type: resource.type });
     return resource;
   }
@@ -207,6 +215,7 @@ export class WikiPageStorage {
       version: page.version,
     });
 
+    broadcastWikiPageCreated({ id: page.id, slug: page.slug, title: page.title, type: page.type });
     logger.debug("Created wiki page", { id: page.id, slug: page.slug, type: page.type });
     return page;
   }
@@ -311,6 +320,7 @@ export class WikiPageStorage {
     if (updates.embeddingId !== undefined) updateData.embeddingId = updates.embeddingId;
 
     await db.update(wikiPages).set(updateData).where(eq(wikiPages.id, id));
+    broadcastWikiPageUpdated({ id, slug: existing.slug, title: updates.title ?? existing.title, type: existing.type });
     logger.debug("Updated wiki page", { id });
 
     return { ...existing, ...updates, updatedAt: now, version: existing.version + 1 };
@@ -324,6 +334,7 @@ export class WikiPageStorage {
     );
     
     await db.delete(wikiPages).where(eq(wikiPages.id, id));
+    broadcastWikiPageDeleted(id);
     logger.debug("Deleted wiki page", { id });
     return true;
   }
@@ -498,6 +509,7 @@ export class ProcessingLogStorage {
       createdAt: log.createdAt,
     });
 
+    broadcastProcessingLogCreated({ id: log.id, operation: log.operation });
     logger.debug("Created processing log", { id: log.id, operation: log.operation });
     return log;
   }

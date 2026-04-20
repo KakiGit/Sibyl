@@ -13,12 +13,14 @@ import { registerSchemaRoutes } from "./schema.js";
 import { registerSearchRoutes } from "./search.js";
 import { registerAuthRoutes } from "./auth.js";
 import { requireAuth } from "../auth/middleware.js";
+import { getWebSocketStats } from "../websocket/index.js";
 
 export async function registerRoutes(fastify: FastifyInstance) {
   fastify.addHook("preHandler", requireAuth({
     publicRoutes: [
       "/api/health",
       "/api/auth",
+      "/ws",
     ],
     skipAuthForHealth: true,
   }));
@@ -39,5 +41,9 @@ export async function registerRoutes(fastify: FastifyInstance) {
 
   fastify.get("/api/health", async () => {
     return { status: "ok", timestamp: Date.now() };
+  });
+
+  fastify.get("/api/websocket/stats", async () => {
+    return getWebSocketStats();
   });
 }

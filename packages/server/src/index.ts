@@ -21,3 +21,17 @@ export { wikiSearchStorage, WikiSearchStorage } from "./search/index.js";
 export { registerSearchRoutes } from "./routes/search.js";
 export { authenticate, optionalAuth, requireAuth, verifyApiKey, verifyJwt, generateToken, refreshToken, getAuthMiddleware } from "./auth/index.js";
 export type { AuthUser, JwtPayload, AuthMiddlewareOptions } from "./auth/index.js";
+export {
+  websocketBroadcaster,
+  broadcastWikiPageCreated,
+  broadcastWikiPageUpdated,
+  broadcastWikiPageDeleted,
+  broadcastRawResourceCreated,
+  broadcastProcessingLogCreated,
+  broadcastIngestCompleted,
+  broadcastLintCompleted,
+  broadcastQueryCompleted,
+  registerWebSocketRoutes,
+  getWebSocketStats,
+} from "./websocket/index.js";
+export type { WebSocketEvent, WebSocketClient } from "./websocket/index.js";

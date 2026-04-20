@@ -489,6 +489,59 @@ sibyl/
 - **Frontend**: React 19 + shadcn/ui + TanStack Query/Router
 - **CLI**: @clack/prompts + yargs
 - **MCP**: @modelcontextprotocol/sdk
+- **WebSocket**: @fastify/websocket (real-time updates)
+
+## WebSocket Real-Time Updates
+
+Sibyl provides WebSocket support for real-time updates to the Web UI. When changes occur in the knowledge base, connected clients receive notifications instantly.
+
+### WebSocket Events
+
+The server broadcasts the following events:
+
+- `wiki_page_created`: New wiki page created
+- `wiki_page_updated`: Wiki page updated
+- `wiki_page_deleted`: Wiki page deleted
+- `raw_resource_created`: Raw resource uploaded
+- `processing_log_created`: Processing operation logged
+- `ingest_completed`: Ingestion finished
+- `lint_completed`: Lint check finished
+- `query_completed`: Query synthesis finished
+
+### WebSocket Connection
+
+The WebSocket endpoint is available at `/ws`:
+
+```javascript
+const ws = new WebSocket("ws://localhost:3000/ws");
+
+// Subscribe to specific events
+ws.send(JSON.stringify({
+  type: "subscribe",
+  events: ["wiki_page_created", "wiki_page_updated"]
+}));
+
+// Handle messages
+ws.onmessage = (event) => {
+  const message = JSON.parse(event.data);
+  console.log(message.type, message.payload);
+};
+```
+
+### WebSocket Stats API
+
+```bash
+# Get WebSocket connection stats
+curl http://localhost:3000/api/websocket/stats
+```
+
+Returns:
+```json
+{
+  "connectedClients": 2,
+  "clientIds": ["client-id-1", "client-id-2"]
+}
+```
 
 ## License
 
