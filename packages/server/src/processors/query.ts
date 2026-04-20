@@ -1,4 +1,4 @@
-import { storage } from "../storage/index.js";
+import { storage, SynthesisCacheStorage } from "../storage/index.js";
 import { wikiFileManager, WikiFileManager } from "../wiki/index.js";
 import { getLlmProvider, type LlmProvider } from "../llm/index.js";
 import { semanticSearch, initializeEmbedder } from "../embeddings/index.js";
@@ -267,6 +267,24 @@ Example citation format:
 Format your response as markdown.`;
 
 const SYNTHESIS_MAX_PAGES = 5;
+const SYNTHESIS_CACHE_TTL_MS = 1000 * 60 * 60;
+
+function generateQueryHash(query: string, types?: WikiPageType[], tags?: string[]): string {
+  const normalizedQuery = query.toLowerCase().trim();
+  const typeStr = types ? types.sort().join(",") : "";
+  const tagStr = tags ? tags.sort().join(",") : "";
+  const combined = `${normalizedQuery}|${typeStr}|${tagStr}`;
+  
+  let hash = 0;
+  for (let i = 0; i < combined.length; i++) {
+    const char = combined.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return `syn-${Math.abs(hash).toString(36)}`;
+}
+
+const synthesisCacheStorage = new SynthesisCacheStorage();
 
 export async function synthesizeAnswer(options: SynthesizeOptions): Promise<SynthesizeResult> {
   const wikiManager = options.wikiFileManager || wikiFileManager;
@@ -275,6 +293,25 @@ export async function synthesizeAnswer(options: SynthesizeOptions): Promise<Synt
 
   if (!options.query || options.query.trim().length === 0) {
     throw new Error("Query string is required");
+  }
+
+  const queryHash = generateQueryHash(options.query, options.types, options.tags);
+  const cachedResult = await synthesisCacheStorage.findByQueryHash(queryHash);
+  
+  if (cachedResult && !options.skipLlm) {
+    logger.info("Using cached synthesis result", { queryHash, query: options.query });
+    return {
+      query: cachedResult.query,
+      answer: cachedResult.answer,
+      citations: cachedResult.citations.map((c) => ({
+        pageSlug: c.pageSlug,
+        pageTitle: c.pageTitle,
+        pageType: c.pageType as WikiPageType,
+        relevanceScore: c.relevanceScore,
+      })),
+      synthesizedAt: cachedResult.createdAt,
+      model: cachedResult.model,
+    };
   }
 
   const queryResult = await queryWiki({
@@ -331,6 +368,25 @@ Please synthesize an answer to the question using the provided wiki pages. Remem
 
   const response = await llmProvider.call(SYNTHESIS_SYSTEM_PROMPT, userPrompt);
 
+  const citations = queryResult.matches.map((m) => ({
+    pageSlug: m.page.slug,
+    pageTitle: m.page.title,
+    pageType: m.page.type,
+    relevanceScore: m.relevanceScore,
+  }));
+
+  const pageIds = queryResult.matches.map((m) => m.page.id);
+
+  await synthesisCacheStorage.create({
+    queryHash,
+    query: options.query,
+    answer: response.content,
+    citations,
+    model: response.model,
+    pageIds,
+    ttlMs: SYNTHESIS_CACHE_TTL_MS,
+  });
+
   await storage.processingLog.create({
     operation: "query",
     details: {
@@ -340,6 +396,7 @@ Please synthesize an answer to the question using the provided wiki pages. Remem
       citationsCount: queryResult.matches.length,
       promptTokens: response.usage?.promptTokens,
       completionTokens: response.usage?.completionTokens,
+      cached: false,
     },
   });
 

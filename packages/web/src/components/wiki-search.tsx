@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Search, Loader2, RefreshCw, BookOpen, XCircle, CheckCircle } from "lucide-react";
+import { Search, Loader2, RefreshCw, BookOpen, XCircle, CheckCircle, Sparkles } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useDebounce } from "@/hooks/use-debounce";
+import { useToast } from "@/components/toast";
 
 interface SearchResult {
   page: {
@@ -151,34 +153,56 @@ export function WikiSearch() {
   const [tags, setTags] = useState("");
   const [useSemantic, setUseSemantic] = useState(true);
   const [limit, setLimit] = useState(10);
+  const [autoSearch, setAutoSearch] = useState(true);
   const queryClient = useQueryClient();
+  const toast = useToast();
+
+  const debouncedQuery = useDebounce(query, 300);
+  const debouncedTags = useDebounce(tags, 300);
 
   const searchMutation = useMutation({
     mutationFn: hybridSearch,
+    onError: (error) => {
+      toast.error("Search failed", (error as Error).message);
+    },
   });
 
   const rebuildMutation = useMutation({
     mutationFn: rebuildSearchIndex,
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["wikiPages"] });
+      toast.success("Index rebuilt", `Indexed ${data.data.indexed} pages`);
+    },
+    onError: (error) => {
+      toast.error("Failed to rebuild index", (error as Error).message);
     },
   });
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (query.trim()) {
-      const tagArray = tags.trim()
-        ? tags.split(",").map((t) => t.trim()).filter(Boolean)
+  const executeSearch = useCallback((searchQuery: string, searchTags: string) => {
+    if (searchQuery.trim()) {
+      const tagArray = searchTags.trim()
+        ? searchTags.split(",").map((t) => t.trim()).filter(Boolean)
         : undefined;
 
       searchMutation.mutate({
-        query: query.trim(),
+        query: searchQuery.trim(),
         type: type || undefined,
         tags: tagArray,
         useSemantic,
         limit,
       });
     }
+  }, [type, useSemantic, limit, searchMutation]);
+
+  useEffect(() => {
+    if (autoSearch && debouncedQuery.trim() && debouncedQuery.length >= 2) {
+      executeSearch(debouncedQuery, debouncedTags);
+    }
+  }, [debouncedQuery, debouncedTags, autoSearch, executeSearch]);
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    executeSearch(query, tags);
   };
 
   const handleClear = () => {
@@ -196,6 +220,7 @@ export function WikiSearch() {
 
   const results = searchMutation.data?.data || [];
   const isPending = searchMutation.isPending || rebuildMutation.isPending;
+  const showAutoSearchIndicator = autoSearch && debouncedQuery !== query && query.length >= 2;
 
   return (
     <div className="space-y-6">
@@ -267,19 +292,42 @@ export function WikiSearch() {
               </div>
             </div>
 
-            <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
-              <input
-                type="checkbox"
-                id="useSemantic"
-                checked={useSemantic}
-                onChange={(e) => setUseSemantic(e.target.checked)}
-                className="h-4 w-4 rounded border-gray-300"
-                disabled={isPending}
-              />
-              <label htmlFor="useSemantic" className="text-sm cursor-pointer">
-                Use Semantic Search (requires embeddings initialization)
-              </label>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="autoSearch"
+                  checked={autoSearch}
+                  onChange={(e) => setAutoSearch(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300"
+                  disabled={isPending}
+                />
+                <label htmlFor="autoSearch" className="text-sm cursor-pointer flex items-center gap-1">
+                  <Sparkles className="h-3 w-3" />
+                  Auto-search (type 2+ chars)
+                </label>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="useSemantic"
+                  checked={useSemantic}
+                  onChange={(e) => setUseSemantic(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300"
+                  disabled={isPending}
+                />
+                <label htmlFor="useSemantic" className="text-sm cursor-pointer">
+                  Semantic Search
+                </label>
+              </div>
             </div>
+
+            {showAutoSearchIndicator && (
+              <div className="flex items-center gap-2 p-2 bg-blue-50 rounded text-sm text-blue-600">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Searching...
+              </div>
+            )}
 
             <div className="flex gap-3">
               <Button type="submit" disabled={isPending || !query.trim()}>

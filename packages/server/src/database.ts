@@ -134,6 +134,20 @@ export function migrateDatabase(database: ReturnType<typeof drizzle<typeof schem
   sqlite.run(`
     CREATE INDEX IF NOT EXISTS wiki_page_versions_version_idx ON wiki_page_versions(wiki_page_id, version)
   `);
+
+  sqlite.run(`
+    CREATE TABLE IF NOT EXISTS synthesis_cache (
+      id TEXT PRIMARY KEY,
+      query_hash TEXT UNIQUE NOT NULL,
+      query TEXT NOT NULL,
+      answer TEXT NOT NULL,
+      citations TEXT NOT NULL,
+      model TEXT,
+      page_ids TEXT,
+      created_at INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL
+    )
+  `);
 }
 
 export function getDatabase(): ReturnType<typeof drizzle<typeof schema>> {

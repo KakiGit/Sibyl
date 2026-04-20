@@ -15,6 +15,8 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { WikiContentRenderer } from "@/components/wiki-link-renderer";
+import { useToast } from "@/components/toast";
 
 const PAGE_TYPE_CONFIG = {
   entity: { label: "Entity", color: "bg-blue-100 text-blue-800" },
@@ -64,26 +66,6 @@ async function updateWikiPageContent(
     throw new Error(error.message || "Failed to update wiki page");
   }
   return response.json();
-}
-
-function formatMarkdownContent(content: string): string {
-  return content
-    .replace(
-      /\[\[([^\]]+)\]\]/g,
-      '<a href="#" class="text-blue-600 hover:underline font-medium">[[<span class="underline">$1</span>]]</a>',
-    )
-    .replace(
-      /^### (.+)$/gm,
-      '<h3 class="text-lg font-semibold mt-4 mb-2">$1</h3>',
-    )
-    .replace(
-      /^## (.+)$/gm,
-      '<h2 class="text-xl font-semibold mt-6 mb-3">$1</h2>',
-    )
-    .replace(/^# (.+)$/gm, '<h1 class="text-2xl font-bold mt-6 mb-4">$1</h1>')
-    .replace(/^- (.+)$/gm, '<li class="ml-4">$1</li>')
-    .replace(/\n\n/g, "<br/><br/>")
-    .replace(/\n/g, "<br/>");
 }
 
 function WikiLinksSection({ pageId }: { pageId: string }) {
@@ -202,6 +184,7 @@ export function WikiPageDetail({ pageId, onBack }: WikiPageDetailProps) {
   const [editSummary, setEditSummary] = useState("");
   const [editTags, setEditTags] = useState("");
   const queryClient = useQueryClient();
+  const toast = useToast();
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["wikiPageContent", pageId],
@@ -219,6 +202,10 @@ export function WikiPageDetail({ pageId, onBack }: WikiPageDetailProps) {
       queryClient.invalidateQueries({ queryKey: ["wikiPageContent", pageId] });
       queryClient.invalidateQueries({ queryKey: ["wikiPages"] });
       setIsEditing(false);
+      toast.success("Page updated", "Wiki page content saved successfully");
+    },
+    onError: (error) => {
+      toast.error("Update failed", (error as Error).message);
     },
   });
 
@@ -394,12 +381,7 @@ export function WikiPageDetail({ pageId, onBack }: WikiPageDetailProps) {
       ) : (
         <Card>
           <CardContent className="p-6">
-            <div
-              className="prose prose-sm max-w-none"
-              dangerouslySetInnerHTML={{
-                __html: formatMarkdownContent(page.content),
-              }}
-            />
+            <WikiContentRenderer content={page.content} />
           </CardContent>
         </Card>
       )}

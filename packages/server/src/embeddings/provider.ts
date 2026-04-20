@@ -127,12 +127,24 @@ export async function generateEmbeddingsBatch(
   contents: string[],
   options?: EmbeddingOptions
 ): Promise<(EmbeddingResult | null)[]> {
-  const results: (EmbeddingResult | null)[] = [];
+  const concurrencyLimit = options?.batchSize ?? 4;
   
-  for (const content of contents) {
-    const result = await generateEmbedding(content, options);
-    results.push(result);
+  const results: (EmbeddingResult | null)[] = new Array(contents.length).fill(null);
+  let currentIndex = 0;
+  
+  async function processNext(): Promise<void> {
+    while (currentIndex < contents.length) {
+      const index = currentIndex++;
+      const content = contents[index];
+      results[index] = await generateEmbedding(content, options);
+    }
   }
+  
+  const workers = Array(Math.min(concurrencyLimit, contents.length))
+    .fill(null)
+    .map(() => processNext());
+  
+  await Promise.all(workers);
   
   return results;
 }

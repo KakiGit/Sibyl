@@ -4,6 +4,7 @@ import { Upload, Loader2, FileText, CheckCircle, XCircle, Sparkles, Link } from 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/toast";
 
 interface IngestStatus {
   unprocessed: number;
@@ -131,6 +132,7 @@ export function ContentIngestion() {
   const [useLlm, setUseLlm] = useState(false);
   const [result, setResult] = useState<IngestResult | null>(null);
   const queryClient = useQueryClient();
+  const toast = useToast();
 
   const ingestMutation = useMutation({
     mutationFn: ingestTextContent,
@@ -139,6 +141,10 @@ export function ContentIngestion() {
       queryClient.invalidateQueries({ queryKey: ["ingestStatus"] });
       queryClient.invalidateQueries({ queryKey: ["stats"] });
       queryClient.invalidateQueries({ queryKey: ["wikiPages"] });
+      toast.success("Content ingested", `Created wiki page: ${data.data.title}`);
+    },
+    onError: (error) => {
+      toast.error("Ingestion failed", (error as Error).message);
     },
   });
 
@@ -150,15 +156,28 @@ export function ContentIngestion() {
       queryClient.invalidateQueries({ queryKey: ["stats"] });
       queryClient.invalidateQueries({ queryKey: ["wikiPages"] });
       queryClient.invalidateQueries({ queryKey: ["wikiLinks"] });
+      toast.success("LLM ingestion complete", `Created wiki page with ${data.data.crossReferences?.length || 0} cross-references`);
+    },
+    onError: (error) => {
+      toast.error("LLM ingestion failed", (error as Error).message);
     },
   });
 
   const batchMutation = useMutation({
     mutationFn: batchIngest,
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["ingestStatus"] });
       queryClient.invalidateQueries({ queryKey: ["stats"] });
       queryClient.invalidateQueries({ queryKey: ["wikiPages"] });
+      const { processed, failed, total } = data.data;
+      if (failed.length > 0) {
+        toast.warning("Batch processing complete", `Processed ${processed.length}/${total}, ${failed.length} failed`);
+      } else {
+        toast.success("Batch processing complete", `Processed ${processed.length}/${total} resources`);
+      }
+    },
+    onError: (error) => {
+      toast.error("Batch processing failed", (error as Error).message);
     },
   });
 

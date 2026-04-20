@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { WikiSearch } from "@/components/wiki-search";
+import { ToastProvider } from "@/components/toast";
 
 const mockSearchResponse = {
   data: [
@@ -51,7 +52,9 @@ const createWrapper = () => {
     },
   });
   return ({ children }: { children: React.ReactNode }) => (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    <QueryClientProvider client={queryClient}>
+      <ToastProvider>{children}</ToastProvider>
+    </QueryClientProvider>
   );
 };
 
@@ -86,7 +89,7 @@ describe("WikiSearch", () => {
 
   it("should render semantic search checkbox", () => {
     render(<WikiSearch />, { wrapper: createWrapper() });
-    expect(screen.getByLabelText("Use Semantic Search (requires embeddings initialization)")).toBeInTheDocument();
+    expect(screen.getByLabelText("Semantic Search")).toBeInTheDocument();
   });
 
   it("should render search button", () => {
@@ -286,7 +289,8 @@ describe("WikiSearch", () => {
     fireEvent.click(searchButton);
 
     await waitFor(() => {
-      expect(screen.getByText("Search failed")).toBeInTheDocument();
+      const errorElements = screen.getAllByText("Search failed");
+      expect(errorElements.length).toBeGreaterThan(0);
     });
   });
 
@@ -339,7 +343,7 @@ describe("WikiSearch", () => {
   it("should toggle semantic search checkbox", () => {
     render(<WikiSearch />, { wrapper: createWrapper() });
 
-    const checkbox = screen.getByLabelText("Use Semantic Search (requires embeddings initialization)");
+    const checkbox = screen.getByLabelText("Semantic Search");
     expect(checkbox).toBeChecked();
 
     fireEvent.click(checkbox);

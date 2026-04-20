@@ -71,12 +71,23 @@ export async function batchGetOrGenerateEmbeddings(
   contents: string[],
   options?: EmbeddingOptions
 ): Promise<(CachedEmbedding | null)[]> {
-  const results: (CachedEmbedding | null)[] = [];
+  const concurrencyLimit = 4;
+  const results: (CachedEmbedding | null)[] = new Array(contents.length).fill(null);
+  let currentIndex = 0;
   
-  for (const content of contents) {
-    const cached = await getOrGenerateEmbedding(content, options);
-    results.push(cached);
+  async function processNext(): Promise<void> {
+    while (currentIndex < contents.length) {
+      const index = currentIndex++;
+      const content = contents[index];
+      results[index] = await getOrGenerateEmbedding(content, options);
+    }
   }
+  
+  const workers = Array(Math.min(concurrencyLimit, contents.length))
+    .fill(null)
+    .map(() => processNext());
+  
+  await Promise.all(workers);
   
   return results;
 }

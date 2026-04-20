@@ -845,3 +845,35 @@ Returns:
 ## License
 
 MIT
+
+## UX Improvements
+
+### Auto-Search with Debounce
+
+The Web UI Wiki Search component includes an auto-search feature that automatically searches when typing 2+ characters, with a 300ms debounce to prevent excessive API calls. Toggle auto-search on/off via the checkbox in the search form.
+
+### Toast Notifications
+
+The Web UI provides toast notifications for feedback on operations:
+- Success notifications when operations complete successfully
+- Error notifications when operations fail
+- Info notifications for general feedback
+- Warning notifications for important alerts
+
+### Clickable Wiki Links
+
+Wiki links in the format `[[slug]]` are clickable in the Web UI, allowing navigation between wiki pages directly from the content. Click on any wiki link to navigate to that page.
+
+## Performance Improvements
+
+### LLM Response Caching
+
+Synthesis queries are cached for 1 hour to improve response times for repeated queries. The cache is automatically managed and entries expire based on TTL.
+
+### Parallel Embedding Generation
+
+Embedding generation for batch processing uses concurrent processing (up to 4 workers by default) to significantly speed up embedding generation for multiple documents.
+
+### Embedding Content Hash Cache
+
+Embeddings are cached by content hash to avoid recomputation when processing identical content multiple times.

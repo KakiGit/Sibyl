@@ -70,3 +70,15 @@ export const wikiPageVersions = sqliteTable("wiki_page_versions", {
   changeReason: text("change_reason"),
   createdAt: integer("created_at").notNull(),
 });
+
+export const synthesisCache = sqliteTable("synthesis_cache", {
+  id: text().primaryKey(),
+  queryHash: text("query_hash").unique().notNull(),
+  query: text().notNull(),
+  answer: text().notNull(),
+  citations: text().notNull(),
+  model: text(),
+  pageIds: text("page_ids"),
+  createdAt: integer("created_at").notNull(),
+  expiresAt: integer("expires_at").notNull(),
+});

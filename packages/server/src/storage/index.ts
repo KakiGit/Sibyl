@@ -1,7 +1,7 @@
 import { eq, and, desc, like, or, inArray, sql } from "drizzle-orm";
 import { ulid } from "ulid";
 import { getDatabase } from "../database.js";
-import { rawResources, wikiPages, wikiLinks, processingLog, embeddingsCache, wikiPageVersions } from "../schema.js";
+import { rawResources, wikiPages, wikiLinks, processingLog, embeddingsCache, wikiPageVersions, synthesisCache } from "../schema.js";
 import { wikiFileManager, WikiFileManager } from "../wiki/index.js";
 import type {
   RawResource,
@@ -793,6 +793,134 @@ export class WikiPageVersionStorage {
   }
 }
 
+export interface SynthesisCacheEntry {
+  id: string;
+  queryHash: string;
+  query: string;
+  answer: string;
+  citations: Array<{ pageSlug: string; pageTitle: string; pageType: string; relevanceScore: number }>;
+  model?: string;
+  pageIds: string[];
+  createdAt: number;
+  expiresAt: number;
+}
+
+export interface CreateSynthesisCacheInput {
+  queryHash: string;
+  query: string;
+  answer: string;
+  citations: SynthesisCacheEntry["citations"];
+  model?: string;
+  pageIds: string[];
+  ttlMs?: number;
+}
+
+export class SynthesisCacheStorage {
+  private readonly DEFAULT_TTL_MS = 1000 * 60 * 60;
+
+  async create(input: CreateSynthesisCacheInput): Promise<SynthesisCacheEntry> {
+    const db = getDatabase();
+    const now = Date.now();
+    const id = ulid();
+    const ttlMs = input.ttlMs ?? this.DEFAULT_TTL_MS;
+
+    const entry: SynthesisCacheEntry = {
+      id,
+      queryHash: input.queryHash,
+      query: input.query,
+      answer: input.answer,
+      citations: input.citations,
+      model: input.model,
+      pageIds: input.pageIds,
+      createdAt: now,
+      expiresAt: now + ttlMs,
+    };
+
+    await db.insert(synthesisCache).values({
+      id: entry.id,
+      queryHash: entry.queryHash,
+      query: entry.query,
+      answer: entry.answer,
+      citations: JSON.stringify(entry.citations),
+      model: entry.model ?? null,
+      pageIds: JSON.stringify(entry.pageIds),
+      createdAt: entry.createdAt,
+      expiresAt: entry.expiresAt,
+    });
+
+    logger.debug("Created synthesis cache", { id: entry.id, queryHash: entry.queryHash });
+    return entry;
+  }
+
+  async findByQueryHash(queryHash: string): Promise<SynthesisCacheEntry | null> {
+    const db = getDatabase();
+    const now = Date.now();
+    
+    const results = await db
+      .select()
+      .from(synthesisCache)
+      .where(and(
+        eq(synthesisCache.queryHash, queryHash),
+        sql`${synthesisCache.expiresAt} > ${now}`
+      ))
+      .limit(1);
+
+    if (results.length === 0) {
+      return null;
+    }
+
+    return this.mapToSynthesisCacheEntry(results[0]);
+  }
+
+  async deleteExpired(): Promise<number> {
+    const db = getDatabase();
+    const now = Date.now();
+    
+    await db
+      .delete(synthesisCache)
+      .where(sql`${synthesisCache.expiresAt} < ${now}`);
+    
+    logger.debug("Deleted expired synthesis cache entries");
+    return 0;
+  }
+
+  async clear(): Promise<void> {
+    const db = getDatabase();
+    await db.delete(synthesisCache);
+    logger.debug("Cleared synthesis cache");
+  }
+
+  async count(): Promise<number> {
+    const db = getDatabase();
+    const result = await db.select({ count: sql<number>`count(*)` }).from(synthesisCache);
+    return result[0]?.count ?? 0;
+  }
+
+  private mapToSynthesisCacheEntry(row: {
+    id: string;
+    queryHash: string;
+    query: string;
+    answer: string;
+    citations: string | null;
+    model: string | null;
+    pageIds: string | null;
+    createdAt: number;
+    expiresAt: number;
+  }): SynthesisCacheEntry {
+    return {
+      id: row.id,
+      queryHash: row.queryHash,
+      query: row.query,
+      answer: row.answer,
+      citations: row.citations ? JSON.parse(row.citations) : [],
+      model: row.model ?? undefined,
+      pageIds: row.pageIds ? JSON.parse(row.pageIds) : [],
+      createdAt: row.createdAt,
+      expiresAt: row.expiresAt,
+    };
+  }
+}
+
 export const storage = {
   rawResources: new RawResourceStorage(),
   wikiPages: new WikiPageStorage(),
@@ -800,4 +928,5 @@ export const storage = {
   processingLog: new ProcessingLogStorage(),
   embeddingsCache: new EmbeddingCacheStorage(),
   wikiPageVersions: new WikiPageVersionStorage(),
+  synthesisCache: new SynthesisCacheStorage(),
 };

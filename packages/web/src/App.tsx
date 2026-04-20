@@ -13,6 +13,7 @@ import { WebSocketStatus } from "@/components/websocket-status";
 import { RawResourceList } from "@/components/raw-resource-list";
 import { WikiStatsView } from "@/components/wiki-stats";
 import { MarpSlides } from "@/components/marp-slides";
+import { ToastProvider } from "@/components/toast";
 
 async function fetchStats() {
   const response = await fetch("/api/wiki-pages");
@@ -103,100 +104,102 @@ function WikiPages() {
 
 export default function App() {
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Sibyl</h1>
-            <p className="text-muted-foreground text-sm">
-              Memory System for Knowledge Management
-            </p>
+    <ToastProvider>
+      <div className="min-h-screen bg-background">
+        <header className="border-b">
+          <div className="container mx-auto px-4 py-4 flex justify-between items-center">
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight">Sibyl</h1>
+              <p className="text-muted-foreground text-sm">
+                Memory System for Knowledge Management
+              </p>
+            </div>
+            <WebSocketStatus />
           </div>
-          <WebSocketStatus />
-        </div>
-      </header>
-      <main className="container mx-auto px-4 py-8">
-        <div className="grid gap-8">
-          <section>
-            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-              <BarChart3 className="h-5 w-5" />
-              Wiki Statistics
-            </h2>
-            <WikiStatsView />
-          </section>
-          <section>
-            <h2 className="text-lg font-semibold mb-4">Dashboard</h2>
-            <Dashboard />
-          </section>
-          <section>
-            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-              <Shield className="h-5 w-5" />
-              Authentication
-            </h2>
-            <AuthStatus />
-          </section>
-          <section>
-            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-              <Filter className="h-5 w-5" />
-              Wiki Search
-            </h2>
-            <WikiSearch />
-          </section>
-          <section>
-            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-              <Upload className="h-5 w-5" />
-              Content Ingestion
-            </h2>
-            <ContentIngestion />
-          </section>
-          <section>
-            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-              <Archive className="h-5 w-5" />
-              Raw Resources
-            </h2>
-            <RawResourceList />
-          </section>
-          <section>
-            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-              <Search className="h-5 w-5" />
-              Query Synthesis
-            </h2>
-            <QuerySynthesis />
-          </section>
-          <section>
-            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-              <FileDown className="h-5 w-5" />
-              Content Filing
-            </h2>
-            <ContentFiling />
-          </section>
-          <section>
-            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-              <Activity className="h-5 w-5" />
-              Wiki Health Check (Lint)
-            </h2>
-            <WikiLint />
-          </section>
-          <section>
-            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-              <Presentation className="h-5 w-5" />
-              Marp Slide Generation
-            </h2>
-            <MarpSlides />
-          </section>
-          <section>
-            <h2 className="text-lg font-semibold mb-4">Wiki Pages</h2>
-            <WikiPages />
-          </section>
-          <section>
-            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-              <Network className="h-5 w-5" />
-              Wiki Graph View
-            </h2>
-            <WikiGraphView />
-          </section>
-        </div>
-      </main>
-    </div>
+        </header>
+        <main className="container mx-auto px-4 py-8">
+          <div className="grid gap-8">
+            <section>
+              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <BarChart3 className="h-5 w-5" />
+                Wiki Statistics
+              </h2>
+              <WikiStatsView />
+            </section>
+            <section>
+              <h2 className="text-lg font-semibold mb-4">Dashboard</h2>
+              <Dashboard />
+            </section>
+            <section>
+              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <Shield className="h-5 w-5" />
+                Authentication
+              </h2>
+              <AuthStatus />
+            </section>
+            <section>
+              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <Filter className="h-5 w-5" />
+                Wiki Search
+              </h2>
+              <WikiSearch />
+            </section>
+            <section>
+              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <Upload className="h-5 w-5" />
+                Content Ingestion
+              </h2>
+              <ContentIngestion />
+            </section>
+            <section>
+              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <Archive className="h-5 w-5" />
+                Raw Resources
+              </h2>
+              <RawResourceList />
+            </section>
+            <section>
+              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <Search className="h-5 w-5" />
+                Query Synthesis
+              </h2>
+              <QuerySynthesis />
+            </section>
+            <section>
+              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <FileDown className="h-5 w-5" />
+                Content Filing
+              </h2>
+              <ContentFiling />
+            </section>
+            <section>
+              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <Activity className="h-5 w-5" />
+                Wiki Health Check (Lint)
+              </h2>
+              <WikiLint />
+            </section>
+            <section>
+              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <Presentation className="h-5 w-5" />
+                Marp Slide Generation
+              </h2>
+              <MarpSlides />
+            </section>
+            <section>
+              <h2 className="text-lg font-semibold mb-4">Wiki Pages</h2>
+              <WikiPages />
+            </section>
+            <section>
+              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <Network className="h-5 w-5" />
+                Wiki Graph View
+              </h2>
+              <WikiGraphView />
+            </section>
+          </div>
+        </main>
+      </div>
+    </ToastProvider>
   );
 }

@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Brain, Layers, FileText, BookOpen } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { WikiPageDetail } from "./wiki-page-detail";
+import { WikiLinkProvider } from "./wiki-link-renderer";
 
 const PAGE_TYPE_CONFIG = {
   entity: { icon: Brain, label: "Entity", color: "bg-blue-100 text-blue-800" },
@@ -115,12 +116,25 @@ export function WikiPageList({ type }: { type?: string }) {
     queryFn: () => fetchWikiPages(type),
   });
 
+  const existingSlugs = useMemo(() => {
+    return (data?.data || []).map((p) => p.slug);
+  }, [data]);
+
+  const handleNavigateToSlug = (slug: string) => {
+    const page = (data?.data || []).find((p) => p.slug === slug);
+    if (page) {
+      setSelectedPageId(page.id);
+    }
+  };
+
   if (selectedPageId) {
     return (
-      <WikiPageDetail
-        pageId={selectedPageId}
-        onBack={() => setSelectedPageId(null)}
-      />
+      <WikiLinkProvider existingSlugs={existingSlugs} onNavigate={handleNavigateToSlug}>
+        <WikiPageDetail
+          pageId={selectedPageId}
+          onBack={() => setSelectedPageId(null)}
+        />
+      </WikiLinkProvider>
     );
   }
 
@@ -156,14 +170,16 @@ export function WikiPageList({ type }: { type?: string }) {
   }
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-      {pages.map((page) => (
-        <WikiPageCard
-          key={page.id}
-          page={page}
-          onClick={() => setSelectedPageId(page.id)}
-        />
-      ))}
-    </div>
+    <WikiLinkProvider existingSlugs={existingSlugs} onNavigate={handleNavigateToSlug}>
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {pages.map((page) => (
+          <WikiPageCard
+            key={page.id}
+            page={page}
+            onClick={() => setSelectedPageId(page.id)}
+          />
+        ))}
+      </div>
+    </WikiLinkProvider>
   );
 }
