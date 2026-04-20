@@ -5,6 +5,7 @@ export interface SibylPluginOptions {
   serverUrl?: string;
   dbPath?: string;
   autoInject?: boolean;
+  apiKey?: string;
 }
 
 const DEFAULT_SERVER_URL = "http://localhost:3000";
@@ -12,14 +13,19 @@ const DEFAULT_SERVER_URL = "http://localhost:3000";
 async function fetchSibylApi(
   serverUrl: string,
   path: string,
-  options?: { method?: string; body?: unknown }
+  options?: { method?: string; body?: unknown; apiKey?: string }
 ): Promise<unknown> {
   const url = `${serverUrl}${path}`;
+  const headers: Record<string, string> = {};
+  if (options?.body) {
+    headers["Content-Type"] = "application/json";
+  }
+  if (options?.apiKey) {
+    headers["x-api-key"] = options.apiKey;
+  }
   const response = await fetch(url, {
     method: options?.method || "GET",
-    headers: options?.body
-      ? { "Content-Type": "application/json" }
-      : undefined,
+    headers,
     body: options?.body ? JSON.stringify(options.body) : undefined,
   });
 
@@ -33,6 +39,7 @@ async function fetchSibylApi(
 export const SibylPlugin: Plugin = async (input, options?: SibylPluginOptions) => {
   const serverUrl = options?.serverUrl || DEFAULT_SERVER_URL;
   const autoInject = options?.autoInject !== false;
+  const apiKey = options?.apiKey;
 
   const hooks: Hooks = {
     tool: {
@@ -61,7 +68,8 @@ export const SibylPlugin: Plugin = async (input, options?: SibylPluginOptions) =
 
           const result = await fetchSibylApi(
             serverUrl,
-            `/api/wiki-pages?${params.toString()}`
+            `/api/wiki-pages?${params.toString()}`,
+            { apiKey }
           );
 
           const data = (result as { data?: unknown[] }).data || [];
@@ -118,6 +126,7 @@ export const SibylPlugin: Plugin = async (input, options?: SibylPluginOptions) =
               tags: args.tags || [],
               sourceIds: [],
             },
+            apiKey,
           });
 
           const data = result as { id?: string; slug?: string };
@@ -140,7 +149,8 @@ export const SibylPlugin: Plugin = async (input, options?: SibylPluginOptions) =
 
           const result = await fetchSibylApi(
             serverUrl,
-            `/api/wiki-pages?${params.toString()}`
+            `/api/wiki-pages?${params.toString()}`,
+            { apiKey }
           );
 
           const data = (result as { data?: unknown[] }).data || [];
@@ -171,6 +181,7 @@ export const SibylPlugin: Plugin = async (input, options?: SibylPluginOptions) =
         async execute(args, _context) {
           const result = await fetchSibylApi(serverUrl, `/api/wiki-pages/${args.slug}`, {
             method: "DELETE",
+            apiKey,
           });
 
           const data = result as { success?: boolean };
@@ -199,6 +210,7 @@ export const SibylPlugin: Plugin = async (input, options?: SibylPluginOptions) =
               content: args.content,
               type: args.type || "text",
             },
+            apiKey,
           });
 
           const data = result as {
@@ -229,7 +241,8 @@ export const SibylPlugin: Plugin = async (input, options?: SibylPluginOptions) =
 
           const result = await fetchSibylApi(
             serverUrl,
-            `/api/wiki-pages?${params.toString()}`
+            `/api/wiki-pages?${params.toString()}`,
+            { apiKey }
           );
 
           const data = (result as { data?: unknown[] }).data || [];
@@ -275,7 +288,8 @@ export const SibylPlugin: Plugin = async (input, options?: SibylPluginOptions) =
 
           const result = await fetchSibylApi(
             serverUrl,
-            `/api/processing-log?${params.toString()}`
+            `/api/processing-log?${params.toString()}`,
+            { apiKey }
           );
 
           const data = (result as { data?: unknown[] }).data || [];
@@ -298,13 +312,147 @@ export const SibylPlugin: Plugin = async (input, options?: SibylPluginOptions) =
           return `Recent operations:\n${formatted.join("\n")}`;
         },
       }),
+
+      memory_filing: tool({
+        description:
+          "File content or analysis as a new wiki page. Useful for saving valuable answers, comparisons, or analyses back into the knowledge base. Creates links to source pages.",
+        args: {
+          title: tool.schema.string().describe("Title for the wiki page to create"),
+          content: tool.schema.string().describe("Content to file as the wiki page"),
+          type: tool.schema
+            .enum(["entity", "concept", "source", "summary"])
+            .optional()
+            .default("summary")
+            .describe("Type of wiki page (defaults to 'summary')"),
+          tags: tool.schema.array(tool.schema.string()).optional().describe("Tags for categorization"),
+          sourcePageSlugs: tool.schema
+            .array(tool.schema.string())
+            .optional()
+            .describe("Slugs of existing wiki pages to link as sources"),
+          summary: tool.schema.string().optional().describe("Brief summary of the content"),
+        },
+        async execute(args, _context) {
+          const result = await fetchSibylApi(serverUrl, "/api/filing", {
+            method: "POST",
+            body: {
+              title: args.title,
+              content: args.content,
+              type: args.type || "summary",
+              tags: args.tags || [],
+              sourcePageSlugs: args.sourcePageSlugs || [],
+              summary: args.summary,
+            },
+            apiKey,
+          });
+
+          const data = result as {
+            wikiPageId?: string;
+            slug?: string;
+            title?: string;
+            type?: string;
+            linkedPages?: string[];
+            linkedCount?: number;
+            filedAt?: number;
+          };
+
+          return `Filed content as wiki page "${data.title || args.title}" (${data.type || "summary"}). Linked to ${data.linkedCount || 0} source pages. Wiki page ID: ${data.wikiPageId || "unknown"}, Slug: ${data.slug || "unknown"}`;
+        },
+      }),
+
+      memory_filing_history: tool({
+        description:
+          "Get history of recently filed wiki pages. Shows what content has been saved to the wiki through filing operations.",
+        args: {
+          limit: tool.schema
+            .number()
+            .int()
+            .positive()
+            .max(20)
+            .default(10)
+            .describe("Maximum number of history entries to return"),
+        },
+        async execute(args, _context) {
+          const result = await fetchSibylApi(
+            serverUrl,
+            `/api/filing/history?limit=${args.limit || 10}`,
+            { apiKey }
+          );
+
+          const data = result as {
+            count?: number;
+            history?: Array<{
+              wikiPageId: string;
+              title: string;
+              slug: string;
+              filedAt: number;
+              filedAtDate?: string;
+            }>;
+          };
+
+          if (!data.history || data.history.length === 0) {
+            return "No filing history found.";
+          }
+
+          const formatted = data.history.map((entry) => {
+            const date = new Date(entry.filedAt).toISOString();
+            return `- ${entry.title} (${entry.slug}) [${date}]`;
+          });
+
+          return `Recently filed pages (${data.count || data.history.length}):\n${formatted.join("\n")}`;
+        },
+      }),
+
+      memory_raw_save: tool({
+        description:
+          "Save a raw resource (text content) to the memory database for later processing. Does not immediately create a wiki page.",
+        args: {
+          type: tool.schema
+            .enum(["pdf", "image", "webpage", "text"])
+            .describe("Type of raw resource"),
+          filename: tool.schema.string().describe("Filename for the resource"),
+          content: tool.schema.string().describe("Text content to save"),
+          sourceUrl: tool.schema
+            .string()
+            .optional()
+            .describe("Source URL if applicable"),
+          metadata: tool.schema
+            .record(tool.schema.string(), tool.schema.unknown())
+            .optional()
+            .describe("Additional metadata"),
+        },
+        async execute(args, _context) {
+          const result = await fetchSibylApi(serverUrl, "/api/raw-resources", {
+            method: "POST",
+            body: {
+              type: args.type,
+              filename: args.filename,
+              contentPath: `data/raw/documents/${args.filename}`,
+              sourceUrl: args.sourceUrl,
+              metadata: {
+                ...args.metadata,
+                contentPreview: args.content.slice(0, 500),
+                contentLength: args.content.length,
+              },
+            },
+            apiKey,
+          });
+
+          const data = result as {
+            id?: string;
+            filename?: string;
+            type?: string;
+          };
+
+          return `Raw resource saved successfully. ID: ${data.id || "unknown"}, Filename: ${data.filename || args.filename}, Type: ${data.type || args.type}`;
+        },
+      }),
     },
 
     "experimental.chat.system.transform": async (_input, output) => {
       if (!autoInject) return;
 
       try {
-        const result = await fetchSibylApi(serverUrl, "/api/wiki-pages?limit=5");
+        const result = await fetchSibylApi(serverUrl, "/api/wiki-pages?limit=5", { apiKey });
         const data = (result as { data?: unknown[] }).data || [];
         const pages = data as Array<{
           title: string;

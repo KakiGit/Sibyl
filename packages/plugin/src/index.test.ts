@@ -3,7 +3,7 @@ import { SibylPlugin } from "./index.js";
 
 interface MockFetchCall {
   url: string;
-  options?: { method?: string; body?: unknown };
+  options?: { method?: string; body?: unknown; headers?: Record<string, string> };
 }
 
 let originalFetch: typeof fetch;
@@ -12,11 +12,19 @@ let mockResponses: Record<string, unknown> = {};
 
 function mockFetch(url: string | URL | Request, options?: RequestInit): Promise<Response> {
   const urlString = typeof url === "string" ? url : url instanceof URL ? url.href : url.url;
+  const headers: Record<string, string> = {};
+  if (options?.headers) {
+    const headersObj = options.headers as Record<string, string>;
+    for (const key in headersObj) {
+      headers[key] = headersObj[key];
+    }
+  }
   fetchCalls.push({
     url: urlString,
     options: {
       method: options?.method,
       body: options?.body ? JSON.parse(options.body as string) : undefined,
+      headers,
     },
   });
 
@@ -63,6 +71,9 @@ describe("SibylPlugin", () => {
     expect(hooks.tool?.memory_ingest).toBeDefined();
     expect(hooks.tool?.memory_query).toBeDefined();
     expect(hooks.tool?.memory_log).toBeDefined();
+    expect(hooks.tool?.memory_filing).toBeDefined();
+    expect(hooks.tool?.memory_filing_history).toBeDefined();
+    expect(hooks.tool?.memory_raw_save).toBeDefined();
   });
 
   it("memory_recall tool fetches wiki pages with search query", async () => {
@@ -289,6 +300,112 @@ describe("SibylPlugin", () => {
     await hooks.tool?.memory_recall?.execute({ query: "test", limit: 5 }, {} as any);
 
     expect(fetchCalls[0].url).toContain("http://localhost:3000");
+  });
+
+  it("memory_filing tool files content as wiki page", async () => {
+    mockResponses["/api/filing"] = {
+      wikiPageId: "wiki-1",
+      slug: "my-analysis",
+      title: "My Analysis",
+      type: "summary",
+      linkedPages: ["source-1", "source-2"],
+      linkedCount: 2,
+      filedAt: Date.now(),
+    };
+
+    const hooks = await SibylPlugin({} as any, { serverUrl: "http://localhost:3000" });
+
+    const result = await hooks.tool?.memory_filing?.execute(
+      {
+        title: "My Analysis",
+        content: "This is my analysis content...",
+        type: "summary",
+        tags: ["analysis", "important"],
+        sourcePageSlugs: ["source-1", "source-2"],
+      },
+      {} as any
+    );
+
+    expect(fetchCalls.length).toBe(1);
+    expect(fetchCalls[0].url).toBe("http://localhost:3000/api/filing");
+    expect(fetchCalls[0].options?.method).toBe("POST");
+    const body = fetchCalls[0].options?.body as any;
+    expect(body?.title).toBe("My Analysis");
+    expect(body?.sourcePageSlugs).toContain("source-1");
+    expect(result).toContain("Filed content as wiki page");
+    expect(result).toContain("Linked to 2 source pages");
+  });
+
+  it("memory_filing_history tool fetches history", async () => {
+    mockResponses["/api/filing/history?limit=10"] = {
+      count: 2,
+      history: [
+        { wikiPageId: "wiki-1", title: "Analysis 1", slug: "analysis-1", filedAt: Date.now() },
+        { wikiPageId: "wiki-2", title: "Analysis 2", slug: "analysis-2", filedAt: Date.now() },
+      ],
+    };
+
+    const hooks = await SibylPlugin({} as any, { serverUrl: "http://localhost:3000" });
+
+    const result = await hooks.tool?.memory_filing_history?.execute({ limit: 10 }, {} as any);
+
+    expect(fetchCalls[0].url).toContain("/api/filing/history");
+    expect(result).toContain("Recently filed pages");
+    expect(result).toContain("Analysis 1");
+    expect(result).toContain("Analysis 2");
+  });
+
+  it("memory_filing_history returns no history message when empty", async () => {
+    mockResponses["/api/filing/history?limit=10"] = { count: 0, history: [] };
+
+    const hooks = await SibylPlugin({} as any, { serverUrl: "http://localhost:3000" });
+
+    const result = await hooks.tool?.memory_filing_history?.execute({ limit: 10 }, {} as any);
+
+    expect(result).toBe("No filing history found.");
+  });
+
+  it("memory_raw_save tool saves raw resource", async () => {
+    mockResponses["/api/raw-resources"] = {
+      id: "raw-1",
+      filename: "document.txt",
+      type: "text",
+    };
+
+    const hooks = await SibylPlugin({} as any, { serverUrl: "http://localhost:3000" });
+
+    const result = await hooks.tool?.memory_raw_save?.execute(
+      {
+        type: "text",
+        filename: "document.txt",
+        content: "This is some raw content to save...",
+        sourceUrl: "https://example.com",
+        metadata: { author: "test" },
+      },
+      {} as any
+    );
+
+    expect(fetchCalls.length).toBe(1);
+    expect(fetchCalls[0].url).toBe("http://localhost:3000/api/raw-resources");
+    expect(fetchCalls[0].options?.method).toBe("POST");
+    const body = fetchCalls[0].options?.body as any;
+    expect(body?.type).toBe("text");
+    expect(body?.filename).toBe("document.txt");
+    expect(result).toContain("Raw resource saved successfully");
+    expect(result).toContain("raw-1");
+  });
+
+  it("includes apiKey in request headers", async () => {
+    mockResponses["/api/wiki-pages?search=test&limit=5"] = { data: [] };
+
+    const hooks = await SibylPlugin({} as any, { 
+      serverUrl: "http://localhost:3000",
+      apiKey: "test-api-key"
+    });
+
+    await hooks.tool?.memory_recall?.execute({ query: "test", limit: 5 }, {} as any);
+
+    expect(fetchCalls[0].options?.headers?.["x-api-key"]).toBe("test-api-key");
   });
 });
 
