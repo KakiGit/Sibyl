@@ -106,6 +106,33 @@ The default schema includes:
 - Ingest, Query, Filing, and Lint workflow definitions
 - Cross-reference and tag conventions
 
+### Wiki Page Version History API
+
+The server provides endpoints for viewing and managing wiki page version history:
+
+```bash
+# Get version history for a wiki page
+curl http://localhost:3000/api/wiki-pages/<page-id>/versions
+
+# Get specific version details
+curl http://localhost:3000/api/wiki-pages/<page-id>/versions/1
+
+# Restore wiki page to a previous version
+curl -X POST http://localhost:3000/api/wiki-pages/<page-id>/restore/1 \
+  -H "Content-Type: application/json" \
+  -d '{"changedBy": "user", "changeReason": "Reverting to previous version"}'
+
+# Compare two versions (diff)
+curl http://localhost:3000/api/wiki-pages/<page-id>/versions/diff/1/2
+```
+
+Version history features:
+- Automatic version tracking on every wiki page update
+- Content snapshots stored for each version
+- Change metadata (changedBy, changeReason)
+- Restore functionality to revert to previous versions
+- Diff comparison between versions
+
 ## Build
 
 ```bash

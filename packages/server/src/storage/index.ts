@@ -1,17 +1,20 @@
 import { eq, and, desc, like, or, inArray, sql } from "drizzle-orm";
 import { ulid } from "ulid";
 import { getDatabase } from "../database.js";
-import { rawResources, wikiPages, wikiLinks, processingLog, embeddingsCache } from "../schema.js";
+import { rawResources, wikiPages, wikiLinks, processingLog, embeddingsCache, wikiPageVersions } from "../schema.js";
+import { wikiFileManager, WikiFileManager } from "../wiki/index.js";
 import type {
   RawResource,
   WikiPage,
   WikiLink,
   ProcessingLog,
   EmbeddingCache,
+  WikiPageVersion,
   CreateRawResourceInput,
   CreateWikiPageInput,
   CreateWikiLinkInput,
   CreateProcessingLogInput,
+  CreateWikiPageVersionInput,
   QueryWikiPagesOptions,
   QueryRawResourcesOptions,
 } from "@sibyl/sdk";
@@ -303,7 +306,7 @@ export class WikiPageStorage {
     return pages;
   }
 
-  async update(id: string, updates: Partial<WikiPage>): Promise<WikiPage | null> {
+  async update(id: string, updates: Partial<WikiPage>, options?: { changedBy?: string; changeReason?: string; wikiFileManager?: WikiFileManager }): Promise<WikiPage | null> {
     const db = getDatabase();
     const existing = await this.findById(id);
 
@@ -312,9 +315,28 @@ export class WikiPageStorage {
     }
 
     const now = Date.now();
+    const newVersion = existing.version + 1;
+
+    const wikiManager = options?.wikiFileManager || wikiFileManager;
+    const existingContent = wikiManager.readPage(existing.type, existing.slug);
+    
+    if (existingContent) {
+      const versionStorage = new WikiPageVersionStorage();
+      await versionStorage.create({
+        wikiPageId: existing.id,
+        version: existing.version,
+        title: existing.title,
+        summary: existing.summary,
+        tags: existing.tags,
+        contentSnapshot: existingContent.content,
+        changedBy: options?.changedBy,
+        changeReason: options?.changeReason,
+      });
+    }
+
     const updateData: Record<string, unknown> = {
       updatedAt: now,
-      version: existing.version + 1,
+      version: newVersion,
     };
 
     if (updates.title !== undefined) updateData.title = updates.title;
@@ -328,13 +350,16 @@ export class WikiPageStorage {
 
     await db.update(wikiPages).set(updateData).where(eq(wikiPages.id, id));
     broadcastWikiPageUpdated({ id, slug: existing.slug, title: updates.title ?? existing.title, type: existing.type });
-    logger.debug("Updated wiki page", { id });
+    logger.debug("Updated wiki page", { id, version: newVersion });
 
-    return { ...existing, ...updates, updatedAt: now, version: existing.version + 1 };
+    return { ...existing, ...updates, updatedAt: now, version: newVersion };
   }
 
   async delete(id: string): Promise<boolean> {
     const db = getDatabase();
+    
+    const versionStorage = new WikiPageVersionStorage();
+    await versionStorage.deleteByWikiPageId(id);
     
     await db.delete(wikiLinks).where(
       or(eq(wikiLinks.fromPageId, id), eq(wikiLinks.toPageId, id))
@@ -342,7 +367,7 @@ export class WikiPageStorage {
     
     await db.delete(wikiPages).where(eq(wikiPages.id, id));
     broadcastWikiPageDeleted(id);
-    logger.debug("Deleted wiki page", { id });
+    logger.debug("Deleted wiki page and all versions", { id });
     return true;
   }
 
@@ -645,10 +670,134 @@ export class EmbeddingCacheStorage {
   }
 }
 
+export class WikiPageVersionStorage {
+  async create(input: CreateWikiPageVersionInput): Promise<WikiPageVersion> {
+    const db = getDatabase();
+    const now = Date.now();
+    const id = ulid();
+
+    const version: WikiPageVersion = {
+      id,
+      wikiPageId: input.wikiPageId,
+      version: input.version,
+      title: input.title,
+      summary: input.summary,
+      tags: input.tags ?? [],
+      contentSnapshot: input.contentSnapshot,
+      changedBy: input.changedBy,
+      changeReason: input.changeReason,
+      createdAt: now,
+    };
+
+    await db.insert(wikiPageVersions).values({
+      id: version.id,
+      wikiPageId: version.wikiPageId,
+      version: version.version,
+      title: version.title,
+      summary: version.summary ?? null,
+      tags: JSON.stringify(version.tags),
+      contentSnapshot: version.contentSnapshot,
+      changedBy: version.changedBy ?? null,
+      changeReason: version.changeReason ?? null,
+      createdAt: version.createdAt,
+    });
+
+    logger.debug("Created wiki page version", { 
+      id: version.id, 
+      wikiPageId: version.wikiPageId, 
+      version: version.version 
+    });
+    return version;
+  }
+
+  async findByWikiPageId(wikiPageId: string, options: { limit?: number; offset?: number } = {}): Promise<WikiPageVersion[]> {
+    const db = getDatabase();
+    const baseQuery = db
+      .select()
+      .from(wikiPageVersions)
+      .where(eq(wikiPageVersions.wikiPageId, wikiPageId))
+      .orderBy(desc(wikiPageVersions.version));
+
+    const limitedQuery = options.limit ? baseQuery.limit(options.limit) : baseQuery;
+    const finalQuery = options.offset ? limitedQuery.offset(options.offset) : limitedQuery;
+
+    const results = await finalQuery;
+    return results.map((r) => this.mapToWikiPageVersion(r));
+  }
+
+  async findByWikiPageIdAndVersion(wikiPageId: string, versionNumber: number): Promise<WikiPageVersion | null> {
+    const db = getDatabase();
+    const results = await db
+      .select()
+      .from(wikiPageVersions)
+      .where(and(
+        eq(wikiPageVersions.wikiPageId, wikiPageId),
+        eq(wikiPageVersions.version, versionNumber)
+      ))
+      .limit(1);
+
+    if (results.length === 0) {
+      return null;
+    }
+
+    return this.mapToWikiPageVersion(results[0]);
+  }
+
+  async getLatestVersion(wikiPageId: string): Promise<WikiPageVersion | null> {
+    const versions = await this.findByWikiPageId(wikiPageId, { limit: 1 });
+    return versions.length > 0 ? versions[0] : null;
+  }
+
+  async count(wikiPageId?: string): Promise<number> {
+    const db = getDatabase();
+    const baseQuery = db.select({ count: sql<number>`count(*)` }).from(wikiPageVersions);
+    
+    const query = wikiPageId 
+      ? baseQuery.where(eq(wikiPageVersions.wikiPageId, wikiPageId))
+      : baseQuery;
+
+    const result = await query;
+    return result[0]?.count ?? 0;
+  }
+
+  async deleteByWikiPageId(wikiPageId: string): Promise<void> {
+    const db = getDatabase();
+    await db.delete(wikiPageVersions).where(eq(wikiPageVersions.wikiPageId, wikiPageId));
+    logger.debug("Deleted all versions for wiki page", { wikiPageId });
+  }
+
+  private mapToWikiPageVersion(row: {
+    id: string;
+    wikiPageId: string;
+    version: number;
+    title: string;
+    summary: string | null;
+    tags: string | null;
+    contentSnapshot: string;
+    changedBy: string | null;
+    changeReason: string | null;
+    createdAt: number;
+  }): WikiPageVersion {
+    return {
+      id: row.id,
+      wikiPageId: row.wikiPageId,
+      version: row.version,
+      title: row.title,
+      summary: row.summary ?? undefined,
+      tags: row.tags ? JSON.parse(row.tags) : [],
+      contentSnapshot: row.contentSnapshot,
+      changedBy: row.changedBy ?? undefined,
+      changeReason: row.changeReason ?? undefined,
+      createdAt: row.createdAt,
+    };
+  }
+}
+
 export const storage = {
   rawResources: new RawResourceStorage(),
   wikiPages: new WikiPageStorage(),
   wikiLinks: new WikiLinkStorage(),
   processingLog: new ProcessingLogStorage(),
   embeddingsCache: new EmbeddingCacheStorage(),
+  wikiPageVersions: new WikiPageVersionStorage(),
 };

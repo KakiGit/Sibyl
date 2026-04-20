@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { join, dirname } from "path";
-import { RAW_DIR, RAW_INDEX_FILE, DATA_DIR } from "@sibyl/shared";
+import { RAW_DIR, DATA_DIR } from "@sibyl/shared";
 import { logger } from "@sibyl/shared";
 import type { RawResource } from "@sibyl/sdk";
 

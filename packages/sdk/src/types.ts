@@ -1,4 +1,4 @@
-import type { RawResource, WikiPage, WikiLink, ProcessingLog, EmbeddingCache } from "./schemas.js";
+import type { RawResource, WikiPage, WikiLink, ProcessingLog, EmbeddingCache, WikiPageVersion } from "./schemas.js";
 
 export interface CreateRawResourceInput {
   type: RawResource["type"];
@@ -29,6 +29,17 @@ export interface CreateProcessingLogInput {
   rawResourceId?: string;
   wikiPageId?: string;
   details?: Record<string, unknown>;
+}
+
+export interface CreateWikiPageVersionInput {
+  wikiPageId: string;
+  version: number;
+  title: string;
+  summary?: string;
+  tags?: string[];
+  contentSnapshot: string;
+  changedBy?: string;
+  changeReason?: string;
 }
 
 export interface QueryWikiPagesOptions {
@@ -63,4 +74,4 @@ export interface SearchResult {
   matchType: "keyword" | "semantic" | "hybrid";
 }
 
-export type { RawResource, WikiPage, WikiLink, ProcessingLog, EmbeddingCache };
+export type { RawResource, WikiPage, WikiLink, ProcessingLog, EmbeddingCache, WikiPageVersion };

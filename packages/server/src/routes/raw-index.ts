@@ -4,8 +4,6 @@ import { rawResourceFileManager } from "../raw/index.js";
 import { storage } from "../storage/index.js";
 import { logger } from "@sibyl/shared";
 
-const RebuildIndexSchema = z.object({});
-
 export async function registerRawIndexRoutes(fastify: FastifyInstance) {
   fastify.get("/api/raw-index", async () => {
     const index = rawResourceFileManager.readIndex();

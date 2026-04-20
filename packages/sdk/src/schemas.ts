@@ -56,6 +56,19 @@ export const EmbeddingCacheSchema = z.object({
   createdAt: z.number(),
 });
 
+export const WikiPageVersionSchema = z.object({
+  id: z.string(),
+  wikiPageId: z.string(),
+  version: z.number(),
+  title: z.string(),
+  summary: z.string().optional(),
+  tags: z.array(z.string()).default([]),
+  contentSnapshot: z.string(),
+  changedBy: z.string().optional(),
+  changeReason: z.string().optional(),
+  createdAt: z.number(),
+});
+
 export type RawResourceType = z.infer<typeof RawResourceTypeSchema>;
 export type WikiPageType = z.infer<typeof WikiPageTypeSchema>;
 export type Operation = z.infer<typeof OperationSchema>;
@@ -64,3 +77,4 @@ export type WikiPage = z.infer<typeof WikiPageSchema>;
 export type WikiLink = z.infer<typeof WikiLinkSchema>;
 export type ProcessingLog = z.infer<typeof ProcessingLogSchema>;
 export type EmbeddingCache = z.infer<typeof EmbeddingCacheSchema>;
+export type WikiPageVersion = z.infer<typeof WikiPageVersionSchema>;

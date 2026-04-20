@@ -55,3 +55,18 @@ export const embeddingsCache = sqliteTable("embeddings_cache", {
   model: text().notNull(),
   createdAt: integer("created_at").notNull(),
 });
+
+export const wikiPageVersions = sqliteTable("wiki_page_versions", {
+  id: text().primaryKey(),
+  wikiPageId: text("wiki_page_id")
+    .notNull()
+    .references(() => wikiPages.id),
+  version: integer().notNull(),
+  title: text().notNull(),
+  summary: text(),
+  tags: text(),
+  contentSnapshot: text("content_snapshot").notNull(),
+  changedBy: text("changed_by"),
+  changeReason: text("change_reason"),
+  createdAt: integer("created_at").notNull(),
+});

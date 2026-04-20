@@ -111,6 +111,29 @@ export function migrateDatabase(database: ReturnType<typeof drizzle<typeof schem
       tokenize = 'porter unicode61'
     )
   `);
+
+  sqlite.run(`
+    CREATE TABLE IF NOT EXISTS wiki_page_versions (
+      id TEXT PRIMARY KEY,
+      wiki_page_id TEXT NOT NULL REFERENCES wiki_pages(id),
+      version INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      summary TEXT,
+      tags TEXT,
+      content_snapshot TEXT NOT NULL,
+      changed_by TEXT,
+      change_reason TEXT,
+      created_at INTEGER NOT NULL
+    )
+  `);
+
+  sqlite.run(`
+    CREATE INDEX IF NOT EXISTS wiki_page_versions_page_id_idx ON wiki_page_versions(wiki_page_id)
+  `);
+
+  sqlite.run(`
+    CREATE INDEX IF NOT EXISTS wiki_page_versions_version_idx ON wiki_page_versions(wiki_page_id, version)
+  `);
 }
 
 export function getDatabase(): ReturnType<typeof drizzle<typeof schema>> {
