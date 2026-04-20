@@ -503,6 +503,56 @@ describe("auto-save functionality", () => {
     expect(fetchCalls.length).toBe(0);
   });
 
+  it("handles delta arriving before full text part", async () => {
+    mockResponses["/api/raw-resources"] = { id: "raw-id", filename: "session-test.txt" };
+
+    const hooks = await SibylPlugin({} as any, { 
+      serverUrl: "http://localhost:3000",
+      autoSave: true,
+      autoSaveThreshold: 2
+    });
+
+    await hooks.event?.({ event: { 
+      type: "message.updated", 
+      properties: { 
+        info: { sessionID: "test-delta-first", id: "msg-user-1", role: "user", time: { created: 1000 } } 
+      } 
+    } as any });
+    await hooks.event?.({ event: { 
+      type: "message.part.delta", 
+      properties: { 
+        sessionID: "test-delta-first",
+        messageID: "msg-user-1",
+        delta: "Hello"
+      } 
+    } as any });
+    await hooks.event?.({ event: { 
+      type: "message.part.delta", 
+      properties: { 
+        sessionID: "test-delta-first",
+        messageID: "msg-user-1",
+        delta: " world"
+      } 
+    } as any });
+    await hooks.event?.({ event: { 
+      type: "message.updated", 
+      properties: { 
+        info: { sessionID: "test-delta-first", id: "msg-assistant-1", role: "assistant", time: { created: 2000 } } 
+      } 
+    } as any });
+    await hooks.event?.({ event: { 
+      type: "message.part.updated", 
+      properties: { 
+        part: { sessionID: "test-delta-first", messageID: "msg-assistant-1", type: "text", text: "Hi there!" } 
+      } 
+    } as any });
+
+    expect(fetchCalls.length).toBe(1);
+    const body = fetchCalls[0].options?.body as any;
+    expect(body?.content).toContain("Hello world");
+    expect(body?.content).toContain("Hi there!");
+  });
+
   it("session.idle triggers LLM ingestion", async () => {
     mockResponses["/api/raw-resources"] = { id: "raw-id-123", filename: "session-idle-test.txt" };
     mockResponses["/api/ingest/llm/raw-id-123"] = { 

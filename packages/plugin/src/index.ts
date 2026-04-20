@@ -492,10 +492,10 @@ export const SibylPlugin: Plugin = async (input, options?: SibylPluginOptions) =
         
         if (delta && messageParts.length > 0) {
           messageParts[messageParts.length - 1].text += delta;
-        } else if (text) {
+        } else if (text || delta) {
           messageParts.push({
             messageId,
-            text,
+            text: text || delta,
             timestamp: Date.now(),
           });
         }
