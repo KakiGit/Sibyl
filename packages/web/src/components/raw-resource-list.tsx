@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { RawResourceDetail } from "./raw-resource-detail";
 
 const RESOURCE_TYPE_CONFIG = {
   pdf: { icon: FileText, label: "PDF", color: "bg-red-100 text-red-800" },
@@ -54,12 +54,6 @@ async function fetchRawResourcesCount(type?: string, processed?: boolean): Promi
   return response.json();
 }
 
-async function fetchRawResourceContent(id: string): Promise<{ data: { content: string; contentPath: string } }> {
-  const response = await fetch(`/api/raw-resources/${id}/content`);
-  if (!response.ok) throw new Error("Failed to fetch content");
-  return response.json();
-}
-
 async function deleteRawResource(id: string): Promise<{ success: boolean }> {
   const response = await fetch(`/api/raw-resources/${id}`, {
     method: "DELETE",
@@ -102,70 +96,6 @@ async function fetchRawResourceStats(): Promise<{ data: { total: number; process
       },
     },
   };
-}
-
-function RawResourceContentDialog({
-  resource,
-  open,
-  onOpenChange,
-}: {
-  resource: RawResource | null;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}) {
-  const { data, isLoading, error } = useQuery({
-    queryKey: ["rawResourceContent", resource?.id],
-    queryFn: () => fetchRawResourceContent(resource!.id),
-    enabled: open && resource !== null,
-  });
-
-  if (!resource) return null;
-
-  const config = RESOURCE_TYPE_CONFIG[resource.type];
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[80vh] overflow-hidden">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <config.icon className="h-4 w-4" />
-            {resource.filename}
-          </DialogTitle>
-          <DialogDescription>
-            Type: {config.label} | Status: {resource.processed ? "Processed" : "Pending"}
-          </DialogDescription>
-        </DialogHeader>
-        
-        <div className="mt-4 overflow-auto max-h-[50vh]">
-          {isLoading && (
-            <div className="space-y-2">
-              <Skeleton className="h-4 w-full" />
-              <Skeleton className="h-4 w-full" />
-              <Skeleton className="h-4 w-3/4" />
-            </div>
-          )}
-          
-          {error && (
-            <div className="text-red-600 text-sm">
-              Failed to load content. The file may not exist at {resource.contentPath}
-            </div>
-          )}
-          
-          {data && (
-            <pre className="text-sm whitespace-pre-wrap bg-muted p-4 rounded-lg overflow-auto">
-              {data.data.content}
-            </pre>
-          )}
-        </div>
-        
-        {data && (
-          <div className="mt-2 text-xs text-muted-foreground">
-            Path: {data.data.contentPath}
-          </div>
-        )}
-      </DialogContent>
-    </Dialog>
-  );
 }
 
 function RawResourceCard({
@@ -231,16 +161,14 @@ function RawResourceCard({
           <div className="flex items-center justify-between pt-2">
             <span className="text-xs text-muted-foreground">{createdDate}</span>
             <div className="flex items-center gap-1">
-              {resource.type === "text" && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={onView}
-                  className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                >
-                  <Eye className="h-4 w-4" />
-                </Button>
-              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onView}
+                className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+              >
+                <Eye className="h-4 w-4" />
+              </Button>
               <Button
                 variant="ghost"
                 size="sm"
@@ -322,7 +250,7 @@ function StatsDisplay() {
 
 export function RawResourceList({ type, processed }: { type?: string; processed?: boolean }) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [viewingResource, setViewingResource] = useState<RawResource | null>(null);
+  const [selectedResourceId, setSelectedResourceId] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const pageSize = 20;
   const queryClient = useQueryClient();
@@ -358,8 +286,12 @@ export function RawResourceList({ type, processed }: { type?: string; processed?
     deleteMutation.mutate(id);
   };
 
-  const handleView = (resource: RawResource) => {
-    setViewingResource(resource);
+  const handleView = (resourceId: string) => {
+    setSelectedResourceId(resourceId);
+  };
+
+  const handleBackFromDetail = () => {
+    setSelectedResourceId(null);
   };
 
   const handlePrevPage = () => {
@@ -369,6 +301,10 @@ export function RawResourceList({ type, processed }: { type?: string; processed?
   const handleNextPage = () => {
     setPage((p) => Math.min(totalPages - 1, p + 1));
   };
+
+  if (selectedResourceId) {
+    return <RawResourceDetail resourceId={selectedResourceId} onBack={handleBackFromDetail} />;
+  }
 
   if (isLoading) {
     return (
@@ -396,12 +332,6 @@ export function RawResourceList({ type, processed }: { type?: string; processed?
   return (
     <div className="space-y-4">
       <StatsDisplay />
-      
-      <RawResourceContentDialog
-        resource={viewingResource}
-        open={viewingResource !== null}
-        onOpenChange={(open) => !open && setViewingResource(null)}
-      />
       
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -456,7 +386,7 @@ export function RawResourceList({ type, processed }: { type?: string; processed?
               key={resource.id}
               resource={resource}
               onDelete={() => handleDelete(resource.id)}
-              onView={() => handleView(resource)}
+              onView={() => handleView(resource.id)}
               isDeleting={deletingId === resource.id}
             />
           ))}

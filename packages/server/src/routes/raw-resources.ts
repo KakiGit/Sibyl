@@ -123,6 +123,40 @@ export async function registerRawResourceRoutes(fastify: FastifyInstance) {
     return { data: resource };
   });
 
+  fastify.put("/api/raw-resources/:id/content", async (request, reply) => {
+    const params = request.params as { id: string };
+    const body = request.body as { content?: string };
+    
+    if (!body.content) {
+      reply.code(400);
+      return { error: "Content is required" };
+    }
+    
+    const resource = await storage.rawResources.findById(params.id);
+    
+    if (!resource) {
+      reply.code(404);
+      return { error: "Raw resource not found" };
+    }
+    
+    try {
+      writeFileSync(resource.contentPath, body.content, "utf-8");
+      logger.debug("Updated raw resource content", { path: resource.contentPath, length: body.content.length });
+      
+      await storage.rawResources.update(params.id, {
+        metadata: {
+          ...resource.metadata,
+          contentLength: body.content.length,
+        },
+      });
+      
+      return { data: { content: body.content, contentPath: resource.contentPath } };
+    } catch (error) {
+      reply.code(500);
+      return { error: "Failed to write content file" };
+    }
+  });
+
   fastify.put("/api/raw-resources/:id", async (request, reply) => {
     const params = request.params as { id: string };
     const parseResult = UpdateRawResourceSchema.safeParse(request.body);
