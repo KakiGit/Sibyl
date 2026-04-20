@@ -1,0 +1,289 @@
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { FileText, Image, Globe, TextIcon, Trash2, Loader2, CheckCircle, Clock, ExternalLink, RefreshCw } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+
+const RESOURCE_TYPE_CONFIG = {
+  pdf: { icon: FileText, label: "PDF", color: "bg-red-100 text-red-800" },
+  image: { icon: Image, label: "Image", color: "bg-blue-100 text-blue-800" },
+  webpage: { icon: Globe, label: "Webpage", color: "bg-green-100 text-green-800" },
+  text: { icon: TextIcon, label: "Text", color: "bg-gray-100 text-gray-800" },
+} as const;
+
+interface RawResource {
+  id: string;
+  type: "pdf" | "image" | "webpage" | "text";
+  filename: string;
+  sourceUrl?: string;
+  contentPath: string;
+  metadata?: Record<string, unknown>;
+  createdAt: number;
+  processed: boolean;
+}
+
+async function fetchRawResources(type?: string, processed?: boolean): Promise<{ data: RawResource[] }> {
+  const params = new URLSearchParams();
+  if (type) params.set("type", type);
+  if (processed !== undefined) params.set("processed", String(processed));
+  const url = params.toString() ? `/api/raw-resources?${params.toString()}` : "/api/raw-resources";
+  const response = await fetch(url);
+  if (!response.ok) throw new Error("Failed to fetch raw resources");
+  return response.json();
+}
+
+async function deleteRawResource(id: string): Promise<{ success: boolean }> {
+  const response = await fetch(`/api/raw-resources/${id}`, {
+    method: "DELETE",
+  });
+  if (!response.ok) throw new Error("Failed to delete raw resource");
+  return response.json();
+}
+
+async function fetchRawResourceStats(): Promise<{ data: { total: number; processed: number; unprocessed: number; byType: Record<string, number> } }> {
+  const response = await fetch("/api/raw-index/stats");
+  if (!response.ok) {
+    const fallbackResponse = await fetch("/api/raw-resources");
+    if (!fallbackResponse.ok) throw new Error("Failed to fetch stats");
+    const data = await fallbackResponse.json();
+    const resources = data.data || [];
+    return {
+      data: {
+        total: resources.length,
+        processed: resources.filter((r: RawResource) => r.processed).length,
+        unprocessed: resources.filter((r: RawResource) => !r.processed).length,
+        byType: resources.reduce((acc: Record<string, number>, r: RawResource) => {
+          acc[r.type] = (acc[r.type] || 0) + 1;
+          return acc;
+        }, {}),
+      },
+    };
+  }
+  return response.json();
+}
+
+function RawResourceCard({
+  resource,
+  onDelete,
+  isDeleting,
+}: {
+  resource: RawResource;
+  onDelete: () => void;
+  isDeleting: boolean;
+}) {
+  const config = RESOURCE_TYPE_CONFIG[resource.type];
+  const Icon = config.icon;
+  const createdDate = new Date(resource.createdAt).toLocaleDateString();
+
+  return (
+    <Card className="hover:shadow-md transition-shadow">
+      <CardHeader className="pb-3">
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-2">
+            <Icon className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-base truncate max-w-[200px]">{resource.filename}</CardTitle>
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge className={config.color}>{config.label}</Badge>
+            {resource.processed ? (
+              <Badge className="bg-green-100 text-green-800">
+                <CheckCircle className="h-3 w-3 mr-1" />
+                Processed
+              </Badge>
+            ) : (
+              <Badge className="bg-orange-100 text-orange-800">
+                <Clock className="h-3 w-3 mr-1" />
+                Pending
+              </Badge>
+            )}
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span className="truncate">{resource.contentPath}</span>
+          </div>
+          {resource.sourceUrl && (
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              <ExternalLink className="h-3 w-3" />
+              <a
+                href={resource.sourceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="truncate hover:text-primary underline"
+              >
+                {resource.sourceUrl}
+              </a>
+            </div>
+          )}
+          <div className="flex items-center justify-between pt-2">
+            <span className="text-xs text-muted-foreground">{createdDate}</span>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onDelete}
+              disabled={isDeleting}
+              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+            >
+              {isDeleting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function RawResourceListSkeleton() {
+  return (
+    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      {[1, 2, 3, 4, 5, 6].map((i) => (
+        <Card key={i}>
+          <CardHeader>
+            <Skeleton className="h-4 w-32" />
+          </CardHeader>
+          <CardContent>
+            <Skeleton className="h-3 w-full mb-2" />
+            <Skeleton className="h-3 w-2/3" />
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+function StatsDisplay() {
+  const { data, isLoading } = useQuery({
+    queryKey: ["rawResourceStats"],
+    queryFn: fetchRawResourceStats,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="grid grid-cols-4 gap-4">
+        {[1, 2, 3, 4].map((i) => (
+          <div key={i} className="h-8 bg-muted animate-pulse rounded" />
+        ))}
+      </div>
+    );
+  }
+
+  const stats = data?.data || { total: 0, processed: 0, unprocessed: 0, byType: {} };
+
+  return (
+    <div className="grid grid-cols-4 gap-4 text-center">
+      <div className="p-3 bg-muted rounded-lg">
+        <div className="text-2xl font-bold">{stats.total}</div>
+        <div className="text-xs text-muted-foreground">Total</div>
+      </div>
+      <div className="p-3 bg-green-50 rounded-lg">
+        <div className="text-2xl font-bold text-green-700">{stats.processed}</div>
+        <div className="text-xs text-muted-foreground">Processed</div>
+      </div>
+      <div className="p-3 bg-orange-50 rounded-lg">
+        <div className="text-2xl font-bold text-orange-700">{stats.unprocessed}</div>
+        <div className="text-xs text-muted-foreground">Pending</div>
+      </div>
+      <div className="p-3 bg-blue-50 rounded-lg">
+        <div className="text-2xl font-bold text-blue-700">{Object.keys(stats.byType).length}</div>
+        <div className="text-xs text-muted-foreground">Types</div>
+      </div>
+    </div>
+  );
+}
+
+export function RawResourceList({ type, processed }: { type?: string; processed?: boolean }) {
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["rawResources", type, processed],
+    queryFn: () => fetchRawResources(type, processed),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: deleteRawResource,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["rawResources"] });
+      queryClient.invalidateQueries({ queryKey: ["rawResourceStats"] });
+      queryClient.invalidateQueries({ queryKey: ["ingestStatus"] });
+    },
+    onSettled: () => {
+      setDeletingId(null);
+    },
+  });
+
+  const handleDelete = (id: string) => {
+    setDeletingId(id);
+    deleteMutation.mutate(id);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        <StatsDisplay />
+        <RawResourceListSkeleton />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card>
+        <CardContent className="p-6">
+          <p className="text-muted-foreground">
+            Failed to load raw resources. Please check if the server is running.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const resources = data?.data || [];
+
+  return (
+    <div className="space-y-4">
+      <StatsDisplay />
+      
+      <div className="flex items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => queryClient.invalidateQueries({ queryKey: ["rawResources"] })}
+        >
+          <RefreshCw className="h-4 w-4 mr-1" />
+          Refresh
+        </Button>
+      </div>
+
+      {resources.length === 0 ? (
+        <Card>
+          <CardContent className="p-6 text-center">
+            <p className="text-muted-foreground">No raw resources found.</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              Use the Content Ingestion section or MCP tools to add new resources.
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {resources.map((resource) => (
+            <RawResourceCard
+              key={resource.id}
+              resource={resource}
+              onDelete={() => handleDelete(resource.id)}
+              isDeleting={deletingId === resource.id}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

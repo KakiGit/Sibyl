@@ -7,6 +7,7 @@ import { lintCommand } from "./commands/lint.js";
 import { graphCommand } from "./commands/graph.js";
 import { listCommand } from "./commands/list.js";
 import { deleteCommand } from "./commands/delete.js";
+import { exportCommand } from "./commands/export.js";
 
 const cli = yargs(hideBin(process.argv))
   .scriptName("sibyl")
@@ -22,6 +23,7 @@ const cli = yargs(hideBin(process.argv))
   .command(graphCommand)
   .command(listCommand)
   .command(deleteCommand)
+  .command(exportCommand)
   .demandCommand(1, "You need at least one command before moving on")
   .strict()
   .recommendCommands()

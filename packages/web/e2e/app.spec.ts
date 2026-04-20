@@ -2428,3 +2428,246 @@ test.describe("Wiki Page Detail View", () => {
     await expect(page.locator("button:text('Go Back')")).toBeVisible();
   });
 });
+
+test.describe("Raw Resources", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto("/");
+  });
+
+  test("should display raw resources section", async ({ page }) => {
+    await expect(page.getByRole("heading", { name: "Raw Resources" })).toBeVisible();
+  });
+
+  test("should display raw resource stats cards", async ({ page, context }) => {
+    await context.route("/api/raw-index/stats", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: {
+            total: 10,
+            processed: 7,
+            unprocessed: 3,
+            byType: { pdf: 4, text: 3, webpage: 2, image: 1 },
+          },
+        }),
+      });
+    });
+
+    await context.route("/api/raw-resources**", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ data: [] }),
+      });
+    });
+
+    await page.reload();
+    await expect(page.getByRole("heading", { name: "Raw Resources" })).toBeVisible();
+    await expect(page.locator(".grid-cols-4").locator("text=Total")).toBeVisible();
+    await expect(page.locator(".grid-cols-4").locator("text=Processed")).toBeVisible();
+    await expect(page.locator(".grid-cols-4").locator("text=Pending")).toBeVisible();
+    await expect(page.locator(".grid-cols-4").locator("text=Types")).toBeVisible();
+  });
+
+  test("should show empty state when no raw resources exist", async ({
+    page,
+    context,
+  }) => {
+    await context.route("/api/raw-index/stats", async (route) => {
+      await route.fulfill({
+        status: 500,
+      });
+    });
+
+    await context.route("/api/raw-resources**", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ data: [] }),
+      });
+    });
+
+    await page.reload();
+    await expect(page.locator("text=No raw resources found")).toBeVisible();
+  });
+
+  test("should display raw resource cards when data exists", async ({
+    page,
+    context,
+  }) => {
+    await context.route("/api/raw-index/stats", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: {
+            total: 2,
+            processed: 1,
+            unprocessed: 1,
+            byType: { pdf: 1, text: 1 },
+          },
+        }),
+      });
+    });
+
+    await context.route("/api/raw-resources**", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: [
+            {
+              id: "raw-1",
+              type: "pdf",
+              filename: "document.pdf",
+              contentPath: "data/raw/documents/document.pdf",
+              createdAt: Date.now(),
+              processed: true,
+            },
+            {
+              id: "raw-2",
+              type: "text",
+              filename: "notes.txt",
+              contentPath: "data/raw/documents/notes.txt",
+              createdAt: Date.now() - 86400000,
+              processed: false,
+            },
+          ],
+        }),
+      });
+    });
+
+    await page.reload();
+    await expect(page.getByRole("heading", { name: "document.pdf" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "notes.txt" })).toBeVisible();
+    const pdfBadges = page.locator("text=PDF");
+    await expect(pdfBadges.first()).toBeVisible();
+    const textBadges = page.locator("text=Text");
+    await expect(textBadges.first()).toBeVisible();
+  });
+
+  test("should display processed and pending badges", async ({
+    page,
+    context,
+  }) => {
+    await context.route("/api/raw-index/stats", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: { total: 1, processed: 1, unprocessed: 0, byType: { pdf: 1 } },
+        }),
+      });
+    });
+
+    await context.route("/api/raw-resources**", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: [
+            {
+              id: "processed-1",
+              type: "pdf",
+              filename: "processed.pdf",
+              contentPath: "data/raw/documents/processed.pdf",
+              createdAt: Date.now(),
+              processed: true,
+            },
+            {
+              id: "pending-1",
+              type: "text",
+              filename: "pending.txt",
+              contentPath: "data/raw/documents/pending.txt",
+              createdAt: Date.now(),
+              processed: false,
+            },
+          ],
+        }),
+      });
+    });
+
+    await page.reload();
+    const processedBadges = page.locator("text=Processed");
+    await expect(processedBadges.first()).toBeVisible();
+    const pendingBadges = page.locator("text=Pending");
+    await expect(pendingBadges.first()).toBeVisible();
+  });
+
+  test("should display source URL for webpages", async ({ page, context }) => {
+    await context.route("/api/raw-index/stats", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: { total: 1, processed: 1, unprocessed: 0, byType: { webpage: 1 } },
+        }),
+      });
+    });
+
+    await context.route("/api/raw-resources**", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: [
+            {
+              id: "webpage-1",
+              type: "webpage",
+              filename: "article.html",
+              sourceUrl: "https://example.com/article",
+              contentPath: "data/raw/webpages/article.html",
+              createdAt: Date.now(),
+              processed: true,
+            },
+          ],
+        }),
+      });
+    });
+
+    await page.reload();
+    await expect(page.locator("text=https://example.com/article")).toBeVisible();
+  });
+
+  test("should show refresh button", async ({ page, context }) => {
+    await context.route("/api/raw-index/stats", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: { total: 0, processed: 0, unprocessed: 0, byType: {} },
+        }),
+      });
+    });
+
+    await context.route("/api/raw-resources**", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ data: [] }),
+      });
+    });
+
+    await page.reload();
+    await expect(page.locator("text=Refresh")).toBeVisible();
+  });
+
+  test("should show loading skeleton while fetching", async ({
+    page,
+    context,
+  }) => {
+    await context.route("/api/raw-resources**", async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ data: [] }),
+      });
+    });
+
+    await page.goto("/");
+    const skeletons = page.locator(".animate-pulse");
+    await expect(skeletons.first()).toBeVisible();
+  });
+});
