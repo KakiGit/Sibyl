@@ -21,3 +21,9 @@ node_modules/
 
 *.tsbuildinfo
 packages/*/dist/
+
+.playwright-mcp/
+packages/web/playwright-report/
+packages/web/test-results/
+*.json-export-*.json
+*.export-*.md

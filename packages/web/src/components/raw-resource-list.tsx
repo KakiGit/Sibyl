@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { FileText, Image, Globe, TextIcon, Trash2, Loader2, CheckCircle, Clock, ExternalLink, RefreshCw } from "lucide-react";
+import { FileText, Image, Globe, TextIcon, Trash2, Loader2, CheckCircle, Clock, ExternalLink, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -24,13 +24,32 @@ interface RawResource {
   processed: boolean;
 }
 
-async function fetchRawResources(type?: string, processed?: boolean): Promise<{ data: RawResource[] }> {
+interface FetchRawResourcesParams {
+  type?: string;
+  processed?: boolean;
+  limit?: number;
+  offset?: number;
+}
+
+async function fetchRawResources(params: FetchRawResourcesParams = {}): Promise<{ data: RawResource[] }> {
+  const queryParams = new URLSearchParams();
+  if (params.type) queryParams.set("type", params.type);
+  if (params.processed !== undefined) queryParams.set("processed", String(params.processed));
+  if (params.limit) queryParams.set("limit", String(params.limit));
+  if (params.offset) queryParams.set("offset", String(params.offset));
+  const url = queryParams.toString() ? `/api/raw-resources?${queryParams.toString()}` : "/api/raw-resources?limit=50";
+  const response = await fetch(url);
+  if (!response.ok) throw new Error("Failed to fetch raw resources");
+  return response.json();
+}
+
+async function fetchRawResourcesCount(type?: string, processed?: boolean): Promise<{ count: number }> {
   const params = new URLSearchParams();
   if (type) params.set("type", type);
   if (processed !== undefined) params.set("processed", String(processed));
-  const url = params.toString() ? `/api/raw-resources?${params.toString()}` : "/api/raw-resources";
+  const url = params.toString() ? `/api/raw-resources/count?${params.toString()}` : "/api/raw-resources/count";
   const response = await fetch(url);
-  if (!response.ok) throw new Error("Failed to fetch raw resources");
+  if (!response.ok) throw new Error("Failed to fetch count");
   return response.json();
 }
 
@@ -215,12 +234,22 @@ function StatsDisplay() {
 
 export function RawResourceList({ type, processed }: { type?: string; processed?: boolean }) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [page, setPage] = useState(0);
+  const pageSize = 50;
   const queryClient = useQueryClient();
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["rawResources", type, processed],
-    queryFn: () => fetchRawResources(type, processed),
+    queryKey: ["rawResources", type, processed, page, pageSize],
+    queryFn: () => fetchRawResources({ type, processed, limit: pageSize, offset: page * pageSize }),
   });
+
+  const { data: countData } = useQuery({
+    queryKey: ["rawResourcesCount", type, processed],
+    queryFn: () => fetchRawResourcesCount(type, processed),
+  });
+
+  const totalCount = countData?.count || 0;
+  const totalPages = Math.ceil(totalCount / pageSize);
 
   const deleteMutation = useMutation({
     mutationFn: deleteRawResource,
@@ -228,6 +257,7 @@ export function RawResourceList({ type, processed }: { type?: string; processed?
       queryClient.invalidateQueries({ queryKey: ["rawResources"] });
       queryClient.invalidateQueries({ queryKey: ["rawResourceStats"] });
       queryClient.invalidateQueries({ queryKey: ["ingestStatus"] });
+      queryClient.invalidateQueries({ queryKey: ["rawResourcesCount"] });
     },
     onSettled: () => {
       setDeletingId(null);
@@ -237,6 +267,14 @@ export function RawResourceList({ type, processed }: { type?: string; processed?
   const handleDelete = (id: string) => {
     setDeletingId(id);
     deleteMutation.mutate(id);
+  };
+
+  const handlePrevPage = () => {
+    setPage((p) => Math.max(0, p - 1));
+  };
+
+  const handleNextPage = () => {
+    setPage((p) => Math.min(totalPages - 1, p + 1));
   };
 
   if (isLoading) {
@@ -266,15 +304,41 @@ export function RawResourceList({ type, processed }: { type?: string; processed?
     <div className="space-y-4">
       <StatsDisplay />
       
-      <div className="flex items-center gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => queryClient.invalidateQueries({ queryKey: ["rawResources"] })}
-        >
-          <RefreshCw className="h-4 w-4 mr-1" />
-          Refresh
-        </Button>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => queryClient.invalidateQueries({ queryKey: ["rawResources"] })}
+          >
+            <RefreshCw className="h-4 w-4 mr-1" />
+            Refresh
+          </Button>
+        </div>
+
+        {totalCount > pageSize && (
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">
+              Page {page + 1} of {totalPages} ({totalCount} total)
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handlePrevPage}
+              disabled={page === 0}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleNextPage}
+              disabled={page >= totalPages - 1}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
       </div>
 
       {resources.length === 0 ? (
