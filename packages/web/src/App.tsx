@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { FileText, Brain, BookOpen, Layers, Search, Upload, Activity, FileDown, Network, Filter, Shield, Archive, BarChart3 } from "lucide-react";
+import { FileText, Brain, BookOpen, Layers, Search, Upload, Activity, FileDown, Network, Filter, Shield, Archive, BarChart3, Presentation } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { WikiPageList } from "@/components/wiki-page-list";
 import { QuerySynthesis } from "@/components/query-synthesis";
@@ -12,6 +12,7 @@ import { AuthStatus } from "@/components/auth-status";
 import { WebSocketStatus } from "@/components/websocket-status";
 import { RawResourceList } from "@/components/raw-resource-list";
 import { WikiStatsView } from "@/components/wiki-stats";
+import { MarpSlides } from "@/components/marp-slides";
 
 async function fetchStats() {
   const response = await fetch("/api/wiki-pages");
@@ -175,6 +176,13 @@ export default function App() {
               Wiki Health Check (Lint)
             </h2>
             <WikiLint />
+          </section>
+          <section>
+            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <Presentation className="h-5 w-5" />
+              Marp Slide Generation
+            </h2>
+            <MarpSlides />
           </section>
           <section>
             <h2 className="text-lg font-semibold mb-4">Wiki Pages</h2>
