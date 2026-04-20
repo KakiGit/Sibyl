@@ -279,19 +279,21 @@ export function registerMcpTools(server: McpServer) {
 
   server.tool(
     "memory_ingest",
-    "Ingest text content directly into the wiki. Creates a raw resource, processes it, and generates a wiki page immediately.",
+    "Ingest text content directly into the wiki. Creates a raw resource, processes it, and generates a wiki page immediately. Optionally uses LLM to enhance content with structured wiki format and cross-references.",
     {
       filename: z.string().describe("Filename for the ingested content"),
       content: z.string().describe("Text content to ingest and process"),
       title: z.string().optional().describe("Optional title for the wiki page (defaults to filename)"),
       type: z.enum(["entity", "concept", "source", "summary"]).optional().describe("Optional wiki page type (defaults to 'concept' for text)"),
       tags: z.array(z.string()).optional().describe("Optional tags for the wiki page"),
+      useLlm: z.boolean().optional().default(false).describe("Use LLM to generate structured wiki content with cross-references"),
     },
-    async ({ filename, content, title, type, tags }) => {
+    async ({ filename, content, title, type, tags, useLlm }) => {
       const { writeFileSync, existsSync, mkdirSync } = await import("fs");
       const { join } = await import("path");
       const { tmpdir } = await import("os");
-      const { ingestRawResource } = await import("../processors/ingest.js");
+      const { ingestRawResource, ingestWithLlm } = await import("../processors/ingest.js");
+      const { getLlmProvider } = await import("../llm/index.js");
 
       const slug = filename
         .toLowerCase()
@@ -317,13 +319,46 @@ export function registerMcpTools(server: McpServer) {
         },
       });
 
-      const ingestResult = await ingestRawResource({
-        rawResourceId: rawResource.id,
-        title,
-        type: type === "entity" || type === "concept" || type === "source" || type === "summary" ? type : undefined,
-        tags,
-        wikiFileManager,
-      });
+      let ingestResult;
+      let generatedContent;
+
+      if (useLlm) {
+        const llmProvider = getLlmProvider();
+        if (!llmProvider) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({
+                  success: false,
+                  error: "LLM not configured. Set ~/.llm_secrets or environment variables (LLM_BASE_URL, LLM_API_KEY, LLM_MODEL)",
+                  message: "Cannot use LLM enhancement without LLM provider",
+                }),
+              },
+            ],
+          };
+        }
+
+        const result = await ingestWithLlm({
+          rawResourceId: rawResource.id,
+          title,
+          type: type === "entity" || type === "concept" || type === "source" || type === "summary" ? type : undefined,
+          tags,
+          wikiFileManager,
+          llmProvider,
+          useLlm: true,
+        });
+        ingestResult = result;
+        generatedContent = result.generatedContent;
+      } else {
+        ingestResult = await ingestRawResource({
+          rawResourceId: rawResource.id,
+          title,
+          type: type === "entity" || type === "concept" || type === "source" || type === "summary" ? type : undefined,
+          tags,
+          wikiFileManager,
+        });
+      }
 
       return {
         content: [
@@ -337,7 +372,11 @@ export function registerMcpTools(server: McpServer) {
               title: ingestResult.title,
               type: ingestResult.type,
               processed: ingestResult.processed,
-              message: "Content ingested and wiki page created successfully",
+              llmEnhanced: useLlm,
+              crossReferences: generatedContent?.crossReferences || [],
+              message: useLlm 
+                ? "Content ingested and wiki page created with LLM enhancement"
+                : "Content ingested and wiki page created successfully",
             }),
           },
         ],

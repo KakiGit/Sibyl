@@ -324,10 +324,29 @@ The MCP server provides the following tools for MCP clients (like Claude Code, C
 - `memory_save`: Save new information to the wiki
 - `memory_list`: List all wiki pages
 - `memory_delete`: Delete a wiki page
-- `memory_ingest`: Ingest text content directly and create wiki pages immediately
+- `memory_ingest`: Ingest text content directly and create wiki pages immediately (supports `useLlm` option for LLM-enhanced content generation)
 - `memory_raw_save`: Save raw content for later processing
 - `memory_query`: Query the knowledge base with a question and return relevant pages
 - `memory_log`: Get processing log entries
+
+#### LLM-Enhanced Ingest via MCP
+
+The `memory_ingest` MCP tool supports an optional `useLlm` parameter:
+
+```json
+{
+  "filename": "document.txt",
+  "content": "Raw text content...",
+  "title": "My Document",
+  "useLlm": true
+}
+```
+
+When `useLlm` is `true` and LLM is configured, the tool:
+- Generates structured wiki content with proper headings
+- Extracts summary and tags from the content
+- Creates cross-references to existing wiki pages
+- Returns `crossReferences` array indicating linked pages
 
 ## Testing
 

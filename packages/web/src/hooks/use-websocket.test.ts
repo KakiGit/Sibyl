@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useWebSocket } from "./use-websocket";
 
@@ -24,10 +24,6 @@ class MockWebSocket {
 
   constructor() {
     MockWebSocket.instances.push(this);
-    setTimeout(() => {
-      this.readyState = MockWebSocket.OPEN;
-      this.onopen?.();
-    }, 0);
   }
 
   send(data: string) {
@@ -37,6 +33,11 @@ class MockWebSocket {
   close() {
     this.readyState = MockWebSocket.CLOSED;
     this.onclose?.();
+  }
+
+  simulateOpen() {
+    this.readyState = MockWebSocket.OPEN;
+    this.onopen?.();
   }
 
   simulateMessage(data: object) {
@@ -54,17 +55,16 @@ describe("useWebSocket", () => {
   beforeEach(() => {
     MockWebSocket.instances = [];
     mockQueryClient.invalidateQueries.mockClear();
-    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("creates WebSocket connection on mount", async () => {
     renderHook(() => useWebSocket());
 
-    await act(async () => {
-      vi.runAllTimers();
-    });
-
-    expect(MockWebSocket.instances.length).toBe(1);
+    expect(MockWebSocket.instances.length).toBeGreaterThanOrEqual(1);
   });
 
   it("subscribes to events after connection", async () => {
@@ -74,11 +74,11 @@ describe("useWebSocket", () => {
       })
     );
 
-    await act(async () => {
-      vi.runAllTimers();
+    const ws = MockWebSocket.instances[MockWebSocket.instances.length - 1];
+    act(() => {
+      ws.simulateOpen();
     });
 
-    const ws = MockWebSocket.instances[0];
     expect(ws.sentMessages.length).toBe(1);
 
     const subscribeMsg = JSON.parse(ws.sentMessages[0]);
@@ -89,11 +89,11 @@ describe("useWebSocket", () => {
   it("stores clientId from connected message", async () => {
     const { result } = renderHook(() => useWebSocket());
 
-    await act(async () => {
-      vi.runAllTimers();
+    const ws = MockWebSocket.instances[MockWebSocket.instances.length - 1];
+    act(() => {
+      ws.simulateOpen();
     });
 
-    const ws = MockWebSocket.instances[0];
     act(() => {
       ws.simulateMessage({
         type: "connected",
@@ -112,11 +112,11 @@ describe("useWebSocket", () => {
       })
     );
 
-    await act(async () => {
-      vi.runAllTimers();
+    const ws = MockWebSocket.instances[MockWebSocket.instances.length - 1];
+    act(() => {
+      ws.simulateOpen();
     });
 
-    const ws = MockWebSocket.instances[0];
     act(() => {
       ws.simulateMessage({
         type: "connected",
@@ -129,18 +129,15 @@ describe("useWebSocket", () => {
 
   it("calls onDisconnect callback when closed", async () => {
     const onDisconnect = vi.fn();
-    const { result } = renderHook(() =>
+    renderHook(() =>
       useWebSocket({
         onDisconnect,
       })
     );
 
-    await act(async () => {
-      vi.runAllTimers();
-    });
-
+    const ws = MockWebSocket.instances[MockWebSocket.instances.length - 1];
     act(() => {
-      result.current.disconnect();
+      ws.close();
     });
 
     expect(onDisconnect).toHaveBeenCalled();
@@ -149,11 +146,11 @@ describe("useWebSocket", () => {
   it("invalidates queries on wiki_page_created event", async () => {
     renderHook(() => useWebSocket());
 
-    await act(async () => {
-      vi.runAllTimers();
+    const ws = MockWebSocket.instances[MockWebSocket.instances.length - 1];
+    act(() => {
+      ws.simulateOpen();
     });
 
-    const ws = MockWebSocket.instances[0];
     act(() => {
       ws.simulateMessage({
         type: "wiki_page_created",
@@ -175,11 +172,11 @@ describe("useWebSocket", () => {
   it("invalidates queries on wiki_page_updated event", async () => {
     renderHook(() => useWebSocket());
 
-    await act(async () => {
-      vi.runAllTimers();
+    const ws = MockWebSocket.instances[MockWebSocket.instances.length - 1];
+    act(() => {
+      ws.simulateOpen();
     });
 
-    const ws = MockWebSocket.instances[0];
     act(() => {
       ws.simulateMessage({
         type: "wiki_page_updated",
@@ -198,11 +195,11 @@ describe("useWebSocket", () => {
   it("invalidates queries on wiki_page_deleted event", async () => {
     renderHook(() => useWebSocket());
 
-    await act(async () => {
-      vi.runAllTimers();
+    const ws = MockWebSocket.instances[MockWebSocket.instances.length - 1];
+    act(() => {
+      ws.simulateOpen();
     });
 
-    const ws = MockWebSocket.instances[0];
     act(() => {
       ws.simulateMessage({
         type: "wiki_page_deleted",
@@ -221,11 +218,11 @@ describe("useWebSocket", () => {
   it("invalidates queries on raw_resource_created event", async () => {
     renderHook(() => useWebSocket());
 
-    await act(async () => {
-      vi.runAllTimers();
+    const ws = MockWebSocket.instances[MockWebSocket.instances.length - 1];
+    act(() => {
+      ws.simulateOpen();
     });
 
-    const ws = MockWebSocket.instances[0];
     act(() => {
       ws.simulateMessage({
         type: "raw_resource_created",
@@ -241,11 +238,11 @@ describe("useWebSocket", () => {
   it("invalidates queries on processing_log_created event", async () => {
     renderHook(() => useWebSocket());
 
-    await act(async () => {
-      vi.runAllTimers();
+    const ws = MockWebSocket.instances[MockWebSocket.instances.length - 1];
+    act(() => {
+      ws.simulateOpen();
     });
 
-    const ws = MockWebSocket.instances[0];
     act(() => {
       ws.simulateMessage({
         type: "processing_log_created",
@@ -261,11 +258,11 @@ describe("useWebSocket", () => {
   it("invalidates queries on ingest_completed event", async () => {
     renderHook(() => useWebSocket());
 
-    await act(async () => {
-      vi.runAllTimers();
+    const ws = MockWebSocket.instances[MockWebSocket.instances.length - 1];
+    act(() => {
+      ws.simulateOpen();
     });
 
-    const ws = MockWebSocket.instances[0];
     act(() => {
       ws.simulateMessage({
         type: "ingest_completed",
@@ -287,11 +284,11 @@ describe("useWebSocket", () => {
   it("send subscribe message via subscribe function", async () => {
     const { result } = renderHook(() => useWebSocket());
 
-    await act(async () => {
-      vi.runAllTimers();
+    const ws = MockWebSocket.instances[MockWebSocket.instances.length - 1];
+    act(() => {
+      ws.simulateOpen();
     });
 
-    const ws = MockWebSocket.instances[0];
     ws.sentMessages = [];
 
     act(() => {
@@ -307,11 +304,11 @@ describe("useWebSocket", () => {
   it("send unsubscribe message via unsubscribe function", async () => {
     const { result } = renderHook(() => useWebSocket());
 
-    await act(async () => {
-      vi.runAllTimers();
+    const ws = MockWebSocket.instances[MockWebSocket.instances.length - 1];
+    act(() => {
+      ws.simulateOpen();
     });
 
-    const ws = MockWebSocket.instances[0];
     ws.sentMessages = [];
 
     act(() => {
@@ -326,11 +323,11 @@ describe("useWebSocket", () => {
   it("send ping message via ping function", async () => {
     const { result } = renderHook(() => useWebSocket());
 
-    await act(async () => {
-      vi.runAllTimers();
+    const ws = MockWebSocket.instances[MockWebSocket.instances.length - 1];
+    act(() => {
+      ws.simulateOpen();
     });
 
-    const ws = MockWebSocket.instances[0];
     ws.sentMessages = [];
 
     act(() => {

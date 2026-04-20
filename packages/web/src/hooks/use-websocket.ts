@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
 export type WebSocketEventType =
@@ -36,10 +36,20 @@ export type UseWebSocketOptions = {
 
 export type WebSocketStatus = "connecting" | "connected" | "disconnected" | "error";
 
+const DEFAULT_SUBSCRIPTIONS: WebSocketEventType[] = [
+  "wiki_page_created",
+  "wiki_page_updated",
+  "wiki_page_deleted",
+  "raw_resource_created",
+  "processing_log_created",
+  "ingest_completed",
+  "lint_completed",
+];
+
 export function useWebSocket(options: UseWebSocketOptions = {}) {
   const {
     url,
-    subscriptions = ["wiki_page_created", "wiki_page_updated", "wiki_page_deleted", "raw_resource_created", "processing_log_created", "ingest_completed", "lint_completed"],
+    subscriptions = DEFAULT_SUBSCRIPTIONS,
     onMessage,
     onConnect,
     onDisconnect,
@@ -52,89 +62,114 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
   const queryClient = useQueryClient();
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectAttemptsRef = useRef(0);
-  const statusRef = useRef<WebSocketStatus>("disconnected");
-  const clientIdRef = useRef<string | null>(null);
+  const [status, setStatus] = useState<WebSocketStatus>("disconnected");
+  const [clientId, setClientId] = useState<string | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mountedRef = useRef(false);
+  const onConnectRef = useRef(onConnect);
+  const onDisconnectRef = useRef(onDisconnect);
+  const onMessageRef = useRef(onMessage);
+  const onErrorRef = useRef(onError);
+
+  onConnectRef.current = onConnect;
+  onDisconnectRef.current = onDisconnect;
+  onMessageRef.current = onMessage;
+  onErrorRef.current = onError;
 
   const wsUrl = url || getWebSocketUrl();
 
-  const connect = useCallback(() => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      return;
-    }
+  useEffect(() => {
+    mountedRef.current = true;
 
-    statusRef.current = "connecting";
+    const connect = () => {
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        return;
+      }
 
-    try {
-      const ws = new WebSocket(wsUrl);
+      setStatus("connecting");
 
-      ws.onopen = () => {
-        statusRef.current = "connected";
-        reconnectAttemptsRef.current = 0;
+      try {
+        const ws = new WebSocket(wsUrl);
 
-        if (subscriptions.length > 0) {
-          ws.send(JSON.stringify({
-            type: "subscribe",
-            events: subscriptions,
-          }));
-        }
-      };
+        ws.onopen = () => {
+          if (!mountedRef.current) return;
+          setStatus("connected");
+          reconnectAttemptsRef.current = 0;
 
-      ws.onmessage = (event) => {
-        try {
-          const message: WebSocketMessage = JSON.parse(event.data);
-
-          if (message.type === "connected" && message.clientId) {
-            clientIdRef.current = message.clientId;
-            onConnect?.(message.clientId);
+          if (subscriptions.length > 0) {
+            ws.send(JSON.stringify({
+              type: "subscribe",
+              events: subscriptions,
+            }));
           }
+        };
 
-          if (message.type === "error" && message.message) {
-            console.error("WebSocket error:", message.message);
+        ws.onmessage = (event) => {
+          if (!mountedRef.current) return;
+          try {
+            const message: WebSocketMessage = JSON.parse(event.data);
+
+            if (message.type === "connected" && message.clientId) {
+              setClientId(message.clientId);
+              onConnectRef.current?.(message.clientId);
+            }
+
+            if (message.type === "error" && message.message) {
+              console.error("WebSocket error:", message.message);
+            }
+
+            onMessageRef.current?.(message);
+
+            invalidateQueries(message);
+          } catch {
+            console.error("Failed to parse WebSocket message");
           }
+        };
 
-          onMessage?.(message);
+        ws.onclose = () => {
+          if (!mountedRef.current) return;
+          setStatus("disconnected");
+          wsRef.current = null;
+          onDisconnectRef.current?.();
 
-          invalidateQueries(message);
-        } catch {
-          console.error("Failed to parse WebSocket message");
-        }
-      };
+          if (autoReconnect && reconnectAttemptsRef.current < maxReconnectAttempts) {
+            reconnectAttemptsRef.current++;
+            reconnectTimeoutRef.current = setTimeout(() => {
+              connect();
+            }, reconnectDelay);
+          }
+        };
 
-      ws.onclose = () => {
-        statusRef.current = "disconnected";
-        wsRef.current = null;
-        onDisconnect?.();
+        ws.onerror = (error) => {
+          if (!mountedRef.current) return;
+          setStatus("error");
+          onErrorRef.current?.(error);
+        };
 
-        if (autoReconnect && reconnectAttemptsRef.current < maxReconnectAttempts) {
-          reconnectAttemptsRef.current++;
-          reconnectTimeoutRef.current = setTimeout(() => {
-            connect();
-          }, reconnectDelay);
-        }
-      };
+        wsRef.current = ws;
+      } catch (error) {
+        setStatus("error");
+        console.error("Failed to create WebSocket connection:", error);
+      }
+    };
 
-      ws.onerror = (error) => {
-        statusRef.current = "error";
-        onError?.(error);
-      };
+    const disconnect = () => {
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
+      reconnectAttemptsRef.current = maxReconnectAttempts;
+      wsRef.current?.close();
+      wsRef.current = null;
+      setStatus("disconnected");
+    };
 
-      wsRef.current = ws;
-    } catch (error) {
-      statusRef.current = "error";
-      console.error("Failed to create WebSocket connection:", error);
-    }
-  }, [wsUrl, subscriptions, onMessage, onConnect, onDisconnect, onError, autoReconnect, reconnectDelay, maxReconnectAttempts]);
+    connect();
 
-  const disconnect = useCallback(() => {
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current);
-    }
-    reconnectAttemptsRef.current = maxReconnectAttempts;
-    wsRef.current?.close();
-    wsRef.current = null;
-    statusRef.current = "disconnected";
-  }, [maxReconnectAttempts]);
+    return () => {
+      mountedRef.current = false;
+      disconnect();
+    };
+  }, [wsUrl, subscriptions, autoReconnect, reconnectDelay, maxReconnectAttempts]);
 
   const subscribe = useCallback((events: WebSocketEventType[]) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -159,14 +194,6 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
       wsRef.current.send(JSON.stringify({ type: "ping" }));
     }
   }, []);
-
-  useEffect(() => {
-    connect();
-
-    return () => {
-      disconnect();
-    };
-  }, [connect, disconnect]);
 
   const invalidateQueries = (message: WebSocketMessage) => {
     switch (message.type) {
@@ -195,10 +222,8 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
   };
 
   return {
-    status: statusRef.current,
-    clientId: clientIdRef.current,
-    connect,
-    disconnect,
+    status,
+    clientId,
     subscribe,
     unsubscribe,
     ping,
