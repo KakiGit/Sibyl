@@ -126,6 +126,8 @@ export class Cache<T> {
   }
 }
 
-export const wikiStatsCache = new Cache({ ttl: 300000, maxEntries: 20 });
-export const searchCache = new Cache({ ttl: 60000, maxEntries: 50 });
-export const synthesisCache = new Cache({ ttl: 3600000, maxEntries: 30 });
+import type { WikiPage } from "@sibyl/sdk";
+
+export const wikiStatsCache = new Cache<object>({ ttl: 300000, maxEntries: 20 });
+export const searchCache = new Cache<WikiPage[]>({ ttl: 60000, maxEntries: 50 });
+export const synthesisCache = new Cache<string>({ ttl: 3600000, maxEntries: 30 });

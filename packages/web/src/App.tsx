@@ -18,6 +18,7 @@ import { RawResourceList } from "@/components/raw-resource-list";
 import { WikiStatsView } from "@/components/wiki-stats";
 import { MarpSlides } from "@/components/marp-slides";
 import { ToastProvider } from "@/components/toast";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { useKeyboardShortcuts, KeyboardShortcut } from "@/hooks/use-keyboard-shortcuts";
 
 async function fetchStats() {
@@ -173,8 +174,9 @@ export default function App() {
 
   return (
     <ToastProvider>
-      <div className="min-h-screen bg-background flex">
-        <aside className="w-64 border-r bg-card/50 p-4 flex flex-col">
+      <ErrorBoundary>
+        <div className="min-h-screen bg-background flex">
+          <aside className="w-64 border-r bg-card/50 p-4 flex flex-col">
           <div className="mb-6">
             <h1 className="text-xl font-bold tracking-tight">Sibyl</h1>
             <p className="text-muted-foreground text-xs">
@@ -279,6 +281,7 @@ export default function App() {
           </div>
         </main>
       </div>
+      </ErrorBoundary>
     </ToastProvider>
   );
 }

@@ -3,6 +3,10 @@ import { z } from "zod";
 import { storage } from "../storage/index.js";
 import { wikiFileManager, syncWikiLinks } from "../wiki/index.js";
 import { WikiPageTypeSchema } from "@sibyl/sdk";
+import { wikiStatsCache, searchCache } from "../cache/index.js";
+
+const STATS_CACHE_KEY = "wiki_stats";
+const PAGES_CACHE_KEY = "search_pages";
 
 const CreateWikiPageSchema = z.object({
   slug: z
@@ -105,6 +109,8 @@ export async function registerWikiPageRoutes(fastify: FastifyInstance) {
     }
 
     const page = await storage.wikiPages.create(body);
+    wikiStatsCache.delete(STATS_CACHE_KEY);
+    searchCache.delete(PAGES_CACHE_KEY);
     return { data: page };
   });
 
@@ -124,6 +130,8 @@ export async function registerWikiPageRoutes(fastify: FastifyInstance) {
       return { error: "Wiki page not found" };
     }
 
+    wikiStatsCache.delete(STATS_CACHE_KEY);
+    searchCache.delete(PAGES_CACHE_KEY);
     return { data: page };
   });
 
@@ -138,6 +146,8 @@ export async function registerWikiPageRoutes(fastify: FastifyInstance) {
 
     await storage.wikiPages.delete(params.id);
     wikiFileManager.deletePage(existing.type, existing.slug);
+    wikiStatsCache.delete(STATS_CACHE_KEY);
+    searchCache.delete(PAGES_CACHE_KEY);
     return { success: true };
   });
 

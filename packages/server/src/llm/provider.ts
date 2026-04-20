@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "fs";
 import { resolve, join } from "path";
 import { logger } from "@sibyl/shared";
+import { Cache } from "../cache/index.js";
 
 export interface LlmConfig {
   baseUrl: string;
@@ -21,6 +22,7 @@ export interface LlmResponse {
 
 const DEFAULT_MAX_TOKENS = 4096;
 const SECRETS_FILE = ".llm_secrets";
+const llmRequestCache = new Cache<string>({ ttl: 300000, maxEntries: 100 });
 
 function expandHomePath(path: string): string {
   if (path.startsWith("~")) {
@@ -85,6 +87,18 @@ export class LlmProvider {
   }
 
   async call(systemPrompt: string, userPrompt: string): Promise<LlmResponse> {
+    const cacheKey = `${systemPrompt}:${userPrompt}:${this.config.model}`;
+    const cached = llmRequestCache.get(cacheKey);
+    
+    if (cached) {
+      logger.debug("Using cached LLM response");
+      return {
+        content: cached,
+        model: this.config.model,
+        usage: undefined,
+      };
+    }
+    
     const response = await fetch(`${this.config.baseUrl}/chat/completions`, {
       method: "POST",
       headers: {
@@ -128,6 +142,8 @@ export class LlmProvider {
       completionTokens: usage?.completion_tokens,
     });
 
+    llmRequestCache.set(cacheKey, content);
+    
     return {
       content,
       model: this.config.model,

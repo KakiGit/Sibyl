@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { storage } from "../storage/index.js";
 import { wikiSearchStorage } from "../search/index.js";
+import { searchCache } from "../cache/index.js";
 
 const HybridSearchSchema = z.object({
   query: z.string().min(1),
@@ -11,6 +12,20 @@ const HybridSearchSchema = z.object({
   semanticThreshold: z.coerce.number().min(0).max(1).optional(),
   limit: z.coerce.number().int().positive().max(50).optional(),
 });
+
+const PAGES_CACHE_KEY = "search_pages";
+const PAGES_CACHE_TTL = 60000;
+
+async function getPagesForSearch() {
+  const cached = searchCache.get(PAGES_CACHE_KEY);
+  if (cached) {
+    return cached;
+  }
+  
+  const pages = await storage.wikiPages.findAll({ limit: 200 });
+  searchCache.set(PAGES_CACHE_KEY, pages, PAGES_CACHE_TTL);
+  return pages;
+}
 
 export async function registerSearchRoutes(fastify: FastifyInstance) {
   fastify.post("/api/wiki-pages/search", async (request, reply) => {
@@ -26,7 +41,7 @@ export async function registerSearchRoutes(fastify: FastifyInstance) {
       ? body.tags.split(",").filter(Boolean)
       : undefined;
     
-    const pages = await storage.wikiPages.findAll({ limit: 200 });
+    const pages = await getPagesForSearch();
     
     const results = await wikiSearchStorage.hybridSearch(
       {
@@ -49,7 +64,7 @@ export async function registerSearchRoutes(fastify: FastifyInstance) {
       ? query.tags.split(",").filter(Boolean)
       : undefined;
     
-    const pages = await storage.wikiPages.findAll({ limit: 200 });
+    const pages = await getPagesForSearch();
     
     const results = await wikiSearchStorage.hybridSearch(
       {
@@ -67,8 +82,14 @@ export async function registerSearchRoutes(fastify: FastifyInstance) {
   });
   
   fastify.post("/api/wiki-pages/search/rebuild-index", async () => {
+    searchCache.delete(PAGES_CACHE_KEY);
     const pages = await storage.wikiPages.findAll({ limit: 500 });
     await wikiSearchStorage.rebuildIndex(pages);
     return { data: { indexed: pages.length } };
+  });
+  
+  fastify.post("/api/wiki-pages/search/invalidate-cache", async () => {
+    searchCache.delete(PAGES_CACHE_KEY);
+    return { success: true };
   });
 }

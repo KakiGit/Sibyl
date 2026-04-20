@@ -938,3 +938,17 @@ The Wiki Graph visualization has been optimized for better performance:
 - Loading progress indicator with percentage
 - Canvas preparation state shown before layout starts
 - Layout optimization message during force-directed simulation
+
+### Server Cache Management
+
+The server uses LRU caching for improved performance:
+
+```bash
+# Invalidate wiki stats cache
+curl -X POST http://localhost:3000/api/wiki-stats/invalidate-cache
+
+# Invalidate search pages cache
+curl -X POST http://localhost:3000/api/wiki-pages/search/invalidate-cache
+```
+
+Caches automatically invalidate when wiki pages are created, updated, or deleted.
