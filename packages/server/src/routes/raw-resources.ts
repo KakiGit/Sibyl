@@ -44,6 +44,18 @@ export async function registerRawResourceRoutes(fastify: FastifyInstance) {
     return { count };
   });
 
+  fastify.get("/api/raw-resources/session/:sessionId", async (request, reply) => {
+    const params = request.params as { sessionId: string };
+    const resource = await storage.rawResources.findBySessionId(params.sessionId);
+    
+    if (!resource) {
+      reply.code(404);
+      return { error: "Raw resource not found for session" };
+    }
+    
+    return { data: resource };
+  });
+
   fastify.get("/api/raw-resources/:id", async (request, reply) => {
     const params = request.params as { id: string };
     const resource = await storage.rawResources.findById(params.id);

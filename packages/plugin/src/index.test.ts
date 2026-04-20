@@ -300,7 +300,8 @@ describe("auto-save functionality", () => {
   });
 
   it("saves transcript as Raw Resource after threshold messages", async () => {
-    mockResponses["/api/raw-resources"] = { id: "raw-transcript-id", filename: "session-test.txt" };
+    mockResponses["/api/raw-resources/session/test-session-abc"] = { error: "Raw resource not found for session" };
+    mockResponses["/api/raw-resources"] = { id: "raw-transcript-id", filename: "session-test-session-abc.txt" };
 
     const hooks = await SibylPlugin({} as any, { 
       serverUrl: "http://localhost:3000",
@@ -333,15 +334,17 @@ describe("auto-save functionality", () => {
       } 
     } as any });
 
-    expect(fetchCalls.length).toBe(1);
-    expect(fetchCalls[0].url).toBe("http://localhost:3000/api/raw-resources");
-    expect(fetchCalls[0].options?.method).toBe("POST");
-    const body = fetchCalls[0].options?.body as any;
+    expect(fetchCalls.length).toBe(2);
+    expect(fetchCalls[0].url).toBe("http://localhost:3000/api/raw-resources/session/test-session-abc");
+    expect(fetchCalls[1].url).toBe("http://localhost:3000/api/raw-resources");
+    expect(fetchCalls[1].options?.method).toBe("POST");
+    const body = fetchCalls[1].options?.body as any;
     expect(body?.type).toBe("text");
     expect(body?.metadata?.sourceType).toBe("opencode-session");
     expect(body?.content).toContain("Session Transcript");
     expect(body?.content).toContain("Question 1");
     expect(body?.content).toContain("Answer 1");
+    expect(body?.filename).toBe("session-test-session-abc.txt");
   });
 
   it("does not save when autoSave is false", async () => {
@@ -366,8 +369,58 @@ describe("auto-save functionality", () => {
     expect(fetchCalls.length).toBe(0);
   });
 
+  it("updates existing raw resource when session already saved", async () => {
+    mockResponses["/api/raw-resources/session/existing-session"] = { 
+      data: { id: "existing-raw-id", filename: "session-existing-session.txt" } 
+    };
+    mockResponses["/api/raw-resources/existing-raw-id/content"] = { success: true };
+    mockResponses["/api/raw-resources/existing-raw-id"] = { data: { id: "existing-raw-id" } };
+
+    const hooks = await SibylPlugin({} as any, { 
+      serverUrl: "http://localhost:3000",
+      autoSave: true,
+      autoSaveThreshold: 2
+    });
+
+    await hooks.event?.({ event: { 
+      type: "message.updated", 
+      properties: { 
+        info: { sessionID: "existing-session", id: "msg-user-1", role: "user", time: { created: 1000 } } 
+      } 
+    } as any });
+    await hooks.event?.({ event: { 
+      type: "message.part.updated", 
+      properties: { 
+        part: { sessionID: "existing-session", messageID: "msg-user-1", type: "text", text: "First question" } 
+      } 
+    } as any });
+    await hooks.event?.({ event: { 
+      type: "message.updated", 
+      properties: { 
+        info: { sessionID: "existing-session", id: "msg-assistant-1", role: "assistant", time: { created: 2000 } } 
+      } 
+    } as any });
+    await hooks.event?.({ event: { 
+      type: "message.part.updated", 
+      properties: { 
+        part: { sessionID: "existing-session", messageID: "msg-assistant-1", type: "text", text: "First answer" } 
+      } 
+    } as any });
+
+    expect(fetchCalls.length).toBe(3);
+    expect(fetchCalls[0].url).toBe("http://localhost:3000/api/raw-resources/session/existing-session");
+    expect(fetchCalls[1].url).toBe("http://localhost:3000/api/raw-resources/existing-raw-id/content");
+    expect(fetchCalls[1].options?.method).toBe("PUT");
+    const contentBody = fetchCalls[1].options?.body as any;
+    expect(contentBody?.content).toContain("First question");
+    expect(contentBody?.content).toContain("First answer");
+    expect(fetchCalls[2].url).toBe("http://localhost:3000/api/raw-resources/existing-raw-id");
+    expect(fetchCalls[2].options?.method).toBe("PUT");
+  });
+
   it("formats transcript with timestamps and roles", async () => {
-    mockResponses["/api/raw-resources"] = { id: "raw-id", filename: "session-test.txt" };
+    mockResponses["/api/raw-resources/session/test-format"] = { error: "Raw resource not found for session" };
+    mockResponses["/api/raw-resources"] = { id: "raw-id", filename: "session-test-format.txt" };
 
     const hooks = await SibylPlugin({} as any, { 
       serverUrl: "http://localhost:3000",
@@ -400,7 +453,7 @@ describe("auto-save functionality", () => {
       } 
     } as any });
 
-    const body = fetchCalls[0].options?.body as any;
+    const body = fetchCalls[1].options?.body as any;
     expect(body?.content).toContain("**User**");
     expect(body?.content).toContain("**Assistant**");
     expect(body?.content).toContain("User message");
@@ -504,7 +557,8 @@ describe("auto-save functionality", () => {
   });
 
   it("handles delta arriving before full text part", async () => {
-    mockResponses["/api/raw-resources"] = { id: "raw-id", filename: "session-test.txt" };
+    mockResponses["/api/raw-resources/session/test-delta-first"] = { error: "Raw resource not found for session" };
+    mockResponses["/api/raw-resources"] = { id: "raw-id", filename: "session-test-delta-first.txt" };
 
     const hooks = await SibylPlugin({} as any, { 
       serverUrl: "http://localhost:3000",
@@ -547,14 +601,15 @@ describe("auto-save functionality", () => {
       } 
     } as any });
 
-    expect(fetchCalls.length).toBe(1);
-    const body = fetchCalls[0].options?.body as any;
+    expect(fetchCalls.length).toBe(2);
+    const body = fetchCalls[1].options?.body as any;
     expect(body?.content).toContain("Hello world");
     expect(body?.content).toContain("Hi there!");
   });
 
   it("session.idle triggers ingestion even when some messages lack text parts", async () => {
-    mockResponses["/api/raw-resources"] = { id: "raw-id-mixed", filename: "session-mixed.txt" };
+    mockResponses["/api/raw-resources/session/mixed-session"] = { error: "Raw resource not found for session" };
+    mockResponses["/api/raw-resources"] = { id: "raw-id-mixed", filename: "session-mixed-session.txt" };
     mockResponses["/api/ingest/llm/raw-id-mixed"] = { 
       data: { rawResourceId: "raw-id-mixed", processed: true } 
     };
@@ -600,16 +655,18 @@ describe("auto-save functionality", () => {
       properties: { sessionID: "mixed-session" } 
     } as any });
 
-    expect(fetchCalls.length).toBe(2);
-    expect(fetchCalls[0].url).toBe("http://localhost:3000/api/raw-resources");
-    expect(fetchCalls[1].url).toBe("http://localhost:3000/api/ingest/llm/raw-id-mixed");
-    const body = fetchCalls[0].options?.body as any;
+    expect(fetchCalls.length).toBe(3);
+    expect(fetchCalls[0].url).toBe("http://localhost:3000/api/raw-resources/session/mixed-session");
+    expect(fetchCalls[1].url).toBe("http://localhost:3000/api/raw-resources");
+    expect(fetchCalls[2].url).toBe("http://localhost:3000/api/ingest/llm/raw-id-mixed");
+    const body = fetchCalls[1].options?.body as any;
     expect(body?.content).toContain("User text");
     expect(body?.content).toContain("Assistant text");
   });
 
   it("session.idle triggers LLM ingestion", async () => {
-    mockResponses["/api/raw-resources"] = { id: "raw-id-123", filename: "session-idle-test.txt" };
+    mockResponses["/api/raw-resources/session/session-idle-test"] = { error: "Raw resource not found for session" };
+    mockResponses["/api/raw-resources"] = { id: "raw-id-123", filename: "session-session-idle-test.txt" };
     mockResponses["/api/ingest/llm/raw-id-123"] = { 
       data: { 
         rawResourceId: "raw-id-123", 
@@ -662,9 +719,10 @@ describe("auto-save functionality", () => {
       } 
     } as any });
 
-    expect(fetchCalls.length).toBe(2);
-    expect(fetchCalls[0].url).toBe("http://localhost:3000/api/raw-resources");
-    expect(fetchCalls[1].url).toBe("http://localhost:3000/api/ingest/llm/raw-id-123");
-    expect(fetchCalls[1].options?.method).toBe("POST");
+    expect(fetchCalls.length).toBe(3);
+    expect(fetchCalls[0].url).toBe("http://localhost:3000/api/raw-resources/session/session-idle-test");
+    expect(fetchCalls[1].url).toBe("http://localhost:3000/api/raw-resources");
+    expect(fetchCalls[2].url).toBe("http://localhost:3000/api/ingest/llm/raw-id-123");
+    expect(fetchCalls[2].options?.method).toBe("POST");
   });
 });

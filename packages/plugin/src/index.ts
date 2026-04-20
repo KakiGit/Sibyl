@@ -103,30 +103,55 @@ async function syncSessionToRawResource(
   if (messagesWithParts.length === 0) return null;
   
   const transcript = formatTranscript(session.messageMetadata, session.messageParts);
-  const timestamp = new Date().toISOString().replace(/[:.]/g, "-").toLowerCase();
-  const sessionIdSlug = session.sessionId.replace(/_/g, "-").slice(0, 8).toLowerCase();
-  const filename = `session-${sessionIdSlug}-${timestamp}.txt`;
+  const sessionIdSlug = session.sessionId.replace(/_/g, "-").toLowerCase();
+  const filename = `session-${sessionIdSlug}.txt`;
   
   const contentPath = `data/raw/documents/${filename}`;
   
-  const body = {
-    type: "text",
-    filename,
-    contentPath,
-    metadata: {
-      sessionId: session.sessionId,
-      messageCount: messagesWithParts.length,
-      contentLength: transcript.length,
-      sourceType: "opencode-session",
-      syncedAt: Date.now(),
-    },
-    content: transcript,
+  const metadata = {
+    sessionId: session.sessionId,
+    messageCount: messagesWithParts.length,
+    contentLength: transcript.length,
+    sourceType: "opencode-session",
+    syncedAt: Date.now(),
   };
+
+  try {
+    const existingResult = await fetchSibylApi(
+      serverUrl,
+      `/api/raw-resources/session/${encodeURIComponent(session.sessionId)}`,
+      { apiKey }
+    );
+    const existing = existingResult as { data?: { id: string } };
+    
+    if (existing.data?.id) {
+      await fetchSibylApi(serverUrl, `/api/raw-resources/${existing.data.id}/content`, {
+        method: "PUT",
+        body: { content: transcript },
+        apiKey,
+      });
+      
+      await fetchSibylApi(serverUrl, `/api/raw-resources/${existing.data.id}`, {
+        method: "PUT",
+        body: { metadata },
+        apiKey,
+      });
+      
+      return existing.data.id;
+    }
+  } catch {
+  }
   
   try {
     const result = await fetchSibylApi(serverUrl, "/api/raw-resources", {
       method: "POST",
-      body,
+      body: {
+        type: "text",
+        filename,
+        contentPath,
+        metadata,
+        content: transcript,
+      },
       apiKey,
     });
     

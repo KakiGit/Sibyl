@@ -144,6 +144,21 @@ export class RawResourceStorage {
     return true;
   }
 
+  async findBySessionId(sessionId: string): Promise<RawResource | null> {
+    const db = getDatabase();
+    const results = await db
+      .select()
+      .from(rawResources)
+      .where(like(rawResources.metadata, `%"sessionId":"${sessionId}"%`))
+      .limit(1);
+
+    if (results.length === 0) {
+      return null;
+    }
+
+    return this.mapToRawResource(results[0]);
+  }
+
   async count(options: QueryRawResourcesOptions = {}): Promise<number> {
     const db = getDatabase();
     const conditions = [];

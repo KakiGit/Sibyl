@@ -312,6 +312,38 @@ describe("Raw Resources API", () => {
 
     expect(response.statusCode).toBe(400);
   });
+
+  it("should find raw resource by session id", async () => {
+    const createResponse = await server.inject({
+      method: "POST",
+      url: "/api/raw-resources",
+      body: {
+        type: "text",
+        filename: "session-test-session-123.txt",
+        contentPath: "/data/raw/documents/session-test-session-123.txt",
+        metadata: { sessionId: "test-session-123", sourceType: "opencode-session" },
+      },
+    });
+
+    const response = await server.inject({
+      method: "GET",
+      url: "/api/raw-resources/session/test-session-123",
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = JSON.parse(response.body);
+    expect(body.data.id).toBeDefined();
+    expect(body.data.metadata.sessionId).toBe("test-session-123");
+  });
+
+  it("should return 404 for non-existent session", async () => {
+    const response = await server.inject({
+      method: "GET",
+      url: "/api/raw-resources/session/non-existent-session",
+    });
+
+    expect(response.statusCode).toBe(404);
+  });
 });
 
 describe("Wiki Pages API", () => {
