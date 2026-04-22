@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
-import { SibylPlugin } from "./index.js";
+import { SibylPlugin, resetSessions } from "./index.js";
 
 interface MockFetchCall {
   url: string;
@@ -43,6 +43,7 @@ describe("SibylPlugin", () => {
     fetchCalls = [];
     mockResponses = {};
     (global as any).fetch = mockFetch;
+    resetSessions();
   });
 
   afterEach(() => {
@@ -256,6 +257,7 @@ describe("auto-save functionality", () => {
     fetchCalls = [];
     mockResponses = {};
     (global as any).fetch = mockFetch;
+    resetSessions();
   });
 
   afterEach(() => {
@@ -724,5 +726,93 @@ describe("auto-save functionality", () => {
     expect(fetchCalls[1].url).toBe("http://localhost:3000/api/raw-resources");
     expect(fetchCalls[2].url).toBe("http://localhost:3000/api/ingest/llm/raw-id-123");
     expect(fetchCalls[2].options?.method).toBe("POST");
+  });
+
+  it("normalizes session IDs with timestamps to stable session name", async () => {
+    mockResponses["/api/raw-resources/session/ses-249c"] = { error: "Raw resource not found for session" };
+    mockResponses["/api/raw-resources"] = { id: "raw-timestamp-id", filename: "session-ses-249c.txt" };
+
+    const hooks = await SibylPlugin({} as any, { 
+      serverUrl: "http://localhost:3000",
+      autoSave: true,
+      autoSaveThreshold: 2
+    });
+
+    await hooks.event?.({ event: { 
+      type: "message.updated", 
+      properties: { 
+        info: { sessionID: "ses-249c-2026-04-22t17-30-31-649z", id: "msg-1", role: "user", time: { created: 1000 } } 
+      } 
+    } as any });
+    await hooks.event?.({ event: { 
+      type: "message.part.updated", 
+      properties: { 
+        part: { sessionID: "ses-249c-2026-04-22t17-30-31-649z", messageID: "msg-1", type: "text", text: "First message" } 
+      } 
+    } as any });
+    await hooks.event?.({ event: { 
+      type: "message.updated", 
+      properties: { 
+        info: { sessionID: "ses-249c-2026-04-22t17-35-00-123z", id: "msg-2", role: "assistant", time: { created: 2000 } } 
+      } 
+    } as any });
+    await hooks.event?.({ event: { 
+      type: "message.part.updated", 
+      properties: { 
+        part: { sessionID: "ses-249c-2026-04-22t17-35-00-123z", messageID: "msg-2", type: "text", text: "Second message" } 
+      } 
+    } as any });
+
+    expect(fetchCalls.length).toBe(2);
+    expect(fetchCalls[0].url).toBe("http://localhost:3000/api/raw-resources/session/ses-249c");
+    expect(fetchCalls[1].url).toBe("http://localhost:3000/api/raw-resources");
+    const body = fetchCalls[1].options?.body as any;
+    expect(body?.filename).toBe("session-ses-249c.txt");
+    expect(body?.content).toContain("First message");
+    expect(body?.content).toContain("Second message");
+  });
+
+  it("accumulates messages from session IDs with different timestamps into same file", async () => {
+    mockResponses["/api/raw-resources/session/ses-249c"] = { error: "Raw resource not found for session" };
+    mockResponses["/api/raw-resources"] = { id: "raw-accumulated-id", filename: "session-ses-249c.txt" };
+
+    const hooks = await SibylPlugin({} as any, { 
+      serverUrl: "http://localhost:3000",
+      autoSave: true,
+      autoSaveThreshold: 2
+    });
+
+    await hooks.event?.({ event: { 
+      type: "message.updated", 
+      properties: { 
+        info: { sessionID: "ses-249c-2026-04-22t17-30-31-649z", id: "msg-1", role: "user", time: { created: 1000 } } 
+      } 
+    } as any });
+    await hooks.event?.({ event: { 
+      type: "message.part.updated", 
+      properties: { 
+        part: { sessionID: "ses-249c-2026-04-22t17-30-31-649z", messageID: "msg-1", type: "text", text: "First" } 
+      } 
+    } as any });
+    await hooks.event?.({ event: { 
+      type: "message.updated", 
+      properties: { 
+        info: { sessionID: "ses-249c-2026-04-22t17-35-00-123z", id: "msg-2", role: "assistant", time: { created: 2000 } } 
+      } 
+    } as any });
+    await hooks.event?.({ event: { 
+      type: "message.part.updated", 
+      properties: { 
+        part: { sessionID: "ses-249c-2026-04-22t17-35-00-123z", messageID: "msg-2", type: "text", text: "Second" } 
+      } 
+    } as any });
+
+    expect(fetchCalls.length).toBe(2);
+    expect(fetchCalls[0].url).toBe("http://localhost:3000/api/raw-resources/session/ses-249c");
+    expect(fetchCalls[1].url).toBe("http://localhost:3000/api/raw-resources");
+    const body = fetchCalls[1].options?.body as any;
+    expect(body?.filename).toBe("session-ses-249c.txt");
+    expect(body?.content).toContain("First");
+    expect(body?.content).toContain("Second");
   });
 });

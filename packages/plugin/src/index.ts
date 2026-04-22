@@ -12,6 +12,15 @@ export interface SibylPluginOptions {
 
 const DEFAULT_SERVER_URL = "http://localhost:3000";
 
+function extractStableSessionName(sessionId: string): string {
+  const datePattern = /-\d{4}-\d{2}-\d{2}/;
+  const match = sessionId.match(datePattern);
+  if (match && match.index !== undefined) {
+    return sessionId.substring(0, match.index);
+  }
+  return sessionId;
+}
+
 async function fetchSibylApi(
   serverUrl: string,
   path: string,
@@ -62,6 +71,10 @@ interface SessionData {
 
 const sessions: Map<string, SessionData> = new Map();
 
+export function resetSessions(): void {
+  sessions.clear();
+}
+
 function formatTranscript(metadata: Map<string, MessageMetadata>, parts: Map<string, MessagePart[]>): string {
   const lines: string[] = ["# Session Transcript", ""];
   
@@ -103,7 +116,8 @@ async function syncSessionToRawResource(
   if (messagesWithParts.length === 0) return null;
   
   const transcript = formatTranscript(session.messageMetadata, session.messageParts);
-  const sessionIdSlug = session.sessionId.replace(/_/g, "-").toLowerCase();
+  const stableName = extractStableSessionName(session.sessionId);
+  const sessionIdSlug = stableName.replace(/_/g, "-").toLowerCase();
   const filename = `session-${sessionIdSlug}.txt`;
   
   const contentPath = `data/raw/documents/${filename}`;
@@ -119,7 +133,7 @@ async function syncSessionToRawResource(
   try {
     const existingResult = await fetchSibylApi(
       serverUrl,
-      `/api/raw-resources/session/${encodeURIComponent(session.sessionId)}`,
+      `/api/raw-resources/session/${encodeURIComponent(stableName)}`,
       { apiKey }
     );
     const existing = existingResult as { data?: { id: string } };
@@ -385,9 +399,10 @@ export const SibylPlugin: Plugin = async (input, options?: SibylPluginOptions) =
       if (!autoSave) return;
 
       if (event.type === "session.created") {
-        const sessionId = (event as any).properties?.sessionID || "default";
+        const rawSessionId = (event as any).properties?.sessionID || "default";
+        const sessionId = extractStableSessionName(rawSessionId);
         sessions.set(sessionId, {
-          sessionId,
+          sessionId: rawSessionId,
           rawResourceId: null,
           messageMetadata: new Map(),
           messageParts: new Map(),
@@ -398,7 +413,8 @@ export const SibylPlugin: Plugin = async (input, options?: SibylPluginOptions) =
       }
 
       if (event.type === "session.idle") {
-        const sessionId = (event as any).properties?.sessionID || "default";
+        const rawSessionId = (event as any).properties?.sessionID || "default";
+        const sessionId = extractStableSessionName(rawSessionId);
         const session = sessions.get(sessionId);
         
         if (!session) return;
@@ -423,7 +439,8 @@ export const SibylPlugin: Plugin = async (input, options?: SibylPluginOptions) =
       }
 
       if (event.type === "session.deleted") {
-        const sessionId = (event as any).properties?.sessionID || "default";
+        const rawSessionId = (event as any).properties?.sessionID || "default";
+        const sessionId = extractStableSessionName(rawSessionId);
         sessions.delete(sessionId);
         return;
       }
@@ -432,7 +449,8 @@ export const SibylPlugin: Plugin = async (input, options?: SibylPluginOptions) =
         const message = (event as any).properties?.info;
         if (!message) return;
 
-        const sessionId = message.sessionID || "default";
+        const rawSessionId = message.sessionID || "default";
+        const sessionId = extractStableSessionName(rawSessionId);
         const messageId = message.id || "unknown";
         const role = message.role || "";
         
@@ -441,7 +459,7 @@ export const SibylPlugin: Plugin = async (input, options?: SibylPluginOptions) =
         let session = sessions.get(sessionId);
         if (!session) {
           session = {
-            sessionId,
+            sessionId: rawSessionId,
             rawResourceId: null,
             messageMetadata: new Map(),
             messageParts: new Map(),
@@ -473,10 +491,10 @@ export const SibylPlugin: Plugin = async (input, options?: SibylPluginOptions) =
       }
 
       if (event.type === "message.part.updated" || (event.type as string) === "message.part.delta") {
-        let sessionId, messageId, text, delta;
+        let rawSessionId, messageId, text, delta;
         
         if ((event.type as string) === "message.part.delta") {
-          sessionId = (event as any).properties?.sessionID || "default";
+          rawSessionId = (event as any).properties?.sessionID || "default";
           messageId = (event as any).properties?.messageID || "unknown";
           delta = (event as any).properties?.delta || "";
           text = "";
@@ -484,7 +502,7 @@ export const SibylPlugin: Plugin = async (input, options?: SibylPluginOptions) =
           const part = (event as any).properties?.part;
           if (!part) return;
           if (part.type && part.type !== "text") return;
-          sessionId = part.sessionID || "default";
+          rawSessionId = part.sessionID || "default";
           messageId = part.messageID || "unknown";
           text = part.text || "";
           delta = (event as any).properties?.delta || "";
@@ -492,10 +510,11 @@ export const SibylPlugin: Plugin = async (input, options?: SibylPluginOptions) =
 
         if (!text && !delta) return;
 
+        const sessionId = extractStableSessionName(rawSessionId);
         let session = sessions.get(sessionId);
         if (!session) {
           session = {
-            sessionId,
+            sessionId: rawSessionId,
             rawResourceId: null,
             messageMetadata: new Map(),
             messageParts: new Map(),
