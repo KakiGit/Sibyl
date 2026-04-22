@@ -63,11 +63,33 @@ function useD3ForceLayout(nodes: GraphNode[], edges: GraphEdge[], width: number,
   
   const nodeCount = nodes.length;
   const maxIterations = useMemo(() => {
-    if (nodeCount <= 20) return 150;
-    if (nodeCount <= 50) return 100;
-    if (nodeCount <= 100) return 75;
-    return 50;
+    if (nodeCount <= 10) return 200;
+    if (nodeCount <= 30) return 300;
+    if (nodeCount <= 50) return 250;
+    if (nodeCount <= 100) return 200;
+    return 150;
   }, [nodeCount]);
+  
+  const initializeSpiral = useCallback((nodeList: GraphNode[], w: number, h: number): SimulatedNode[] => {
+    if (nodeList.length === 0) return [];
+    
+    const centerX = w / 2;
+    const centerY = h / 2;
+    const angleStep = 0.5;
+    const radiusStep = 15;
+    
+    return nodeList.map((node, i) => {
+      const angle = i * angleStep;
+      const radius = radiusStep + i * radiusStep / nodeList.length;
+      return {
+        ...node,
+        x: centerX + radius * Math.cos(angle),
+        y: centerY + radius * Math.sin(angle),
+        vx: 0,
+        vy: 0,
+      };
+    });
+  }, []);
   
   useEffect(() => {
     if (nodes.length === 0 || width === 0 || height === 0) {
@@ -81,14 +103,7 @@ function useD3ForceLayout(nodes: GraphNode[], edges: GraphEdge[], width: number,
     setIsLayoutReady(false);
     setLayoutProgress(0);
     
-    const initialNodes: SimulatedNode[] = nodes.map((node) => ({
-      ...node,
-      x: width / 2 + (Math.random() - 0.5) * 100,
-      y: height / 2 + (Math.random() - 0.5) * 100,
-      vx: 0,
-      vy: 0,
-    }));
-    
+    const initialNodes = initializeSpiral(nodes, width, height);
     nodesRef.current = initialNodes;
     setSimulatedNodes(initialNodes);
     
@@ -98,32 +113,44 @@ function useD3ForceLayout(nodes: GraphNode[], edges: GraphEdge[], width: number,
       target: edge.to,
     }));
     
+    const linkDistance = Math.max(80, Math.min(200, 60 + nodeCount * 2));
+    
     const simulation = d3.forceSimulation<SimulatedNode, D3Link>(initialNodes)
       .force("link", d3.forceLink<SimulatedNode, D3Link>(links)
         .id((d: SimulatedNode) => d.id)
-        .distance(120)
-        .strength(0.5))
+        .distance(linkDistance)
+        .strength(0.3))
       .force("charge", d3.forceManyBody()
-        .strength(-200)
-        .distanceMax(300))
-      .force("center", d3.forceCenter(width / 2, height / 2))
+        .strength(-500)
+        .distanceMin(30)
+        .distanceMax(Infinity))
+      .force("center", d3.forceCenter(width / 2, height / 2).strength(0.05))
       .force("collide", d3.forceCollide<SimulatedNode>()
-        .radius((d: SimulatedNode) => d.isHub ? 40 : d.isOrphan ? 30 : 35)
-        .strength(0.7))
-      .alphaDecay(0.02)
-      .velocityDecay(0.4)
+        .radius((d: SimulatedNode) => {
+          const baseRadius = d.isHub ? 28 : d.isOrphan ? 20 : 24;
+          return baseRadius + 25;
+        })
+        .strength(1))
+      .force("x", d3.forceX(width / 2).strength(0.02))
+      .force("y", d3.forceY(height / 2).strength(0.02))
+      .alphaDecay(0.008)
+      .velocityDecay(0.3)
       .stop();
     
     simulationRef.current = simulation;
     
     let iterations = 0;
+    const batchSize = 5;
+    
     const animate = () => {
       if (iterations < maxIterations && simulationRef.current) {
-        simulationRef.current.tick();
-        iterations++;
+        for (let i = 0; i < batchSize; i++) {
+          simulationRef.current.tick();
+        }
+        iterations += batchSize;
         
         const currentNodes = nodesRef.current.map((node) => {
-          const padding = 50;
+          const padding = 60;
           return {
             ...node,
             x: Math.max(padding, Math.min(width - padding, node.x)),
@@ -146,7 +173,7 @@ function useD3ForceLayout(nodes: GraphNode[], edges: GraphEdge[], width: number,
     return () => {
       simulationRef.current = null;
     };
-  }, [nodes, edges, width, height, maxIterations]);
+  }, [nodes, edges, width, height, maxIterations, initializeSpiral]);
   
   return { simulatedNodes, isLayoutReady, layoutProgress };
 }
@@ -278,10 +305,10 @@ export function InteractiveGraph({ graph }: InteractiveGraphProps) {
         <svg width={dimensions.width} height={dimensions.height} className="absolute inset-0">
           {simulatedNodes.map((node) => {
             const config = PAGE_TYPE_CONFIG[node.type];
-            const radius = node.isHub ? 24 : node.isOrphan ? 16 : 20;
+            const radius = node.isHub ? 28 : node.isOrphan ? 20 : 24;
             return (
               <g key={node.id} transform={`translate(${node.x}, ${node.y})`}>
-                <circle r={radius} fill={config.bgColor} stroke={config.color} strokeWidth={2} opacity={0.7} />
+                <circle r={radius} fill={config.bgColor} stroke={config.color} strokeWidth={2} opacity={0.6} />
               </g>
             );
           })}
@@ -356,8 +383,8 @@ export function InteractiveGraph({ graph }: InteractiveGraphProps) {
                  (e.to === selectedNode.id && e.from === node.id)
           );
           
-          const radius = node.isHub ? 24 : node.isOrphan ? 16 : 20;
-          const scale = isSelected ? 1.3 : isHovered ? 1.15 : isConnectedToSelected ? 1.1 : 1;
+          const radius = node.isHub ? 28 : node.isOrphan ? 20 : 24;
+          const scale = isSelected ? 1.2 : isHovered ? 1.1 : isConnectedToSelected ? 1.05 : 1;
           
           return (
             <g
@@ -371,12 +398,12 @@ export function InteractiveGraph({ graph }: InteractiveGraphProps) {
             >
               {node.isOrphan && (
                 <circle
-                  r={radius + 4}
+                  r={radius * scale + 5}
                   fill="none"
                   stroke="#EF4444"
                   strokeWidth={2}
                   strokeDasharray="4 2"
-                  opacity={0.6}
+                  opacity={0.5}
                 />
               )}
               
@@ -390,24 +417,24 @@ export function InteractiveGraph({ graph }: InteractiveGraphProps) {
               />
               
               <text
-                y={radius * scale + 16}
+                y={radius * scale + 14}
                 textAnchor="middle"
-                fontSize={11}
-                fill={isSelected ? "#6366F1" : "#374151"}
-                fontWeight={isSelected || isHovered ? 600 : 400}
-                className="select-none"
+                fontSize={10}
+                fill={isSelected ? "#6366F1" : "#475569"}
+                fontWeight={isSelected || isHovered ? 600 : 500}
+                className="select-none pointer-events-none"
               >
-                {node.title.length > 15 ? node.title.slice(0, 15) + "..." : node.title}
+                {node.title.length > 12 ? node.title.slice(0, 12) + "..." : node.title}
               </text>
               
               {(node.isHub || node.isOrphan) && (
                 <text
-                  y={-radius * scale - 8}
+                  y={-radius * scale - 6}
                   textAnchor="middle"
-                  fontSize={9}
+                  fontSize={8}
                   fill={node.isHub ? "#3B82F6" : "#EF4444"}
-                  fontWeight={500}
-                  className="select-none"
+                  fontWeight={600}
+                  className="select-none pointer-events-none"
                 >
                   {node.isHub ? "Hub" : "Orphan"}
                 </text>
