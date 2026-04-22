@@ -41,13 +41,13 @@
         "zod": "^4.0.0",
       },
       "devDependencies": {
-        "@opencode-ai/plugin": "^1.4.3",
+        "@opencode-ai/plugin": "^1.14.19",
         "@types/bun": "1.3.11",
         "@types/node": "22.13.9",
         "typescript": "5.8.2",
       },
       "peerDependencies": {
-        "@opencode-ai/plugin": ">=1.4.0",
+        "@opencode-ai/plugin": ">=1.14.0",
       },
     },
     "packages/sdk": {
@@ -371,9 +371,9 @@
 
     "@msgpackr-extract/msgpackr-extract-win32-x64": ["@msgpackr-extract/msgpackr-extract-win32-x64@3.0.3", "", { "os": "win32", "cpu": "x64" }, "sha512-x0fWaQtYp4E6sktbsdAqnehxDgEc/VwM7uLsRCYWaiGu0ykYdZPiS8zCWdnjHwyiumousxfBm4SO31eXqwEZhQ=="],
 
-    "@opencode-ai/plugin": ["@opencode-ai/plugin@1.14.18", "", { "dependencies": { "@opencode-ai/sdk": "1.14.18", "effect": "4.0.0-beta.48", "zod": "4.1.8" }, "peerDependencies": { "@opentui/core": ">=0.1.100", "@opentui/solid": ">=0.1.100" }, "optionalPeers": ["@opentui/core", "@opentui/solid"] }, "sha512-oF1U7Aipz8A93WGllrwxYugopeL4ml/zd6ywoFIyuF2gbvEhOGFomAvqt1E5YjLN0wEL8nCPwFine3l7pqgNUA=="],
+    "@opencode-ai/plugin": ["@opencode-ai/plugin@1.14.20", "", { "dependencies": { "@opencode-ai/sdk": "1.14.20", "effect": "4.0.0-beta.48", "zod": "4.1.8" }, "peerDependencies": { "@opentui/core": ">=0.1.99", "@opentui/solid": ">=0.1.99" }, "optionalPeers": ["@opentui/core", "@opentui/solid"] }, "sha512-txRfm6Y2DBqFxJtgo63vj5//d7TJS7/angWELUEQcsSK0llfvmVp60gox4e8zIwpGjDcDP9A4qO6oNe++pockg=="],
 
-    "@opencode-ai/sdk": ["@opencode-ai/sdk@1.14.18", "", { "dependencies": { "cross-spawn": "7.0.6" } }, "sha512-E0QiiB+9rv/TPH0a1GunKl6LnuXDRHDiJaIFHOPaBL364rQx+3ClHwHkz78/KBsjhjeLrC2CaLgK+CoxV/XUIQ=="],
+    "@opencode-ai/sdk": ["@opencode-ai/sdk@1.14.20", "", { "dependencies": { "cross-spawn": "7.0.6" } }, "sha512-kPZP1An1ZdWOfLfDYhNjh665HX4RcI8au6Lzjn0FktoQ3RpWHq1WXRLHrJO8rJqwWvQDOzS48cXt9jbr+uwQiA=="],
 
     "@opentelemetry/api": ["@opentelemetry/api@1.9.0", "", {}, "sha512-3giAOQvZiH5F9bMlMiv8+GSPMeqg0dbaeo58/0SlA9sxSqZhnUtxzX9/2FzyhS9sWQf5S0GJE0AKBrFqjpeYcg=="],
 
