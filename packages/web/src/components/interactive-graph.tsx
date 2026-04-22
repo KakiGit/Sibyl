@@ -51,6 +51,7 @@ function useForceDirectedLayout(nodes: GraphNode[], edges: GraphEdge[], width: n
   const [isLayoutReady, setIsLayoutReady] = useState(false);
   const [layoutProgress, setLayoutProgress] = useState(0);
   const animationRef = useRef<number | null>(null);
+  const nodesRef = useRef<SimulatedNode[]>([]);
   
   const nodeCount = nodes.length;
   const maxIterations = useMemo(() => {
@@ -83,6 +84,7 @@ function useForceDirectedLayout(nodes: GraphNode[], edges: GraphEdge[], width: n
   useEffect(() => {
     if (nodes.length === 0 || width === 0 || height === 0) {
       setSimulatedNodes([]);
+      nodesRef.current = [];
       setIsLayoutReady(false);
       setLayoutProgress(0);
       return;
@@ -91,6 +93,7 @@ function useForceDirectedLayout(nodes: GraphNode[], edges: GraphEdge[], width: n
     setIsLayoutReady(false);
     setLayoutProgress(0);
     const initialNodes = initializeNodes();
+    nodesRef.current = initialNodes;
     setSimulatedNodes(initialNodes);
     
     const nodeMap = new Map<string, SimulatedNode>();
@@ -105,7 +108,7 @@ function useForceDirectedLayout(nodes: GraphNode[], edges: GraphEdge[], width: n
     });
     
     const simulate = () => {
-      const currentNodes = [...simulatedNodes];
+      const currentNodes = [...nodesRef.current];
       
       for (let i = 0; i < currentNodes.length; i++) {
         const node = currentNodes[i];
@@ -171,6 +174,7 @@ function useForceDirectedLayout(nodes: GraphNode[], edges: GraphEdge[], width: n
       }
       
       currentNodes.forEach(n => nodeMap.set(n.id, n));
+      nodesRef.current = currentNodes;
       setSimulatedNodes(currentNodes);
     };
     
