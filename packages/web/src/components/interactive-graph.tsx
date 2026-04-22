@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Brain, Layers, FileText, BookOpen, X, ExternalLink, ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import * as d3 from "d3";
 
 interface GraphNode {
   id: string;
@@ -37,6 +38,13 @@ interface SimulatedNode extends GraphNode {
   y: number;
   vx: number;
   vy: number;
+  index?: number;
+}
+
+interface D3Link {
+  source: string | SimulatedNode;
+  target: string | SimulatedNode;
+  id: string;
 }
 
 const PAGE_TYPE_CONFIG = {
@@ -46,11 +54,11 @@ const PAGE_TYPE_CONFIG = {
   summary: { icon: BookOpen, label: "Summary", color: "#F97316", bgColor: "#FFEDD5" },
 } as const;
 
-function useForceDirectedLayout(nodes: GraphNode[], edges: GraphEdge[], width: number, height: number) {
+function useD3ForceLayout(nodes: GraphNode[], edges: GraphEdge[], width: number, height: number) {
   const [simulatedNodes, setSimulatedNodes] = useState<SimulatedNode[]>([]);
   const [isLayoutReady, setIsLayoutReady] = useState(false);
   const [layoutProgress, setLayoutProgress] = useState(0);
-  const animationRef = useRef<number | null>(null);
+  const simulationRef = useRef<d3.Simulation<SimulatedNode, D3Link> | null>(null);
   const nodesRef = useRef<SimulatedNode[]>([]);
   
   const nodeCount = nodes.length;
@@ -60,26 +68,6 @@ function useForceDirectedLayout(nodes: GraphNode[], edges: GraphEdge[], width: n
     if (nodeCount <= 100) return 75;
     return 50;
   }, [nodeCount]);
-  
-  const initializeNodes = useCallback(() => {
-    if (nodes.length === 0) return [];
-    
-    const centerX = width / 2;
-    const centerY = height / 2;
-    const radius = Math.min(width, height) / 3;
-    
-    return nodes.map((node, i) => {
-      const angle = (2 * Math.PI * i) / nodes.length;
-      const jitter = Math.random() * 50 - 25;
-      return {
-        ...node,
-        x: centerX + radius * Math.cos(angle) + jitter,
-        y: centerY + radius * Math.sin(angle) + jitter,
-        vx: 0,
-        vy: 0,
-      };
-    });
-  }, [nodes, width, height]);
   
   useEffect(() => {
     if (nodes.length === 0 || width === 0 || height === 0) {
@@ -92,113 +80,73 @@ function useForceDirectedLayout(nodes: GraphNode[], edges: GraphEdge[], width: n
     
     setIsLayoutReady(false);
     setLayoutProgress(0);
-    const initialNodes = initializeNodes();
+    
+    const initialNodes: SimulatedNode[] = nodes.map((node) => ({
+      ...node,
+      x: width / 2 + (Math.random() - 0.5) * 100,
+      y: height / 2 + (Math.random() - 0.5) * 100,
+      vx: 0,
+      vy: 0,
+    }));
+    
     nodesRef.current = initialNodes;
     setSimulatedNodes(initialNodes);
     
-    const nodeMap = new Map<string, SimulatedNode>();
-    initialNodes.forEach(n => nodeMap.set(n.id, n));
+    const links: D3Link[] = edges.map((edge) => ({
+      id: edge.id,
+      source: edge.from,
+      target: edge.to,
+    }));
     
-    const adjacencyList = new Map<string, Set<string>>();
-    edges.forEach(edge => {
-      if (!adjacencyList.has(edge.from)) adjacencyList.set(edge.from, new Set());
-      if (!adjacencyList.has(edge.to)) adjacencyList.set(edge.to, new Set());
-      adjacencyList.get(edge.from)!.add(edge.to);
-      adjacencyList.get(edge.to)!.add(edge.from);
-    });
+    const simulation = d3.forceSimulation<SimulatedNode, D3Link>(initialNodes)
+      .force("link", d3.forceLink<SimulatedNode, D3Link>(links)
+        .id((d: SimulatedNode) => d.id)
+        .distance(120)
+        .strength(0.5))
+      .force("charge", d3.forceManyBody()
+        .strength(-200)
+        .distanceMax(300))
+      .force("center", d3.forceCenter(width / 2, height / 2))
+      .force("collide", d3.forceCollide<SimulatedNode>()
+        .radius((d: SimulatedNode) => d.isHub ? 40 : d.isOrphan ? 30 : 35)
+        .strength(0.7))
+      .alphaDecay(0.02)
+      .velocityDecay(0.4)
+      .stop();
     
-    const simulate = () => {
-      const currentNodes = [...nodesRef.current];
-      
-      for (let i = 0; i < currentNodes.length; i++) {
-        const node = currentNodes[i];
-        if (!nodeMap.has(node.id)) continue;
-        
-        for (let j = i + 1; j < currentNodes.length; j++) {
-          const other = currentNodes[j];
-          if (!nodeMap.has(other.id)) continue;
-          
-          const dx = other.x - node.x;
-          const dy = other.y - node.y;
-          const distance = Math.sqrt(dx * dx + dy * dy) || 1;
-          const minDist = 80;
-          
-          if (distance < minDist) {
-            const force = (minDist - distance) / distance * 0.5;
-            const fx = dx * force;
-            const fy = dy * force;
-            node.vx -= fx;
-            node.vy -= fy;
-            other.vx += fx;
-            other.vy += fy;
-          }
-          
-          const repulsion = 50 / (distance * distance);
-          node.vx -= dx * repulsion * 0.01;
-          node.vy -= dy * repulsion * 0.01;
-          other.vx += dx * repulsion * 0.01;
-          other.vy += dy * repulsion * 0.01;
-        }
-        
-        const connected = adjacencyList.get(node.id);
-        if (connected) {
-          for (const targetId of connected) {
-            const target = nodeMap.get(targetId);
-            if (!target) continue;
-            
-            const dx = target.x - node.x;
-            const dy = target.y - node.y;
-            const distance = Math.sqrt(dx * dx + dy * dy) || 1;
-            const idealDist = 150;
-            
-            const attraction = (distance - idealDist) * 0.01;
-            node.vx += dx * attraction;
-            node.vy += dy * attraction;
-          }
-        }
-        
-        const centerX = width / 2;
-        const centerY = height / 2;
-        node.vx += (centerX - node.x) * 0.001;
-        node.vy += (centerY - node.y) * 0.001;
-        
-        node.vx *= 0.9;
-        node.vy *= 0.9;
-        
-        node.x += node.vx;
-        node.y += node.vy;
-        
-        const padding = 40;
-        node.x = Math.max(padding, Math.min(width - padding, node.x));
-        node.y = Math.max(padding, Math.min(height - padding, node.y));
-      }
-      
-      currentNodes.forEach(n => nodeMap.set(n.id, n));
-      nodesRef.current = currentNodes;
-      setSimulatedNodes(currentNodes);
-    };
+    simulationRef.current = simulation;
     
     let iterations = 0;
-    
     const animate = () => {
-      if (iterations < maxIterations) {
-        simulate();
+      if (iterations < maxIterations && simulationRef.current) {
+        simulationRef.current.tick();
         iterations++;
+        
+        const currentNodes = nodesRef.current.map((node) => {
+          const padding = 50;
+          return {
+            ...node,
+            x: Math.max(padding, Math.min(width - padding, node.x)),
+            y: Math.max(padding, Math.min(height - padding, node.y)),
+          };
+        });
+        
+        nodesRef.current = currentNodes;
+        setSimulatedNodes([...currentNodes]);
         setLayoutProgress(Math.round((iterations / maxIterations) * 100));
-        animationRef.current = requestAnimationFrame(animate);
+        
+        requestAnimationFrame(animate);
       } else {
         setIsLayoutReady(true);
       }
     };
     
-    animationRef.current = requestAnimationFrame(animate);
+    requestAnimationFrame(animate);
     
     return () => {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-      }
+      simulationRef.current = null;
     };
-  }, [nodes, edges, width, height, maxIterations, initializeNodes]);
+  }, [nodes, edges, width, height, maxIterations]);
   
   return { simulatedNodes, isLayoutReady, layoutProgress };
 }
@@ -284,7 +232,7 @@ export function InteractiveGraph({ graph }: InteractiveGraphProps) {
     return () => resizeObserver.disconnect();
   }, []);
   
-  const { simulatedNodes, isLayoutReady, layoutProgress } = useForceDirectedLayout(
+  const { simulatedNodes, isLayoutReady, layoutProgress } = useD3ForceLayout(
     graph.nodes,
     graph.edges,
     dimensions.width,
