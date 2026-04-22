@@ -73,11 +73,9 @@ bun install --frozen-lockfile
 bun run build
 
 echo -e "${YELLOW}Bundling plugin...${NC}"
-mkdir -p "$PLUGIN_DIR/dist"
 bun build "$PLUGIN_DIR/src/index.ts" \
-    --outdir="$PLUGIN_DIR/dist" \
+    --outfile "$PLUGIN_DIR/dist/index.js" \
     --target=bun \
-    --format=esm \
     --external "@opencode-ai/plugin" \
     --external "@opencode-ai/plugin/tool"
 

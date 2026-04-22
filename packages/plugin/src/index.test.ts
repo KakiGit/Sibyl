@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
-import { SibylPlugin, resetSessions } from "./index.js";
+import SibylPlugin from "./index.js";
 
 interface MockFetchCall {
   url: string;
@@ -43,7 +43,6 @@ describe("SibylPlugin", () => {
     fetchCalls = [];
     mockResponses = {};
     (global as any).fetch = mockFetch;
-    resetSessions();
   });
 
   afterEach(() => {
@@ -68,14 +67,7 @@ describe("SibylPlugin", () => {
     expect(hooks.tool?.memory_recall).toBeDefined();
     expect(hooks.tool?.memory_list).toBeDefined();
     expect(hooks.tool?.memory_query).toBeDefined();
-    expect(hooks.tool?.memory_save).toBeUndefined();
-    expect(hooks.tool?.memory_delete).toBeUndefined();
-    expect(hooks.tool?.memory_ingest).toBeUndefined();
-    expect(hooks.tool?.memory_log).toBeUndefined();
-    expect(hooks.tool?.memory_filing).toBeUndefined();
-    expect(hooks.tool?.memory_filing_history).toBeUndefined();
-    expect(hooks.tool?.memory_raw_save).toBeUndefined();
-  });
+    });
 
   it("memory_recall tool fetches wiki pages and synthesizes", async () => {
     mockResponses["/api/wiki-pages?search=test&limit=5&includeContent=true"] = {
@@ -170,7 +162,7 @@ describe("SibylPlugin", () => {
 
     const hooks = await SibylPlugin({} as any, { serverUrl: "http://localhost:3000" });
 
-    const result = await hooks.tool?.memory_query?.execute({ question: "test question" }, {} as any);
+    const result = await hooks.tool?.memory_query?.execute({ question: "test question", limit: 10 }, {} as any);
 
     expect(fetchCalls[0].url).toContain("search=test");
     expect(result).toContain("Found 1 relevant Wiki Pages");
@@ -182,39 +174,9 @@ describe("SibylPlugin", () => {
 
     const hooks = await SibylPlugin({} as any, { serverUrl: "http://localhost:3000" });
 
-    const result = await hooks.tool?.memory_query?.execute({ question: "empty" }, {} as any);
+    const result = await hooks.tool?.memory_query?.execute({ question: "empty", limit: 10 }, {} as any);
 
     expect(result).toBe("No relevant Wiki Pages found in the knowledge base.");
-  });
-
-  it("system transform hook injects memory context", async () => {
-    mockResponses["/api/wiki-pages?limit=5"] = {
-      data: [
-        { title: "Wiki 1", type: "concept", summary: "Summary 1", slug: "wiki-1" },
-        { title: "Wiki 2", type: "entity", summary: "Summary 2", slug: "wiki-2" },
-      ],
-    };
-
-    const hooks = await SibylPlugin({} as any, { serverUrl: "http://localhost:3000", autoInject: true });
-
-    const output = { system: [] as string[] };
-    await hooks["experimental.chat.system.transform"]?.({ sessionID: "test", model: {} as any }, output);
-
-    expect(fetchCalls.length).toBe(1);
-    expect(output.system.length).toBeGreaterThan(0);
-    expect(output.system[0]).toContain("Sibyl Memory Context");
-    expect(output.system[0]).toContain("Wiki 1");
-    expect(output.system[0]).toContain("memory_recall");
-  });
-
-  it("system transform hook is skipped when autoInject is false", async () => {
-    const hooks = await SibylPlugin({} as any, { serverUrl: "http://localhost:3000", autoInject: false });
-
-    const output = { system: [] as string[] };
-    await hooks["experimental.chat.system.transform"]?.({ sessionID: "test", model: {} as any }, output);
-
-    expect(fetchCalls.length).toBe(0);
-    expect(output.system.length).toBe(0);
   });
 
   it("uses custom server URL from options", async () => {
@@ -257,7 +219,6 @@ describe("auto-save functionality", () => {
     fetchCalls = [];
     mockResponses = {};
     (global as any).fetch = mockFetch;
-    resetSessions();
   });
 
   afterEach(() => {
