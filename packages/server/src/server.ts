@@ -5,7 +5,28 @@ import { registerWebSocketRoutes } from "./websocket/index.js";
 import { closeDatabase, migrateDatabase, createDatabase } from "./database.js";
 import { syncDatabaseWithFiles } from "./sync.js";
 import { DB_FILE } from "@sibyl/shared";
-import { resolve } from "path";
+import { resolve, dirname } from "path";
+import { existsSync } from "fs";
+
+function findProjectRoot(): string {
+  let currentDir = resolve(dirname(new URL(import.meta.url).pathname));
+  
+  while (currentDir !== dirname(currentDir)) {
+    if (existsSync(resolve(currentDir, ".git")) || existsSync(resolve(currentDir, "package.json"))) {
+      const rootPackageJson = resolve(currentDir, "package.json");
+      try {
+        const content = require("fs").readFileSync(rootPackageJson, "utf-8");
+        const pkg = JSON.parse(content);
+        if (pkg.name === "sibyl" || pkg.workspaces) {
+          return currentDir;
+        }
+      } catch {}
+    }
+    currentDir = dirname(currentDir);
+  }
+  
+  return resolve(dirname(new URL(import.meta.url).pathname), "..", "..");
+}
 
 export interface ServerOptions {
   port?: number;
@@ -30,7 +51,9 @@ export async function createServer(options: ServerOptions = {}) {
 
   await registerWebSocketRoutes(fastify);
 
-  const dbPath = options.dbPath || resolve(DB_FILE);
+  const projectRoot = findProjectRoot();
+  const dbPath = options.dbPath || resolve(projectRoot, DB_FILE);
+  fastify.log.info(`Using database at: ${dbPath}`);
   const db = createDatabase(dbPath);
   migrateDatabase(db);
   

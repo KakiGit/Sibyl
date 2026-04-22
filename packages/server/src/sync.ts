@@ -1,11 +1,11 @@
 import { existsSync, readdirSync, readFileSync } from "fs";
-import { join } from "path";
+import { join, dirname, resolve } from "path";
 import grayMatter from "gray-matter";
 import { storage } from "./storage/index.js";
 import { wikiFileManager } from "./wiki/index.js";
 import { rawResourceFileManager } from "./raw/index.js";
 import { syncWikiLinks } from "./wiki/link-extractor.js";
-import { DATA_DIR, WIKI_DIR, RAW_DIR, WIKI_PAGE_TYPES } from "@sibyl/shared";
+import { DATA_DIR, WIKI_PAGE_TYPES } from "@sibyl/shared";
 import { logger } from "@sibyl/shared";
 import type { WikiPageType } from "@sibyl/sdk";
 
@@ -30,30 +30,31 @@ export interface SyncResult {
 }
 
 export async function syncDatabaseWithFiles(dbPath?: string): Promise<SyncResult> {
-  const isTestDb = dbPath && (
-    dbPath.includes("/tmp/") || 
-    dbPath.includes("\\tmp\\") ||
-    dbPath.includes("test") ||
-    !dbPath.includes("data")
-  );
+  const resolvedDbPath = dbPath ? resolve(dbPath) : resolve(DATA_DIR, "db/sibyl.db");
+  
+  const isTestDb = resolvedDbPath.includes("/tmp/") || 
+    resolvedDbPath.includes("\\tmp\\") ||
+    resolvedDbPath.includes("test") ||
+    !resolvedDbPath.includes("data");
   
   if (isTestDb) {
-    logger.debug("Skipping sync for test database", { dbPath });
+    logger.debug("Skipping sync for test database", { dbPath: resolvedDbPath });
     return {
       wikiPages: { removedFromDb: 0, addedToDb: 0, linksRemoved: 0, versionsRemoved: 0 },
       rawResources: { removedFromDb: 0, addedToDb: 0 },
     };
   }
   
-  logger.info("Starting database-to-files sync...");
+  const dataDir = dirname(dirname(resolvedDbPath));
+  logger.info("Starting database-to-files sync...", { dataDir });
   
   const result: SyncResult = {
     wikiPages: { removedFromDb: 0, addedToDb: 0, linksRemoved: 0, versionsRemoved: 0 },
     rawResources: { removedFromDb: 0, addedToDb: 0 },
   };
   
-  result.wikiPages = await syncWikiPages();
-  result.rawResources = await syncRawResources();
+  result.wikiPages = await syncWikiPages(dataDir);
+  result.rawResources = await syncRawResources(dataDir);
   
   logger.info("Sync completed", {
     wikiPagesRemoved: result.wikiPages.removedFromDb,
@@ -65,11 +66,11 @@ export async function syncDatabaseWithFiles(dbPath?: string): Promise<SyncResult
   return result;
 }
 
-async function syncWikiPages(): Promise<SyncResult["wikiPages"]> {
+async function syncWikiPages(dataDir: string): Promise<SyncResult["wikiPages"]> {
   const stats = { removedFromDb: 0, addedToDb: 0, linksRemoved: 0, versionsRemoved: 0 };
   
   const dbPages = await storage.wikiPages.findAll({ limit: 1000 });
-  const wikiDir = join(DATA_DIR, WIKI_DIR.replace(`${DATA_DIR}/`, ""));
+  const wikiDir = join(dataDir, "wiki");
   
   const deletedPageIds: string[] = [];
   
@@ -170,16 +171,17 @@ async function syncWikiPages(): Promise<SyncResult["wikiPages"]> {
   return stats;
 }
 
-async function syncRawResources(): Promise<SyncResult["rawResources"]> {
+async function syncRawResources(dataDir: string): Promise<SyncResult["rawResources"]> {
   const stats = { removedFromDb: 0, addedToDb: 0 };
   
   const dbResources = await storage.rawResources.findAll({ limit: 1000 });
-  const rawDir = join(DATA_DIR, RAW_DIR.replace(`${DATA_DIR}/`, ""));
+  const rawDir = join(dataDir, "raw");
   
   const deletedResourceIds: string[] = [];
+  const dbContentPaths = new Set(dbResources.map((r) => r.contentPath));
   
   for (const resource of dbResources) {
-    const contentFilePath = join(rawDir, resource.contentPath);
+    const contentFilePath = join(dataDir, resource.contentPath.replace(`${DATA_DIR}/`, ""));
     
     if (!existsSync(contentFilePath)) {
       deletedResourceIds.push(resource.id);
@@ -194,12 +196,11 @@ async function syncRawResources(): Promise<SyncResult["rawResources"]> {
   }
   
   const fileIndex = rawResourceFileManager.readIndex();
-  const dbIds = new Set(dbResources.map((r) => r.id));
   
   for (const entry of fileIndex.entries) {
-    if (dbIds.has(entry.id)) continue;
+    if (dbContentPaths.has(entry.contentPath)) continue;
     
-    const contentFilePath = join(rawDir, entry.contentPath);
+    const contentFilePath = join(dataDir, entry.contentPath.replace(`${DATA_DIR}/`, ""));
     if (!existsSync(contentFilePath)) continue;
     
     await storage.rawResources.create({
@@ -218,8 +219,80 @@ async function syncRawResources(): Promise<SyncResult["rawResources"]> {
     });
   }
   
+  const rawSubdirs = ["documents", "webpages", "thumbnails"];
+  const fileExtensions: Record<string, "text" | "pdf" | "image" | "webpage"> = {
+    ".txt": "text",
+    ".md": "text",
+    ".pdf": "pdf",
+    ".png": "image",
+    ".jpg": "image",
+    ".jpeg": "image",
+    ".gif": "image",
+    ".webp": "image",
+    ".html": "webpage",
+  };
+  
+  for (const subdir of rawSubdirs) {
+    const subdirPath = join(rawDir, subdir);
+    if (!existsSync(subdirPath)) {
+      logger.debug("Skipping non-existent subdir", { subdirPath });
+      continue;
+    }
+    
+    const files = readdirSync(subdirPath);
+    logger.debug("Scanning raw subdir", { subdir, fileCount: files.length });
+    
+    let skipped = 0;
+    let added = 0;
+    
+    for (const file of files) {
+      if (file === "test-image.md" || file === "test.md") {
+        skipped++;
+        continue;
+      }
+      
+      const ext = file.substring(file.lastIndexOf(".")).toLowerCase();
+      const type = fileExtensions[ext];
+      if (!type) {
+        skipped++;
+        continue;
+      }
+      
+      const contentPath = `data/raw/${subdir}/${file}`;
+      
+      if (dbContentPaths.has(contentPath)) {
+        skipped++;
+        continue;
+      }
+      
+      await storage.rawResources.create({
+        type,
+        filename: file,
+        contentPath,
+        metadata: inferMetadataFromFilename(file),
+      });
+      
+      stats.addedToDb++;
+      added++;
+    }
+    
+logger.debug("Raw subdir scan complete", { subdir, added, skipped });
+  }
+  
   const remainingResources = await storage.rawResources.findAll({ limit: 1000 });
   rawResourceFileManager.rebuildIndex(remainingResources);
   
   return stats;
+}
+
+function inferMetadataFromFilename(filename: string): Record<string, unknown> | undefined {
+  const sessionMatch = filename.match(/session-(ses-[a-z0-9]+)-/i) || filename.match(/session-ses-(\d+[a-z]+)/i);
+  if (sessionMatch) {
+    return {
+      sessionId: `ses_${sessionMatch[1]}`,
+      sourceType: "opencode-session",
+    };
+  }
+  
+  return undefined;
 }
