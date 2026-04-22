@@ -38,12 +38,14 @@ interface SimulatedNode extends GraphNode {
   y: number;
   vx: number;
   vy: number;
+  fx: number | null;
+  fy: number | null;
   index?: number;
 }
 
 interface D3Link {
-  source: string | SimulatedNode;
-  target: string | SimulatedNode;
+  source: SimulatedNode;
+  target: SimulatedNode;
   id: string;
 }
 
@@ -53,130 +55,6 @@ const PAGE_TYPE_CONFIG = {
   source: { icon: FileText, label: "Source", color: "#22C55E", bgColor: "#DCFCE7" },
   summary: { icon: BookOpen, label: "Summary", color: "#F97316", bgColor: "#FFEDD5" },
 } as const;
-
-function useD3ForceLayout(nodes: GraphNode[], edges: GraphEdge[], width: number, height: number) {
-  const [simulatedNodes, setSimulatedNodes] = useState<SimulatedNode[]>([]);
-  const [isLayoutReady, setIsLayoutReady] = useState(false);
-  const [layoutProgress, setLayoutProgress] = useState(0);
-  const simulationRef = useRef<d3.Simulation<SimulatedNode, D3Link> | null>(null);
-  const nodesRef = useRef<SimulatedNode[]>([]);
-  
-  const nodeCount = nodes.length;
-  const maxIterations = useMemo(() => {
-    if (nodeCount <= 10) return 200;
-    if (nodeCount <= 30) return 300;
-    if (nodeCount <= 50) return 250;
-    if (nodeCount <= 100) return 200;
-    return 150;
-  }, [nodeCount]);
-  
-  const initializeSpiral = useCallback((nodeList: GraphNode[], w: number, h: number): SimulatedNode[] => {
-    if (nodeList.length === 0) return [];
-    
-    const centerX = w / 2;
-    const centerY = h / 2;
-    const angleStep = 0.5;
-    const radiusStep = 15;
-    
-    return nodeList.map((node, i) => {
-      const angle = i * angleStep;
-      const radius = radiusStep + i * radiusStep / nodeList.length;
-      return {
-        ...node,
-        x: centerX + radius * Math.cos(angle),
-        y: centerY + radius * Math.sin(angle),
-        vx: 0,
-        vy: 0,
-      };
-    });
-  }, []);
-  
-  useEffect(() => {
-    if (nodes.length === 0 || width === 0 || height === 0) {
-      setSimulatedNodes([]);
-      nodesRef.current = [];
-      setIsLayoutReady(false);
-      setLayoutProgress(0);
-      return;
-    }
-    
-    setIsLayoutReady(false);
-    setLayoutProgress(0);
-    
-    const initialNodes = initializeSpiral(nodes, width, height);
-    nodesRef.current = initialNodes;
-    setSimulatedNodes(initialNodes);
-    
-    const links: D3Link[] = edges.map((edge) => ({
-      id: edge.id,
-      source: edge.from,
-      target: edge.to,
-    }));
-    
-    const linkDistance = Math.max(80, Math.min(200, 60 + nodeCount * 2));
-    
-    const simulation = d3.forceSimulation<SimulatedNode, D3Link>(initialNodes)
-      .force("link", d3.forceLink<SimulatedNode, D3Link>(links)
-        .id((d: SimulatedNode) => d.id)
-        .distance(linkDistance)
-        .strength(0.3))
-      .force("charge", d3.forceManyBody()
-        .strength(-500)
-        .distanceMin(30)
-        .distanceMax(Infinity))
-      .force("center", d3.forceCenter(width / 2, height / 2).strength(0.05))
-      .force("collide", d3.forceCollide<SimulatedNode>()
-        .radius((d: SimulatedNode) => {
-          const baseRadius = d.isHub ? 28 : d.isOrphan ? 20 : 24;
-          return baseRadius + 25;
-        })
-        .strength(1))
-      .force("x", d3.forceX(width / 2).strength(0.02))
-      .force("y", d3.forceY(height / 2).strength(0.02))
-      .alphaDecay(0.008)
-      .velocityDecay(0.3)
-      .stop();
-    
-    simulationRef.current = simulation;
-    
-    let iterations = 0;
-    const batchSize = 5;
-    
-    const animate = () => {
-      if (iterations < maxIterations && simulationRef.current) {
-        for (let i = 0; i < batchSize; i++) {
-          simulationRef.current.tick();
-        }
-        iterations += batchSize;
-        
-        const currentNodes = nodesRef.current.map((node) => {
-          const padding = 60;
-          return {
-            ...node,
-            x: Math.max(padding, Math.min(width - padding, node.x)),
-            y: Math.max(padding, Math.min(height - padding, node.y)),
-          };
-        });
-        
-        nodesRef.current = currentNodes;
-        setSimulatedNodes([...currentNodes]);
-        setLayoutProgress(Math.round((iterations / maxIterations) * 100));
-        
-        requestAnimationFrame(animate);
-      } else {
-        setIsLayoutReady(true);
-      }
-    };
-    
-    requestAnimationFrame(animate);
-    
-    return () => {
-      simulationRef.current = null;
-    };
-  }, [nodes, edges, width, height, maxIterations, initializeSpiral]);
-  
-  return { simulatedNodes, isLayoutReady, layoutProgress };
-}
 
 interface SelectedNodeDetailsProps {
   node: SimulatedNode;
@@ -239,9 +117,14 @@ interface InteractiveGraphProps {
 
 export function InteractiveGraph({ graph }: InteractiveGraphProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [selectedNode, setSelectedNode] = useState<SimulatedNode | null>(null);
   const [hoveredNode, setHoveredNode] = useState<string | null>(null);
+  const [isLayoutReady, setIsLayoutReady] = useState(false);
+  const simulationRef = useRef<d3.Simulation<SimulatedNode, D3Link> | null>(null);
+  const nodesRef = useRef<SimulatedNode[]>([]);
+  const linksRef = useRef<D3Link[]>([]);
   
   useEffect(() => {
     if (!containerRef.current) return;
@@ -259,26 +142,173 @@ export function InteractiveGraph({ graph }: InteractiveGraphProps) {
     return () => resizeObserver.disconnect();
   }, []);
   
-  const { simulatedNodes, isLayoutReady, layoutProgress } = useD3ForceLayout(
-    graph.nodes,
-    graph.edges,
-    dimensions.width,
-    dimensions.height
-  );
+  useEffect(() => {
+    if (graph.nodes.length === 0 || dimensions.width === 0 || dimensions.height === 0) {
+      return;
+    }
+    
+    setIsLayoutReady(false);
+    
+    const nodes: SimulatedNode[] = graph.nodes.map(d => ({
+      ...d,
+      x: 0,
+      y: 0,
+      vx: 0,
+      vy: 0,
+      fx: null,
+      fy: null,
+    }));
+    
+    const links: D3Link[] = graph.edges.map(d => ({
+      ...d,
+      source: nodes.find(n => n.id === d.from)!,
+      target: nodes.find(n => n.id === d.to)!,
+    }));
+    
+    nodesRef.current = nodes;
+    linksRef.current = links;
+    
+    const simulation = d3.forceSimulation<SimulatedNode, D3Link>(nodes)
+      .force("link", d3.forceLink<D3Link>(links).id(d => d.id))
+      .force("charge", d3.forceManyBody())
+      .force("x", d3.forceX())
+      .force("y", d3.forceY());
+    
+    simulationRef.current = simulation;
+    
+    simulation.on("tick", () => {
+      if (!svgRef.current) return;
+      
+      const svg = d3.select(svgRef.current);
+      
+      svg.selectAll<SVGLineElement, D3Link>(".link")
+        .attr("x1", d => d.source.x + dimensions.width / 2)
+        .attr("y1", d => d.source.y + dimensions.height / 2)
+        .attr("x2", d => d.target.x + dimensions.width / 2)
+        .attr("y2", d => d.target.y + dimensions.height / 2);
+      
+      svg.selectAll<SVGGElement, SimulatedNode>(".node")
+        .attr("transform", d => `translate(${d.x + dimensions.width / 2},${d.y + dimensions.height / 2})`);
+      
+      if (simulation.alpha() < 0.01) {
+        setIsLayoutReady(true);
+      }
+    });
+    
+    if (svgRef.current) {
+      const svg = d3.select(svgRef.current);
+      
+      svg.selectAll(".link")
+        .data(links)
+        .join("line")
+        .attr("class", "link")
+        .attr("stroke", "#999")
+        .attr("stroke-opacity", 0.6)
+        .attr("stroke-width", 1);
+      
+      const nodeGroup = svg.selectAll<SVGGElement, SimulatedNode>(".node")
+        .data(nodes)
+        .join("g")
+        .attr("class", "node")
+        .attr("stroke", "#fff")
+        .attr("stroke-width", 1.5);
+      
+      nodeGroup.each(function(d) {
+        const group = d3.select(this);
+        const config = PAGE_TYPE_CONFIG[d.type];
+        const radius = d.isHub ? 8 : d.isOrphan ? 5 : 6;
+        
+        if (d.isOrphan) {
+          group.append("circle")
+            .attr("r", radius + 3)
+            .attr("fill", "none")
+            .attr("stroke", "#EF4444")
+            .attr("stroke-width", 2)
+            .attr("stroke-dasharray", "4 2")
+            .attr("opacity", 0.5);
+        }
+        
+        group.append("circle")
+          .attr("r", radius)
+          .attr("fill", config.bgColor)
+          .attr("stroke", config.color);
+        
+        group.append("title").text(d.title);
+      });
+      
+      nodeGroup.call(
+        d3.drag<SVGGElement, SimulatedNode>()
+          .on("start", (event) => {
+            if (!event.active) simulation.alphaTarget(0.3).restart();
+            event.subject.fx = event.subject.x;
+            event.subject.fy = event.subject.y;
+          })
+          .on("drag", (event) => {
+            event.subject.fx = event.x;
+            event.subject.fy = event.y;
+          })
+          .on("end", (event) => {
+            if (!event.active) simulation.alphaTarget(0);
+            event.subject.fx = null;
+            event.subject.fy = null;
+          })
+      );
+      
+      nodeGroup.on("click", (_, d) => setSelectedNode(d));
+      nodeGroup.on("mouseenter", (_, d) => setHoveredNode(d.id));
+      nodeGroup.on("mouseleave", () => setHoveredNode(null));
+    }
+    
+    return () => {
+      simulation.stop();
+      simulationRef.current = null;
+    };
+  }, [graph, dimensions.width, dimensions.height]);
   
-  const nodeMap = useMemo(() => {
-    const map = new Map<string, SimulatedNode>();
-    simulatedNodes.forEach(n => map.set(n.id, n));
-    return map;
-  }, [simulatedNodes]);
-  
-  const handleNodeClick = useCallback((node: SimulatedNode) => {
-    setSelectedNode(node);
-  }, []);
-  
-  const handleCloseDetails = useCallback(() => {
-    setSelectedNode(null);
-  }, []);
+  useEffect(() => {
+    if (!svgRef.current || hoveredNode === null || selectedNode === null) return;
+    
+    const svg = d3.select(svgRef.current);
+    
+    svg.selectAll<SVGLineElement, D3Link>(".link")
+      .attr("stroke", d => {
+        const isHighlighted = 
+          hoveredNode === d.source.id ||
+          hoveredNode === d.target.id ||
+          selectedNode?.id === d.source.id ||
+          selectedNode?.id === d.target.id;
+        return isHighlighted ? "#6366F1" : "#999";
+      })
+      .attr("stroke-width", d => {
+        const isHighlighted = 
+          hoveredNode === d.source.id ||
+          hoveredNode === d.target.id ||
+          selectedNode?.id === d.source.id ||
+          selectedNode?.id === d.target.id;
+        return isHighlighted ? 2 : 1;
+      })
+      .attr("stroke-opacity", d => {
+        const isHighlighted = 
+          hoveredNode === d.source.id ||
+          hoveredNode === d.target.id ||
+          selectedNode?.id === d.source.id ||
+          selectedNode?.id === d.target.id;
+        return isHighlighted ? 1 : 0.6;
+      });
+    
+    svg.selectAll<SVGGElement, SimulatedNode>(".node")
+      .select("circle:nth-child(2)")
+      .attr("stroke", d => {
+        const isSelected = selectedNode?.id === d.id;
+        const isHovered = hoveredNode === d.id;
+        return isSelected ? "#6366F1" : isHovered ? "#4B5563" : PAGE_TYPE_CONFIG[d.type].color;
+      })
+      .attr("stroke-width", d => {
+        const isSelected = selectedNode?.id === d.id;
+        const isHovered = hoveredNode === d.id;
+        return isSelected || isHovered ? 3 : 1.5;
+      });
+  }, [hoveredNode, selectedNode]);
   
   if (dimensions.width === 0) {
     return (
@@ -291,7 +321,7 @@ export function InteractiveGraph({ graph }: InteractiveGraphProps) {
     );
   }
   
-  if (simulatedNodes.length === 0) {
+  if (graph.nodes.length === 0) {
     return (
       <div ref={containerRef} className="h-[400px] bg-muted/30 rounded-lg flex items-center justify-center">
         <p className="text-muted-foreground">No nodes to display</p>
@@ -299,153 +329,29 @@ export function InteractiveGraph({ graph }: InteractiveGraphProps) {
     );
   }
   
-  if (!isLayoutReady) {
-    return (
-      <div ref={containerRef} className="relative h-[400px] bg-muted/30 rounded-lg overflow-hidden">
-        <svg width={dimensions.width} height={dimensions.height} className="absolute inset-0">
-          {simulatedNodes.map((node) => {
-            const config = PAGE_TYPE_CONFIG[node.type];
-            const radius = node.isHub ? 28 : node.isOrphan ? 20 : 24;
-            return (
-              <g key={node.id} transform={`translate(${node.x}, ${node.y})`}>
-                <circle r={radius} fill={config.bgColor} stroke={config.color} strokeWidth={2} opacity={0.6} />
-              </g>
-            );
-          })}
-        </svg>
-        <div className="absolute inset-0 flex items-center justify-center bg-background/50">
-          <div className="flex flex-col items-center gap-2">
-            <Loader2 className="h-6 w-6 animate-spin text-primary" />
-            <div className="text-sm text-muted-foreground">Optimizing layout...</div>
-            <div className="w-48 h-2 bg-muted rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-primary transition-all duration-100" 
-                style={{ width: `${layoutProgress}%` }}
-              />
-            </div>
-            <div className="text-xs text-muted-foreground">{layoutProgress}%</div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-  
   return (
     <div ref={containerRef} className="relative h-[400px] bg-muted/30 rounded-lg overflow-hidden">
       <svg
+        ref={svgRef}
         width={dimensions.width}
         height={dimensions.height}
+        viewBox={`${-dimensions.width / 2} ${-dimensions.height / 2} ${dimensions.width} ${dimensions.height}`}
         className="absolute inset-0"
+        style={{ maxWidth: "100%", height: "auto" }}
       >
         <defs>
           <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="3" result="coloredBlur" />
+            <feGaussianBlur stdDeviation="2" result="coloredBlur" />
             <feMerge>
               <feMergeNode in="coloredBlur" />
               <feMergeNode in="SourceGraphic" />
             </feMerge>
           </filter>
         </defs>
-        
-        {graph.edges.map((edge) => {
-          const fromNode = nodeMap.get(edge.from);
-          const toNode = nodeMap.get(edge.to);
-          
-          if (!fromNode || !toNode) return null;
-          
-          const isHighlighted = 
-            hoveredNode === edge.from || 
-            hoveredNode === edge.to ||
-            selectedNode?.id === edge.from ||
-            selectedNode?.id === edge.to;
-          
-          return (
-            <line
-              key={edge.id}
-              x1={fromNode.x}
-              y1={fromNode.y}
-              x2={toNode.x}
-              y2={toNode.y}
-              stroke={isHighlighted ? "#6366F1" : "#CBD5E1"}
-              strokeWidth={isHighlighted ? 2 : 1}
-              strokeOpacity={isHighlighted ? 1 : 0.6}
-              className="transition-all duration-200"
-            />
-          );
-        })}
-        
-        {simulatedNodes.map((node) => {
-          const config = PAGE_TYPE_CONFIG[node.type];
-          const isSelected = selectedNode?.id === node.id;
-          const isHovered = hoveredNode === node.id;
-          const isConnectedToSelected = selectedNode && graph.edges.some(
-            e => (e.from === selectedNode.id && e.to === node.id) ||
-                 (e.to === selectedNode.id && e.from === node.id)
-          );
-          
-          const radius = node.isHub ? 28 : node.isOrphan ? 20 : 24;
-          const scale = isSelected ? 1.2 : isHovered ? 1.1 : isConnectedToSelected ? 1.05 : 1;
-          
-          return (
-            <g
-              key={node.id}
-              transform={`translate(${node.x}, ${node.y})`}
-              onClick={() => handleNodeClick(node)}
-              onMouseEnter={() => setHoveredNode(node.id)}
-              onMouseLeave={() => setHoveredNode(null)}
-              className="cursor-pointer"
-              style={{ transition: "transform 0.2s ease-out" }}
-            >
-              {node.isOrphan && (
-                <circle
-                  r={radius * scale + 5}
-                  fill="none"
-                  stroke="#EF4444"
-                  strokeWidth={2}
-                  strokeDasharray="4 2"
-                  opacity={0.5}
-                />
-              )}
-              
-              <circle
-                r={radius * scale}
-                fill={config.bgColor}
-                stroke={isSelected ? "#6366F1" : config.color}
-                strokeWidth={isSelected ? 3 : 2}
-                filter={isSelected || isHovered ? "url(#glow)" : undefined}
-                className="transition-all duration-200"
-              />
-              
-              <text
-                y={radius * scale + 14}
-                textAnchor="middle"
-                fontSize={10}
-                fill={isSelected ? "#6366F1" : "#475569"}
-                fontWeight={isSelected || isHovered ? 600 : 500}
-                className="select-none pointer-events-none"
-              >
-                {node.title.length > 12 ? node.title.slice(0, 12) + "..." : node.title}
-              </text>
-              
-              {(node.isHub || node.isOrphan) && (
-                <text
-                  y={-radius * scale - 6}
-                  textAnchor="middle"
-                  fontSize={8}
-                  fill={node.isHub ? "#3B82F6" : "#EF4444"}
-                  fontWeight={600}
-                  className="select-none pointer-events-none"
-                >
-                  {node.isHub ? "Hub" : "Orphan"}
-                </text>
-              )}
-            </g>
-          );
-        })}
       </svg>
       
       {selectedNode && (
-        <SelectedNodeDetails node={selectedNode} onClose={handleCloseDetails} />
+        <SelectedNodeDetails node={selectedNode} onClose={() => setSelectedNode(null)} />
       )}
       
       <div className="absolute bottom-4 left-4 flex items-center gap-2 text-xs text-muted-foreground">
@@ -460,7 +366,7 @@ export function InteractiveGraph({ graph }: InteractiveGraphProps) {
       </div>
       
       <div className="absolute bottom-4 right-4 text-xs text-muted-foreground">
-        Click a node to see details
+        Drag nodes to rearrange • Click for details
       </div>
     </div>
   );
