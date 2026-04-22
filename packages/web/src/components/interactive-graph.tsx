@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Brain, Layers, FileText, BookOpen, X, ExternalLink, ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -120,11 +120,8 @@ export function InteractiveGraph({ graph }: InteractiveGraphProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [selectedNode, setSelectedNode] = useState<SimulatedNode | null>(null);
-  const [hoveredNode, setHoveredNode] = useState<string | null>(null);
   const [isLayoutReady, setIsLayoutReady] = useState(false);
   const simulationRef = useRef<d3.Simulation<SimulatedNode, D3Link> | null>(null);
-  const nodesRef = useRef<SimulatedNode[]>([]);
-  const linksRef = useRef<D3Link[]>([]);
   
   useEffect(() => {
     if (!containerRef.current) return;
@@ -149,10 +146,13 @@ export function InteractiveGraph({ graph }: InteractiveGraphProps) {
     
     setIsLayoutReady(false);
     
+    const width = dimensions.width;
+    const height = dimensions.height;
+    
     const nodes: SimulatedNode[] = graph.nodes.map(d => ({
       ...d,
-      x: 0,
-      y: 0,
+      x: width / 2,
+      y: height / 2,
       vx: 0,
       vy: 0,
       fx: null,
@@ -165,99 +165,93 @@ export function InteractiveGraph({ graph }: InteractiveGraphProps) {
       target: nodes.find(n => n.id === d.to)!,
     }));
     
-    nodesRef.current = nodes;
-    linksRef.current = links;
-    
     const simulation = d3.forceSimulation<SimulatedNode, D3Link>(nodes)
-      .force("link", d3.forceLink<D3Link>(links).id(d => d.id))
-      .force("charge", d3.forceManyBody())
-      .force("x", d3.forceX())
-      .force("y", d3.forceY());
+      .force("link", d3.forceLink<D3Link>(links).id(d => d.id).distance(30))
+      .force("charge", d3.forceManyBody().strength(-100))
+      .force("center", d3.forceCenter(width / 2, height / 2))
+      .force("collide", d3.forceCollide().radius(8));
     
     simulationRef.current = simulation;
     
+    const svg = d3.select(svgRef.current!);
+    
+    svg.selectAll("*").remove();
+    
+    const link = svg.append("g")
+      .attr("stroke", "#999")
+      .attr("stroke-opacity", 0.6)
+      .selectAll("line")
+      .data(links)
+      .join("line")
+      .attr("stroke-width", 1);
+    
+    const node = svg.append("g")
+      .attr("stroke", "#fff")
+      .attr("stroke-width", 1.5)
+      .selectAll("g")
+      .data(nodes)
+      .join("g")
+      .attr("cursor", "pointer");
+    
+    node.each(function(d) {
+      const g = d3.select(this);
+      const config = PAGE_TYPE_CONFIG[d.type];
+      const radius = d.isHub ? 8 : d.isOrphan ? 5 : 6;
+      
+      if (d.isOrphan) {
+        g.append("circle")
+          .attr("r", radius + 3)
+          .attr("fill", "none")
+          .attr("stroke", "#EF4444")
+          .attr("stroke-width", 1.5)
+          .attr("stroke-dasharray", "3 2")
+          .attr("opacity", 0.6);
+      }
+      
+      g.append("circle")
+        .attr("r", radius)
+        .attr("fill", config.bgColor)
+        .attr("stroke", config.color);
+      
+      g.append("title").text(d.title);
+    });
+    
+    node.call(
+      d3.drag<SVGGElement, SimulatedNode>()
+        .on("start", (event: d3.D3DragEvent<SVGGElement, SimulatedNode, SimulatedNode>) => {
+          if (!event.active) simulation.alphaTarget(0.3).restart();
+          event.subject.fx = event.subject.x;
+          event.subject.fy = event.subject.y;
+        })
+        .on("drag", (event: d3.D3DragEvent<SVGGElement, SimulatedNode, SimulatedNode>) => {
+          event.subject.fx = event.x;
+          event.subject.fy = event.y;
+        })
+        .on("end", (event: d3.D3DragEvent<SVGGElement, SimulatedNode, SimulatedNode>) => {
+          if (!event.active) simulation.alphaTarget(0);
+          event.subject.fx = null;
+          event.subject.fy = null;
+        })
+    );
+    
+    node.on("click", (event: MouseEvent, d: SimulatedNode) => {
+      event.stopPropagation();
+      setSelectedNode(d);
+    });
+    
     simulation.on("tick", () => {
-      if (!svgRef.current) return;
+      link
+        .attr("x1", d => d.source.x)
+        .attr("y1", d => d.source.y)
+        .attr("x2", d => d.target.x)
+        .attr("y2", d => d.target.y);
       
-      const svg = d3.select(svgRef.current);
+      node.attr("transform", d => `translate(${d.x},${d.y})`);
       
-      svg.selectAll<SVGLineElement, D3Link>(".link")
-        .attr("x1", d => d.source.x + dimensions.width / 2)
-        .attr("y1", d => d.source.y + dimensions.height / 2)
-        .attr("x2", d => d.target.x + dimensions.width / 2)
-        .attr("y2", d => d.target.y + dimensions.height / 2);
-      
-      svg.selectAll<SVGGElement, SimulatedNode>(".node")
-        .attr("transform", d => `translate(${d.x + dimensions.width / 2},${d.y + dimensions.height / 2})`);
-      
-      if (simulation.alpha() < 0.01) {
+      if (simulation.alpha() < 0.01 && !isLayoutReady) {
         setIsLayoutReady(true);
       }
     });
-    
-    if (svgRef.current) {
-      const svg = d3.select(svgRef.current);
-      
-      svg.selectAll(".link")
-        .data(links)
-        .join("line")
-        .attr("class", "link")
-        .attr("stroke", "#999")
-        .attr("stroke-opacity", 0.6)
-        .attr("stroke-width", 1);
-      
-      const nodeGroup = svg.selectAll<SVGGElement, SimulatedNode>(".node")
-        .data(nodes)
-        .join("g")
-        .attr("class", "node")
-        .attr("stroke", "#fff")
-        .attr("stroke-width", 1.5);
-      
-      nodeGroup.each(function(d) {
-        const group = d3.select(this);
-        const config = PAGE_TYPE_CONFIG[d.type];
-        const radius = d.isHub ? 8 : d.isOrphan ? 5 : 6;
-        
-        if (d.isOrphan) {
-          group.append("circle")
-            .attr("r", radius + 3)
-            .attr("fill", "none")
-            .attr("stroke", "#EF4444")
-            .attr("stroke-width", 2)
-            .attr("stroke-dasharray", "4 2")
-            .attr("opacity", 0.5);
-        }
-        
-        group.append("circle")
-          .attr("r", radius)
-          .attr("fill", config.bgColor)
-          .attr("stroke", config.color);
-        
-        group.append("title").text(d.title);
-      });
-      
-      nodeGroup.call(
-        d3.drag<SVGGElement, SimulatedNode>()
-          .on("start", (event) => {
-            if (!event.active) simulation.alphaTarget(0.3).restart();
-            event.subject.fx = event.subject.x;
-            event.subject.fy = event.subject.y;
-          })
-          .on("drag", (event) => {
-            event.subject.fx = event.x;
-            event.subject.fy = event.y;
-          })
-          .on("end", (event) => {
-            if (!event.active) simulation.alphaTarget(0);
-            event.subject.fx = null;
-            event.subject.fy = null;
-          })
-      );
-      
-      nodeGroup.on("click", (_, d) => setSelectedNode(d));
-      nodeGroup.on("mouseenter", (_, d) => setHoveredNode(d.id));
-      nodeGroup.on("mouseleave", () => setHoveredNode(null));
-    }
     
     return () => {
       simulation.stop();
@@ -266,49 +260,23 @@ export function InteractiveGraph({ graph }: InteractiveGraphProps) {
   }, [graph, dimensions.width, dimensions.height]);
   
   useEffect(() => {
-    if (!svgRef.current || hoveredNode === null || selectedNode === null) return;
+    if (!svgRef.current || !selectedNode) return;
     
     const svg = d3.select(svgRef.current);
+    const node = svg.selectAll<SVGGElement, SimulatedNode>("g g");
     
-    svg.selectAll<SVGLineElement, D3Link>(".link")
-      .attr("stroke", d => {
-        const isHighlighted = 
-          hoveredNode === d.source.id ||
-          hoveredNode === d.target.id ||
-          selectedNode?.id === d.source.id ||
-          selectedNode?.id === d.target.id;
-        return isHighlighted ? "#6366F1" : "#999";
-      })
-      .attr("stroke-width", d => {
-        const isHighlighted = 
-          hoveredNode === d.source.id ||
-          hoveredNode === d.target.id ||
-          selectedNode?.id === d.source.id ||
-          selectedNode?.id === d.target.id;
-        return isHighlighted ? 2 : 1;
-      })
-      .attr("stroke-opacity", d => {
-        const isHighlighted = 
-          hoveredNode === d.source.id ||
-          hoveredNode === d.target.id ||
-          selectedNode?.id === d.source.id ||
-          selectedNode?.id === d.target.id;
-        return isHighlighted ? 1 : 0.6;
-      });
+    node.selectAll("circle:nth-child(2)")
+      .attr("stroke", d => d.id === selectedNode.id ? "#6366F1" : PAGE_TYPE_CONFIG[d.type].color)
+      .attr("stroke-width", d => d.id === selectedNode.id ? 3 : 1.5);
     
-    svg.selectAll<SVGGElement, SimulatedNode>(".node")
-      .select("circle:nth-child(2)")
-      .attr("stroke", d => {
-        const isSelected = selectedNode?.id === d.id;
-        const isHovered = hoveredNode === d.id;
-        return isSelected ? "#6366F1" : isHovered ? "#4B5563" : PAGE_TYPE_CONFIG[d.type].color;
-      })
-      .attr("stroke-width", d => {
-        const isSelected = selectedNode?.id === d.id;
-        const isHovered = hoveredNode === d.id;
-        return isSelected || isHovered ? 3 : 1.5;
-      });
-  }, [hoveredNode, selectedNode]);
+    svg.selectAll<SVGLineElement, D3Link>("line")
+      .attr("stroke", d => 
+        d.source.id === selectedNode.id || d.target.id === selectedNode.id ? "#6366F1" : "#999"
+      )
+      .attr("stroke-width", d => 
+        d.source.id === selectedNode.id || d.target.id === selectedNode.id ? 2 : 1
+      );
+  }, [selectedNode]);
   
   if (dimensions.width === 0) {
     return (
@@ -335,20 +303,17 @@ export function InteractiveGraph({ graph }: InteractiveGraphProps) {
         ref={svgRef}
         width={dimensions.width}
         height={dimensions.height}
-        viewBox={`${-dimensions.width / 2} ${-dimensions.height / 2} ${dimensions.width} ${dimensions.height}`}
         className="absolute inset-0"
-        style={{ maxWidth: "100%", height: "auto" }}
-      >
-        <defs>
-          <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="2" result="coloredBlur" />
-            <feMerge>
-              <feMergeNode in="coloredBlur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-        </defs>
-      </svg>
+      />
+      
+      {!isLayoutReady && (
+        <div className="absolute inset-0 flex items-center justify-center bg-background/30">
+          <div className="flex items-center gap-2">
+            <Loader2 className="h-4 w-4 animate-spin text-primary" />
+            <span className="text-sm text-muted-foreground">Arranging nodes...</span>
+          </div>
+        </div>
+      )}
       
       {selectedNode && (
         <SelectedNodeDetails node={selectedNode} onClose={() => setSelectedNode(null)} />
@@ -366,7 +331,7 @@ export function InteractiveGraph({ graph }: InteractiveGraphProps) {
       </div>
       
       <div className="absolute bottom-4 right-4 text-xs text-muted-foreground">
-        Drag nodes to rearrange • Click for details
+        Drag to rearrange • Click for details
       </div>
     </div>
   );
