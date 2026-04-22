@@ -93,6 +93,10 @@ const QueryWikiPagesSchema = z.object({
   offset: z.coerce.number().int().nonnegative().optional(),
 });
 
+const BatchDeleteWikiPagesSchema = z.object({
+  ids: z.array(z.string()).min(1).max(100),
+});
+
 export async function registerWikiPageRoutes(fastify: FastifyInstance) {
   fastify.get("/api/wiki-pages", async (request) => {
     const query = QueryWikiPagesSchema.parse(request.query);
@@ -201,6 +205,34 @@ export async function registerWikiPageRoutes(fastify: FastifyInstance) {
     wikiStatsCache.delete(STATS_CACHE_KEY);
     searchCache.delete(PAGES_CACHE_KEY);
     return { success: true };
+  });
+
+  fastify.post("/api/wiki-pages/batch-delete", async (request, reply) => {
+    const parseResult = BatchDeleteWikiPagesSchema.safeParse(request.body);
+
+    if (!parseResult.success) {
+      reply.code(400);
+      return { error: parseResult.error.message };
+    }
+
+    const { ids } = parseResult.data;
+    const deleted: string[] = [];
+    const failed: string[] = [];
+
+    for (const id of ids) {
+      const existing = await storage.wikiPages.findById(id);
+      if (existing) {
+        await storage.wikiPages.delete(id);
+        wikiFileManager.deletePage(existing.type, existing.slug);
+        deleted.push(id);
+      } else {
+        failed.push(id);
+      }
+    }
+
+    wikiStatsCache.delete(STATS_CACHE_KEY);
+    searchCache.delete(PAGES_CACHE_KEY);
+    return { deleted, failed, success: true };
   });
 
   fastify.get("/api/wiki-pages/:id/content", async (request, reply) => {

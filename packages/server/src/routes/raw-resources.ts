@@ -31,6 +31,10 @@ const QueryRawResourcesSchema = z.object({
   offset: z.coerce.number().int().nonnegative().optional(),
 });
 
+const BatchDeleteRawResourcesSchema = z.object({
+  ids: z.array(z.string()).min(1).max(100),
+});
+
 export async function registerRawResourceRoutes(fastify: FastifyInstance) {
   fastify.get("/api/raw-resources", async (request) => {
     const query = QueryRawResourcesSchema.parse(request.query);
@@ -205,5 +209,30 @@ export async function registerRawResourceRoutes(fastify: FastifyInstance) {
     
     await storage.rawResources.delete(params.id);
     return { success: true };
+  });
+
+  fastify.post("/api/raw-resources/batch-delete", async (request, reply) => {
+    const parseResult = BatchDeleteRawResourcesSchema.safeParse(request.body);
+    
+    if (!parseResult.success) {
+      reply.code(400);
+      return { error: parseResult.error.message };
+    }
+    
+    const { ids } = parseResult.data;
+    const deleted: string[] = [];
+    const failed: string[] = [];
+    
+    for (const id of ids) {
+      const existing = await storage.rawResources.findById(id);
+      if (existing) {
+        await storage.rawResources.delete(id);
+        deleted.push(id);
+      } else {
+        failed.push(id);
+      }
+    }
+    
+    return { deleted, failed, success: true };
   });
 }

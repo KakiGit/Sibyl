@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { FileText, Image, Globe, TextIcon, Trash2, Loader2, CheckCircle, Clock, ExternalLink, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
+import { FileText, Image, Globe, TextIcon, Trash2, Loader2, CheckCircle, Clock, ExternalLink, RefreshCw, ChevronLeft, ChevronRight, Check } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { RawResourceDetail } from "./raw-resource-detail";
+import { useToast } from "@/components/toast";
 
 const RESOURCE_TYPE_CONFIG = {
   pdf: { icon: FileText, label: "PDF", color: "bg-red-100 text-red-800" },
@@ -62,6 +63,16 @@ async function deleteRawResource(id: string): Promise<{ success: boolean }> {
   return response.json();
 }
 
+async function batchDeleteRawResources(ids: string[]): Promise<{ deleted: string[]; failed: string[]; success: boolean }> {
+  const response = await fetch("/api/raw-resources/batch-delete", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ids }),
+  });
+  if (!response.ok) throw new Error("Failed to batch delete raw resources");
+  return response.json();
+}
+
 async function fetchRawResourceStats(): Promise<{ data: { total: number; processed: number; unprocessed: number; byType: Record<string, number> } }> {
   const response = await fetch("/api/raw-index/stats");
   if (!response.ok) {
@@ -103,11 +114,17 @@ function RawResourceCard({
   onDelete,
   onView,
   isDeleting,
+  isSelected,
+  onSelect,
+  selectionMode,
 }: {
   resource: RawResource;
   onDelete: () => void;
   onView: () => void;
   isDeleting: boolean;
+  isSelected: boolean;
+  onSelect: () => void;
+  selectionMode: boolean;
 }) {
   const config = RESOURCE_TYPE_CONFIG[resource.type];
   const Icon = config.icon;
@@ -116,12 +133,26 @@ function RawResourceCard({
 
   return (
     <Card
-      className="hover:shadow-md transition-shadow cursor-pointer hover:border-primary/50"
-      onClick={onView}
+      className={`hover:shadow-md transition-shadow cursor-pointer hover:border-primary/50 ${isSelected ? "border-primary ring-2 ring-primary/20" : ""}`}
+      onClick={selectionMode ? onSelect : onView}
     >
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-2">
+            {selectionMode && (
+              <button
+                type="button"
+                role="checkbox"
+                aria-checked={isSelected}
+                className={`h-4 w-4 shrink-0 rounded-sm border border-primary ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 mr-2 ${isSelected ? "bg-primary text-primary-foreground" : ""}`}
+                onClick={(e: React.MouseEvent) => {
+                  e.stopPropagation();
+                  onSelect();
+                }}
+              >
+                {isSelected && <Check className="h-3 w-3" />}
+              </button>
+            )}
             <Icon className="h-4 w-4 text-muted-foreground" />
             <CardTitle className="text-base truncate max-w-[200px]">{resource.filename}</CardTitle>
           </div>
@@ -164,24 +195,26 @@ function RawResourceCard({
           )}
           <div className="flex items-center justify-between pt-2">
             <span className="text-xs text-muted-foreground">{createdDate}</span>
-            <div className="flex items-center gap-1">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDelete();
-                }}
-                disabled={isDeleting}
-                className="text-red-600 hover:text-red-700 hover:bg-red-50"
-              >
-                {isDeleting ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Trash2 className="h-4 w-4" />
-                )}
-              </Button>
-            </div>
+            {!selectionMode && (
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete();
+                  }}
+                  disabled={isDeleting}
+                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                >
+                  {isDeleting ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       </CardContent>
@@ -251,8 +284,12 @@ export function RawResourceList({ type, processed }: { type?: string; processed?
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [selectedResourceId, setSelectedResourceId] = useState<string | null>(null);
   const [page, setPage] = useState(0);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [isBatchDeleting, setIsBatchDeleting] = useState(false);
   const pageSize = 20;
   const queryClient = useQueryClient();
+  const toast = useToast();
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["rawResources", type, processed, page, pageSize],
@@ -283,6 +320,48 @@ export function RawResourceList({ type, processed }: { type?: string; processed?
   const handleDelete = (id: string) => {
     setDeletingId(id);
     deleteMutation.mutate(id);
+  };
+
+  const handleBatchDelete = async () => {
+    if (selectedIds.size === 0) return;
+    setIsBatchDeleting(true);
+    try {
+      const result = await batchDeleteRawResources(Array.from(selectedIds));
+      if (result.failed.length > 0) {
+        toast.warning("Some deletions failed", `${result.failed.length} items could not be deleted`);
+      } else {
+        toast.success("Items deleted", `${result.deleted.length} items were deleted successfully`);
+      }
+      setSelectedIds(new Set());
+      setSelectionMode(false);
+      queryClient.invalidateQueries({ queryKey: ["rawResources"] });
+      queryClient.invalidateQueries({ queryKey: ["rawResourceStats"] });
+      queryClient.invalidateQueries({ queryKey: ["ingestStatus"] });
+      queryClient.invalidateQueries({ queryKey: ["rawResourcesCount"] });
+    } catch {
+      toast.error("Failed to delete items", "Please try again");
+    } finally {
+      setIsBatchDeleting(false);
+    }
+  };
+
+  const handleSelectAll = () => {
+    const resources = data?.data || [];
+    if (selectedIds.size === resources.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(resources.map((r) => r.id)));
+    }
+  };
+
+  const handleToggleSelect = (id: string) => {
+    const newSelected = new Set(selectedIds);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedIds(newSelected);
   };
 
   const handleView = (resourceId: string) => {
@@ -337,11 +416,48 @@ export function RawResourceList({ type, processed }: { type?: string; processed?
           <Button
             variant="outline"
             size="sm"
-            onClick={() => queryClient.invalidateQueries({ queryKey: ["rawResources"] })}
+            onClick={() => {
+              setSelectionMode(!selectionMode);
+              setSelectedIds(new Set());
+            }}
           >
-            <RefreshCw className="h-4 w-4 mr-1" />
-            Refresh
+            <Check className="h-4 w-4 mr-1" />
+            {selectionMode ? "Cancel Selection" : "Select Multiple"}
           </Button>
+          {selectionMode && (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSelectAll}
+              >
+                {selectedIds.size === resources.length ? "Deselect All" : "Select All"}
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleBatchDelete}
+                disabled={selectedIds.size === 0 || isBatchDeleting}
+              >
+                {isBatchDeleting ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                ) : (
+                  <Trash2 className="h-4 w-4 mr-1" />
+                )}
+                Delete ({selectedIds.size})
+              </Button>
+            </>
+          )}
+          {!selectionMode && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => queryClient.invalidateQueries({ queryKey: ["rawResources"] })}
+            >
+              <RefreshCw className="h-4 w-4 mr-1" />
+              Refresh
+            </Button>
+          )}
         </div>
 
         {totalCount > pageSize && (
@@ -387,6 +503,9 @@ export function RawResourceList({ type, processed }: { type?: string; processed?
               onDelete={() => handleDelete(resource.id)}
               onView={() => handleView(resource.id)}
               isDeleting={deletingId === resource.id}
+              isSelected={selectedIds.has(resource.id)}
+              onSelect={() => handleToggleSelect(resource.id)}
+              selectionMode={selectionMode}
             />
           ))}
         </div>

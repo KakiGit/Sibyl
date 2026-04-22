@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useQuery, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
-import { Brain, Layers, FileText, BookOpen, RefreshCw } from "lucide-react";
+import { Brain, Layers, FileText, BookOpen, RefreshCw, Trash2, Loader2, Check } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -65,27 +65,57 @@ async function fetchWikiPagesPage({ type, limit, offset }: { type?: string; limi
   };
 }
 
+async function batchDeleteWikiPages(ids: string[]): Promise<{ deleted: string[]; failed: string[]; success: boolean }> {
+  const response = await fetch("/api/wiki-pages/batch-delete", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ids }),
+  });
+  if (!response.ok) throw new Error("Failed to batch delete wiki pages");
+  return response.json();
+}
+
 function WikiPageCard({
   page,
   onClick,
   onHover,
+  isSelected,
+  onSelect,
+  selectionMode,
 }: {
   page: WikiPage;
   onClick: () => void;
   onHover?: () => void;
+  isSelected: boolean;
+  onSelect: () => void;
+  selectionMode: boolean;
 }) {
   const config = PAGE_TYPE_CONFIG[page.type];
   const Icon = config.icon;
 
   return (
     <Card
-      className="hover:shadow-md transition-shadow cursor-pointer hover:border-primary/50"
-      onClick={onClick}
+      className={`hover:shadow-md transition-shadow cursor-pointer hover:border-primary/50 ${isSelected ? "border-primary ring-2 ring-primary/20" : ""}`}
+      onClick={selectionMode ? onSelect : onClick}
       onMouseEnter={onHover}
     >
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-2">
+            {selectionMode && (
+              <button
+                type="button"
+                role="checkbox"
+                aria-checked={isSelected}
+                className={`h-4 w-4 shrink-0 rounded-sm border border-primary ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 mr-2 ${isSelected ? "bg-primary text-primary-foreground" : ""}`}
+                onClick={(e: React.MouseEvent) => {
+                  e.stopPropagation();
+                  onSelect();
+                }}
+              >
+                {isSelected && <Check className="h-3 w-3" />}
+              </button>
+            )}
             <Icon className="h-4 w-4 text-muted-foreground" />
             <CardTitle className="text-base">{page.title}</CardTitle>
           </div>
@@ -135,6 +165,9 @@ function WikiPageListSkeleton({ count = 6 }: { count?: number }) {
 
 export function WikiPageList({ type }: { type?: string }) {
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [isBatchDeleting, setIsBatchDeleting] = useState(false);
   const toast = useToast();
   const observerRef = useRef<IntersectionObserver | null>(null);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
@@ -191,6 +224,45 @@ export function WikiPageList({ type }: { type?: string }) {
     refetch();
     toast.info("Refreshing wiki pages...");
   }, [refetch, toast]);
+
+  const handleBatchDelete = async () => {
+    if (selectedIds.size === 0) return;
+    setIsBatchDeleting(true);
+    try {
+      const result = await batchDeleteWikiPages(Array.from(selectedIds));
+      if (result.failed.length > 0) {
+        toast.warning("Some deletions failed", `${result.failed.length} items could not be deleted`);
+      } else {
+        toast.success("Pages deleted", `${result.deleted.length} pages were deleted successfully`);
+      }
+      setSelectedIds(new Set());
+      setSelectionMode(false);
+      queryClient.invalidateQueries({ queryKey: ["wikiPagesInfinite"] });
+      queryClient.invalidateQueries({ queryKey: ["wikiPagesCount"] });
+    } catch {
+      toast.error("Failed to delete pages", "Please try again");
+    } finally {
+      setIsBatchDeleting(false);
+    }
+  };
+
+  const handleSelectAll = () => {
+    if (selectedIds.size === allPages.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(allPages.map((p) => p.id)));
+    }
+  };
+
+  const handleToggleSelect = (id: string) => {
+    const newSelected = new Set(selectedIds);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedIds(newSelected);
+  };
 
   useEffect(() => {
     if (loadMoreRef.current && hasNextPage && !isFetchingNextPage) {
@@ -256,20 +328,61 @@ export function WikiPageList({ type }: { type?: string }) {
     <WikiLinkProvider existingSlugs={existingSlugs} onNavigate={handleNavigateToSlug}>
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <span>
-              Showing {allPages.length} of {totalCount || allPages.length} pages
-            </span>
-            {hasNextPage && (
-              <Badge variant="outline" className="text-xs">
-                More available
-              </Badge>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setSelectionMode(!selectionMode);
+                setSelectedIds(new Set());
+              }}
+            >
+              <Check className="h-4 w-4 mr-1" />
+              {selectionMode ? "Cancel Selection" : "Select Multiple"}
+            </Button>
+            {selectionMode && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSelectAll}
+                >
+                  {selectedIds.size === allPages.length ? "Deselect All" : "Select All"}
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={handleBatchDelete}
+                  disabled={selectedIds.size === 0 || isBatchDeleting}
+                >
+                  {isBatchDeleting ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                  ) : (
+                    <Trash2 className="h-4 w-4 mr-1" />
+                  )}
+                  Delete ({selectedIds.size})
+                </Button>
+              </>
+            )}
+            {!selectionMode && (
+              <>
+                <span className="text-sm text-muted-foreground">
+                  Showing {allPages.length} of {totalCount || allPages.length} pages
+                </span>
+                {hasNextPage && (
+                  <Badge variant="outline" className="text-xs">
+                    More available
+                  </Badge>
+                )}
+              </>
             )}
           </div>
-          <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isLoading || isFetchingNextPage}>
-            <RefreshCw className="h-3 w-3 mr-1" />
-            Refresh
-          </Button>
+          {!selectionMode && (
+            <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isLoading || isFetchingNextPage}>
+              <RefreshCw className="h-3 w-3 mr-1" />
+              Refresh
+            </Button>
+          )}
         </div>
         
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -279,11 +392,14 @@ export function WikiPageList({ type }: { type?: string }) {
               page={page}
               onClick={() => setSelectedPageId(page.id)}
               onHover={() => prefetchPage(page.id)}
+              isSelected={selectedIds.has(page.id)}
+              onSelect={() => handleToggleSelect(page.id)}
+              selectionMode={selectionMode}
             />
           ))}
         </div>
         
-        {hasNextPage && (
+        {!selectionMode && hasNextPage && (
           <div ref={loadMoreRef} className="flex justify-center py-4">
             {isFetchingNextPage ? (
               <WikiPageListSkeleton count={3} />

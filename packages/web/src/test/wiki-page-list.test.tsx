@@ -1,6 +1,6 @@
 import "@happy-dom/global-registrator";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { WikiPageList } from "../components/wiki-page-list";
 import { ToastProvider } from "../components/toast";
@@ -204,6 +204,172 @@ describe("WikiPageList", () => {
 
     await waitFor(() => {
       expect(fetchCalls.some(c => c.url.includes("type=entity"))).toBe(true);
+    });
+  });
+
+  it("shows Select Multiple button", async () => {
+    (global as Record<string, unknown>).fetch = async (url: string | URL | Request) => {
+      const urlString = typeof url === "string" ? url : url instanceof URL ? url.href : url.url;
+      if (urlString.includes("/count")) {
+        return { ok: true, json: async () => ({ count: 1 }) } as Response;
+      }
+      return {
+        ok: true,
+        json: async () => ({ data: mockWikiPages }),
+      } as Response;
+    };
+
+    render(<WikiPageList />, { wrapper: createWrapper() });
+
+    await waitFor(() => {
+      expect(screen.getByText("Select Multiple")).toBeTruthy();
+    });
+  });
+
+  it("shows selection controls when Select Multiple is clicked", async () => {
+    (global as Record<string, unknown>).fetch = async (url: string | URL | Request) => {
+      const urlString = typeof url === "string" ? url : url instanceof URL ? url.href : url.url;
+      if (urlString.includes("/count")) {
+        return { ok: true, json: async () => ({ count: 2 }) } as Response;
+      }
+      const pages = [
+        { ...mockWikiPages[0], id: "test-1" },
+        { ...mockWikiPages[0], id: "test-2", slug: "test-concept-2", title: "Test Concept 2" },
+      ];
+      return {
+        ok: true,
+        json: async () => ({ data: pages }),
+      } as Response;
+    };
+
+    render(<WikiPageList />, { wrapper: createWrapper() });
+
+    await waitFor(() => {
+      expect(screen.getByText("Test Concept")).toBeTruthy();
+    });
+
+    const selectMultipleBtn = screen.getByText("Select Multiple");
+    fireEvent.click(selectMultipleBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText("Select All")).toBeTruthy();
+      expect(screen.getByText("Delete (0)")).toBeTruthy();
+    });
+  });
+
+  it("calls batch delete API when Delete button clicked with selected items", async () => {
+    let batchDeleteCalled = false;
+    let deletedIds: string[] = [];
+    
+    (global as Record<string, unknown>).fetch = async (url: string | URL | Request, options?: RequestInit) => {
+      const urlString = typeof url === "string" ? url : url instanceof URL ? url.href : url.url;
+      fetchCalls.push({ url: urlString, options });
+      
+      if (urlString.includes("/count")) {
+        return { ok: true, json: async () => ({ count: 2 }) } as Response;
+      }
+      if (urlString.includes("batch-delete")) {
+        batchDeleteCalled = true;
+        const body = JSON.parse(options?.body as string || "{}");
+        deletedIds = body.ids;
+        return {
+          ok: true,
+          json: async () => ({ deleted: body.ids, failed: [], success: true }),
+        } as Response;
+      }
+      const pages = [
+        { ...mockWikiPages[0], id: "test-1" },
+        { ...mockWikiPages[0], id: "test-2", slug: "test-concept-2", title: "Test Concept 2" },
+      ];
+      return {
+        ok: true,
+        json: async () => ({ data: pages }),
+      } as Response;
+    };
+
+    render(<WikiPageList />, { wrapper: createWrapper() });
+
+    await waitFor(() => {
+      expect(screen.getByText("Test Concept")).toBeTruthy();
+    });
+
+    const selectMultipleBtn = screen.getByText("Select Multiple");
+    fireEvent.click(selectMultipleBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText("Select All")).toBeTruthy();
+    });
+
+    const selectAllBtn = screen.getByText("Select All");
+    fireEvent.click(selectAllBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText("Delete (2)")).toBeTruthy();
+    });
+
+    const deleteBtn = screen.getByText("Delete (2)");
+    fireEvent.click(deleteBtn);
+
+    await waitFor(() => {
+      expect(batchDeleteCalled).toBe(true);
+      expect(deletedIds.length).toBe(2);
+    });
+  });
+
+  it("shows Cancel Selection button in selection mode", async () => {
+    (global as Record<string, unknown>).fetch = async (url: string | URL | Request) => {
+      const urlString = typeof url === "string" ? url : url instanceof URL ? url.href : url.url;
+      if (urlString.includes("/count")) {
+        return { ok: true, json: async () => ({ count: 1 }) } as Response;
+      }
+      return {
+        ok: true,
+        json: async () => ({ data: mockWikiPages }),
+      } as Response;
+    };
+
+    render(<WikiPageList />, { wrapper: createWrapper() });
+
+    await waitFor(() => {
+      expect(screen.getByText("Select Multiple")).toBeTruthy();
+    });
+
+    const selectMultipleBtn = screen.getByText("Select Multiple");
+    fireEvent.click(selectMultipleBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText("Cancel Selection")).toBeTruthy();
+    });
+  });
+
+  it("disables Delete button when no items selected", async () => {
+    (global as Record<string, unknown>).fetch = async (url: string | URL | Request) => {
+      const urlString = typeof url === "string" ? url : url instanceof URL ? url.href : url.url;
+      if (urlString.includes("/count")) {
+        return { ok: true, json: async () => ({ count: 2 }) } as Response;
+      }
+      const pages = [
+        { ...mockWikiPages[0], id: "test-1" },
+        { ...mockWikiPages[0], id: "test-2", slug: "test-concept-2", title: "Test Concept 2" },
+      ];
+      return {
+        ok: true,
+        json: async () => ({ data: pages }),
+      } as Response;
+    };
+
+    render(<WikiPageList />, { wrapper: createWrapper() });
+
+    await waitFor(() => {
+      expect(screen.getByText("Test Concept")).toBeTruthy();
+    });
+
+    const selectMultipleBtn = screen.getByText("Select Multiple");
+    fireEvent.click(selectMultipleBtn);
+
+    await waitFor(() => {
+      const deleteBtn = screen.getByText("Delete (0)");
+      expect(deleteBtn.hasAttribute("disabled")).toBe(true);
     });
   });
 });
