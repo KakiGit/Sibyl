@@ -3,7 +3,8 @@ import { logger } from "@sibyl/shared";
 export type WebSocketEvent = {
   type: "wiki_page_created" | "wiki_page_updated" | "wiki_page_deleted" | 
         "raw_resource_created" | "raw_resource_updated" | "raw_resource_deleted" |
-        "processing_log_created" | "lint_completed" | "ingest_completed" | "query_completed";
+        "processing_log_created" | "lint_completed" | "ingest_completed" | "query_completed" |
+        "work_queue_updated";
   payload: unknown;
   timestamp: number;
 };
@@ -117,6 +118,14 @@ export function broadcastQueryCompleted(result: { query: string; resultsCount: n
   websocketBroadcaster.broadcast({
     type: "query_completed",
     payload: result,
+    timestamp: Date.now(),
+  });
+}
+
+export function broadcastWorkQueueUpdated(status: { active: boolean; queueLength: number; currentItem: unknown }): void {
+  websocketBroadcaster.broadcast({
+    type: "work_queue_updated",
+    payload: status,
     timestamp: Date.now(),
   });
 }

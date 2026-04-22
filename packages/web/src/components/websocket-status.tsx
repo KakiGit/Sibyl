@@ -1,6 +1,7 @@
-import { Wifi, WifiOff, Loader2 } from "lucide-react";
+import { Wifi, WifiOff, Loader2, Activity } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useWebSocket, type WebSocketStatus } from "@/hooks/use-websocket";
+import { useWorkQueue } from "@/hooks/use-work-queue";
 
 function StatusIndicator({ status }: { status: WebSocketStatus }) {
   switch (status) {
@@ -35,19 +36,36 @@ export function WebSocketStatus() {
     maxReconnectAttempts: 5,
   });
 
+  const { status: queueStatus } = useWorkQueue();
+
   return (
-    <div className="flex items-center gap-2">
-      <Badge variant="outline" className="flex items-center gap-1">
-        <StatusIndicator status={status} />
-        <span className="text-xs">
-          <StatusText status={status} />
-        </span>
-      </Badge>
-      {clientId && status === "connected" && (
-        <span className="text-xs text-muted-foreground">
-          ID: {clientId.slice(-6)}
-        </span>
-      )}
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <Badge variant="outline" className="flex items-center gap-1">
+          <StatusIndicator status={status} />
+          <span className="text-xs">
+            <StatusText status={status} />
+          </span>
+        </Badge>
+        {clientId && status === "connected" && (
+          <span className="text-xs text-muted-foreground">
+            ID: {clientId.slice(-6)}
+          </span>
+        )}
+      </div>
+      <div className="flex items-center gap-2">
+        <Badge variant="outline" className="flex items-center gap-1">
+          <Activity className={`h-3 w-3 ${queueStatus.active ? "text-orange-500" : "text-gray-400"}`} />
+          <span className="text-xs">
+            {queueStatus.active ? "LLM Active" : "LLM Inactive"}
+          </span>
+        </Badge>
+        {queueStatus.queueLength > 0 && (
+          <span className="text-xs text-muted-foreground">
+            {queueStatus.queueLength} task(s)
+          </span>
+        )}
+      </div>
     </div>
   );
 }

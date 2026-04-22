@@ -8,6 +8,7 @@ import { graphCommand } from "./commands/graph.js";
 import { listCommand } from "./commands/list.js";
 import { deleteCommand } from "./commands/delete.js";
 import { exportCommand } from "./commands/export.js";
+import { queueCommand } from "./commands/queue.js";
 
 const cli = yargs(hideBin(process.argv))
   .scriptName("sibyl")
@@ -24,6 +25,7 @@ const cli = yargs(hideBin(process.argv))
   .command(listCommand)
   .command(deleteCommand)
   .command(exportCommand)
+  .command(queueCommand)
   .demandCommand(1, "You need at least one command before moving on")
   .strict()
   .recommendCommands()

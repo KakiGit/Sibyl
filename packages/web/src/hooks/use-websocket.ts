@@ -11,7 +11,8 @@ export type WebSocketEventType =
   | "processing_log_created"
   | "lint_completed"
   | "ingest_completed"
-  | "query_completed";
+  | "query_completed"
+  | "work_queue_updated";
 
 export type WebSocketMessage = {
   type: "connected" | "subscribed" | "unsubscribed" | "pong" | "error" | WebSocketEventType;
