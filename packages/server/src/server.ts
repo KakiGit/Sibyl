@@ -3,6 +3,7 @@ import cors from "@fastify/cors";
 import { registerRoutes } from "./routes/index.js";
 import { registerWebSocketRoutes } from "./websocket/index.js";
 import { closeDatabase, migrateDatabase, createDatabase } from "./database.js";
+import { syncDatabaseWithFiles } from "./sync.js";
 import { DB_FILE } from "@sibyl/shared";
 import { resolve } from "path";
 
@@ -32,6 +33,8 @@ export async function createServer(options: ServerOptions = {}) {
   const dbPath = options.dbPath || resolve(DB_FILE);
   const db = createDatabase(dbPath);
   migrateDatabase(db);
+  
+  await syncDatabaseWithFiles(dbPath);
 
   await registerRoutes(fastify);
 
