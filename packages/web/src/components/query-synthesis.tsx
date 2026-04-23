@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Search, Loader2, BookOpen, FileDown, CheckCircle, XCircle } from "lucide-react";
+import { Search, Loader2, BookOpen, CheckCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,14 +12,6 @@ interface Citation {
   relevanceScore: number;
 }
 
-interface SynthesizeResult {
-  query: string;
-  answer: string;
-  citations: Citation[];
-  synthesizedAt: number;
-  model?: string;
-}
-
 interface FilingResult {
   wikiPageId: string;
   slug: string;
@@ -27,6 +19,15 @@ interface FilingResult {
   type: string;
   linkedPages: string[];
   filedAt: number;
+}
+
+interface SynthesizeResult {
+  query: string;
+  answer: string;
+  citations: Citation[];
+  synthesizedAt: number;
+  model?: string;
+  filedPage?: FilingResult;
 }
 
 async function synthesizeQuery(query: string): Promise<{ data: SynthesizeResult }> {
@@ -38,26 +39,6 @@ async function synthesizeQuery(query: string): Promise<{ data: SynthesizeResult 
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.message || "Failed to synthesize query");
-  }
-  return response.json();
-}
-
-async function fileSynthesizedAnswer(result: SynthesizeResult): Promise<{ data: FilingResult }> {
-  const response = await fetch("/api/filing", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      title: `Query Result: ${result.query.slice(0, 50)}`,
-      content: result.answer,
-      type: "summary",
-      tags: ["synthesized", "query-result"],
-      sourcePageSlugs: result.citations.map(c => c.pageSlug),
-      summary: `Synthesized answer for query: "${result.query}"`,
-    }),
-  });
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.message || "Failed to file answer");
   }
   return response.json();
 }
@@ -91,13 +72,7 @@ function CitationCard({ citation }: { citation: Citation }) {
   );
 }
 
-function AnswerDisplay({ result, onFile, filingPending, filingSuccess, filingError }: {
-  result: SynthesizeResult;
-  onFile: () => void;
-  filingPending: boolean;
-  filingSuccess: FilingResult | null;
-  filingError: Error | null;
-}) {
+function AnswerDisplay({ result }: { result: SynthesizeResult }) {
   const [activeTab, setActiveTab] = useState<"answer" | "citations">("answer");
   const processedAnswer = result.answer.replace(
     /\[\[([^\]]+)\]\]/g,
@@ -115,36 +90,14 @@ function AnswerDisplay({ result, onFile, filingPending, filingSuccess, filingErr
           {result.model && (
             <Badge variant="outline">Model: {result.model}</Badge>
           )}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onFile}
-            disabled={filingPending}
-          >
-            {filingPending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <FileDown className="h-4 w-4" />
-            )}
-            <span className="ml-2">File this Answer</span>
-          </Button>
         </div>
       </div>
 
-      {filingSuccess && (
+      {result.filedPage && (
         <div className="flex items-center gap-2 p-3 bg-green-50 rounded-lg">
           <CheckCircle className="h-4 w-4 text-green-600" />
           <p className="text-sm text-green-600">
-            Answer filed successfully as "{filingSuccess.title}" ({filingSuccess.slug})
-          </p>
-        </div>
-      )}
-
-      {filingError && (
-        <div className="flex items-center gap-2 p-3 bg-red-50 rounded-lg">
-          <XCircle className="h-4 w-4 text-red-600" />
-          <p className="text-sm text-red-600">
-            {filingError.message}
+            Answer saved to Wiki Page: <span className="font-medium">{result.filedPage.slug}</span> ({result.filedPage.linkedPages.length} linked pages)
           </p>
         </div>
       )}
@@ -198,18 +151,10 @@ function AnswerDisplay({ result, onFile, filingPending, filingSuccess, filingErr
 
 export function QuerySynthesis() {
   const [query, setQuery] = useState("");
-  const [result, setResult] = useState<SynthesizeResult | null>(null);
   const queryClient = useQueryClient();
 
   const mutation = useMutation({
     mutationFn: synthesizeQuery,
-    onSuccess: (data) => {
-      setResult(data.data);
-    },
-  });
-
-  const filingMutation = useMutation({
-    mutationFn: () => fileSynthesizedAnswer(result!),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["wikiPages"] });
       queryClient.invalidateQueries({ queryKey: ["filingHistory"] });
@@ -270,14 +215,8 @@ export function QuerySynthesis() {
         </Card>
       )}
 
-      {!mutation.isPending && result && (
-        <AnswerDisplay
-          result={result}
-          onFile={() => filingMutation.mutate()}
-          filingPending={filingMutation.isPending}
-          filingSuccess={filingMutation.data?.data || null}
-          filingError={filingMutation.error as Error | null}
-        />
+      {!mutation.isPending && mutation.data?.data && (
+        <AnswerDisplay result={mutation.data.data} />
       )}
     </div>
   );

@@ -19,17 +19,24 @@ const mockSynthesizeResult = {
     ],
     synthesizedAt: Date.now(),
     model: "mock-model",
+    filedPage: {
+      wikiPageId: "test-wiki-id",
+      slug: "query-result-what-is-react",
+      title: "Query Result: What is React?",
+      type: "summary",
+      linkedPages: ["react-overview"],
+      filedAt: Date.now(),
+    },
   },
 };
 
-const mockFilingResult = {
+const mockSynthesizeResultNoCitations = {
   data: {
-    wikiPageId: "test-wiki-id",
-    slug: "query-result-what-is-react",
-    title: "Query Result: What is React?",
-    type: "summary",
-    linkedPages: ["react-overview"],
-    filedAt: Date.now(),
+    query: "nonexistent query",
+    answer: "No relevant wiki pages found for this query.",
+    citations: [],
+    synthesizedAt: Date.now(),
+    filedPage: undefined,
   },
 };
 
@@ -45,7 +52,7 @@ const createWrapper = () => {
   );
 };
 
-describe("QuerySynthesis Quick Filing", () => {
+describe("QuerySynthesis Auto Filing", () => {
   const mockFetch = vi.fn();
 
   beforeEach(() => {
@@ -54,7 +61,7 @@ describe("QuerySynthesis Quick Filing", () => {
     global.fetch = mockFetch as unknown as typeof fetch;
   });
 
-  it("should display file answer button after synthesis", async () => {
+  it("should display filed status after synthesis with citations", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: () => Promise.resolve(mockSynthesizeResult),
@@ -69,18 +76,14 @@ describe("QuerySynthesis Quick Filing", () => {
     fireEvent.click(synthesizeButton);
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "File this Answer" })).toBeInTheDocument();
+      expect(screen.getByText(/Answer saved to Wiki Page/)).toBeInTheDocument();
     });
   });
 
-  it("should file synthesized answer when button clicked", async () => {
+  it("should show slug in filed status message", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: () => Promise.resolve(mockSynthesizeResult),
-    });
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: () => Promise.resolve(mockFilingResult),
     });
 
     render(<QuerySynthesis />, { wrapper: createWrapper() });
@@ -92,32 +95,14 @@ describe("QuerySynthesis Quick Filing", () => {
     fireEvent.click(synthesizeButton);
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "File this Answer" })).toBeInTheDocument();
-    });
-
-    const fileButton = screen.getByRole("button", { name: "File this Answer" });
-    fireEvent.click(fileButton);
-
-    await waitFor(() => {
-      expect(mockFetch).toHaveBeenCalledTimes(2);
-      const filingCall = mockFetch.mock.calls[1];
-      expect(filingCall[0]).toBe("/api/filing");
-      expect(filingCall[1].method).toBe("POST");
-      const body = JSON.parse(filingCall[1].body);
-      expect(body.type).toBe("summary");
-      expect(body.tags).toContain("synthesized");
-      expect(body.sourcePageSlugs).toContain("react-overview");
+      expect(screen.getByText(/query-result-what-is-react/)).toBeInTheDocument();
     });
   });
 
-  it("should show success message after filing", async () => {
+  it("should show linked pages count in filed status", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: () => Promise.resolve(mockSynthesizeResult),
-    });
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: () => Promise.resolve(mockFilingResult),
     });
 
     render(<QuerySynthesis />, { wrapper: createWrapper() });
@@ -129,116 +114,52 @@ describe("QuerySynthesis Quick Filing", () => {
     fireEvent.click(synthesizeButton);
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "File this Answer" })).toBeInTheDocument();
+      expect(screen.getByText(/1 linked pages/)).toBeInTheDocument();
+    });
+  });
+
+  it("should not show filed status when no citations", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve(mockSynthesizeResultNoCitations),
     });
 
-    const fileButton = screen.getByRole("button", { name: "File this Answer" });
-    fireEvent.click(fileButton);
+    render(<QuerySynthesis />, { wrapper: createWrapper() });
+
+    const input = screen.getByPlaceholderText("Ask a question about your wiki...");
+    fireEvent.change(input, { target: { value: "nonexistent query" } });
+
+    const synthesizeButton = screen.getByRole("button", { name: "Synthesize" });
+    fireEvent.click(synthesizeButton);
+
+    await waitFor(() => {
+      expect(screen.queryByText(/Answer saved to Wiki Page/)).not.toBeInTheDocument();
+    });
+  });
+
+  it("should show success message with green styling", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve(mockSynthesizeResult),
+    });
+
+    render(<QuerySynthesis />, { wrapper: createWrapper() });
+
+    const input = screen.getByPlaceholderText("Ask a question about your wiki...");
+    fireEvent.change(input, { target: { value: "What is React?" } });
+
+    const synthesizeButton = screen.getByRole("button", { name: "Synthesize" });
+    fireEvent.click(synthesizeButton);
 
     await waitFor(() => {
       const greenAlert = screen.getByText((content, element) => {
-        return Boolean(element?.className?.includes?.("text-green-600") && content.includes("Answer filed"));
+        return Boolean(element?.className?.includes?.("text-green-600") && content.includes("Answer saved"));
       });
       expect(greenAlert).toBeInTheDocument();
     });
   });
 
-  it("should show error message when filing fails", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: () => Promise.resolve(mockSynthesizeResult),
-    });
-    mockFetch.mockResolvedValueOnce({
-      ok: false,
-      json: () => Promise.resolve({ message: "Filing failed" }),
-    });
-
-    render(<QuerySynthesis />, { wrapper: createWrapper() });
-
-    const input = screen.getByPlaceholderText("Ask a question about your wiki...");
-    fireEvent.change(input, { target: { value: "What is React?" } });
-
-    const synthesizeButton = screen.getByRole("button", { name: "Synthesize" });
-    fireEvent.click(synthesizeButton);
-
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: "File this Answer" })).toBeInTheDocument();
-    });
-
-    const fileButton = screen.getByRole("button", { name: "File this Answer" });
-    fireEvent.click(fileButton);
-
-    await waitFor(() => {
-      expect(screen.getByText("Filing failed")).toBeInTheDocument();
-    });
-  });
-
-  it("should disable file button while filing", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: () => Promise.resolve(mockSynthesizeResult),
-    });
-    mockFetch.mockImplementationOnce(() => new Promise(resolve => {
-      setTimeout(() => resolve({
-        ok: true,
-        json: () => Promise.resolve(mockFilingResult),
-      }), 1000);
-    }));
-
-    render(<QuerySynthesis />, { wrapper: createWrapper() });
-
-    const input = screen.getByPlaceholderText("Ask a question about your wiki...");
-    fireEvent.change(input, { target: { value: "What is React?" } });
-
-    const synthesizeButton = screen.getByRole("button", { name: "Synthesize" });
-    fireEvent.click(synthesizeButton);
-
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: "File this Answer" })).toBeInTheDocument();
-    });
-
-    const fileButton = screen.getByRole("button", { name: "File this Answer" });
-    fireEvent.click(fileButton);
-
-    await waitFor(() => {
-      expect(fileButton).toBeDisabled();
-    });
-  });
-
-  it("should show filing loading state", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: () => Promise.resolve(mockSynthesizeResult),
-    });
-    mockFetch.mockImplementationOnce(() => new Promise(resolve => {
-      setTimeout(() => resolve({
-        ok: true,
-        json: () => Promise.resolve(mockFilingResult),
-      }), 1000);
-    }));
-
-    render(<QuerySynthesis />, { wrapper: createWrapper() });
-
-    const input = screen.getByPlaceholderText("Ask a question about your wiki...");
-    fireEvent.change(input, { target: { value: "What is React?" } });
-
-    const synthesizeButton = screen.getByRole("button", { name: "Synthesize" });
-    fireEvent.click(synthesizeButton);
-
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: "File this Answer" })).toBeInTheDocument();
-    });
-
-    const fileButton = screen.getByRole("button", { name: "File this Answer" });
-    fireEvent.click(fileButton);
-
-    await waitFor(() => {
-      const fileButtons = screen.getAllByRole("button", { name: /File this Answer/ });
-      expect(fileButtons[0]).toBeDisabled();
-    });
-  });
-
-  it("should include citations as source pages in filing", async () => {
+  it("should show multiple linked pages count correctly", async () => {
     const multiCitationResult = {
       data: {
         query: "What are React hooks?",
@@ -258,16 +179,20 @@ describe("QuerySynthesis Quick Filing", () => {
           },
         ],
         synthesizedAt: Date.now(),
+        filedPage: {
+          wikiPageId: "test-wiki-id",
+          slug: "query-result-what-are-react-hooks",
+          title: "Query Result: What are React hooks?",
+          type: "summary",
+          linkedPages: ["hooks-guide", "react-overview"],
+          filedAt: Date.now(),
+        },
       },
     };
 
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: () => Promise.resolve(multiCitationResult),
-    });
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: () => Promise.resolve(mockFilingResult),
     });
 
     render(<QuerySynthesis />, { wrapper: createWrapper() });
@@ -279,24 +204,33 @@ describe("QuerySynthesis Quick Filing", () => {
     fireEvent.click(synthesizeButton);
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "File this Answer" })).toBeInTheDocument();
-    });
-
-    const fileButton = screen.getByRole("button", { name: "File this Answer" });
-    fireEvent.click(fileButton);
-
-    await waitFor(() => {
-      expect(mockFetch).toHaveBeenCalledTimes(2);
-      const filingCall = mockFetch.mock.calls[1];
-      const body = JSON.parse(filingCall[1].body);
-      expect(body.sourcePageSlugs).toHaveLength(2);
-      expect(body.sourcePageSlugs).toContain("hooks-guide");
-      expect(body.sourcePageSlugs).toContain("react-overview");
+      expect(screen.getByText(/2 linked pages/)).toBeInTheDocument();
     });
   });
 
   it("should not show file button before synthesis", () => {
     render(<QuerySynthesis />, { wrapper: createWrapper() });
+
+    expect(screen.queryByRole("button", { name: "File this Answer" })).not.toBeInTheDocument();
+  });
+
+  it("should not have file button after synthesis", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve(mockSynthesizeResult),
+    });
+
+    render(<QuerySynthesis />, { wrapper: createWrapper() });
+
+    const input = screen.getByPlaceholderText("Ask a question about your wiki...");
+    fireEvent.change(input, { target: { value: "What is React?" } });
+
+    const synthesizeButton = screen.getByRole("button", { name: "Synthesize" });
+    fireEvent.click(synthesizeButton);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Answer saved to Wiki Page/)).toBeInTheDocument();
+    });
 
     expect(screen.queryByRole("button", { name: "File this Answer" })).not.toBeInTheDocument();
   });

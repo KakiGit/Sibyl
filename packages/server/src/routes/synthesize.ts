@@ -41,6 +41,7 @@ export async function registerSynthesizeRoutes(fastify: FastifyInstance) {
           citations: result.citations,
           synthesizedAt: result.synthesizedAt,
           model: result.model,
+          filedPage: result.filedPage,
         },
       };
     } catch (error) {
@@ -80,6 +81,7 @@ export async function registerSynthesizeRoutes(fastify: FastifyInstance) {
 
       reply.raw.write(`event: answer\ndata: ${JSON.stringify({ answer: result.answer })}\n\n`);
       reply.raw.write(`event: citations\ndata: ${JSON.stringify({ citations: result.citations })}\n\n`);
+      reply.raw.write(`event: filed\ndata: ${JSON.stringify({ filedPage: result.filedPage })}\n\n`);
       reply.raw.write(`event: done\ndata: ${JSON.stringify({ model: result.model })}\n\n`);
     } catch (error) {
       reply.raw.write(`event: error\ndata: ${JSON.stringify({ error: (error as Error).message })}\n\n`);

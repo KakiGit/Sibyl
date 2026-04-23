@@ -249,6 +249,7 @@ describe("Synthesize Routes", () => {
       expect(body.data.citations).toBeDefined();
       expect(Array.isArray(body.data.citations)).toBe(true);
       expect(body.data.synthesizedAt).toBeDefined();
+      expect(body.data.filedPage).toBeDefined();
     });
 
     it("should return message when no matches found", async () => {
@@ -321,6 +322,41 @@ describe("Synthesize Routes", () => {
       const body = JSON.parse(response.body);
       expect(body.data.answer).toBeDefined();
       expect(body.data.model).toBeUndefined();
+    });
+
+    it("should include filedPage when citations exist", async () => {
+      const response = await fastify.inject({
+        method: "POST",
+        url: "/api/synthesize",
+        payload: {
+          query: "Python",
+          skipLlm: true,
+        },
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body.data.filedPage).toBeDefined();
+      expect(body.data.filedPage?.slug).toBeDefined();
+      expect(body.data.filedPage?.title).toBeDefined();
+      expect(body.data.filedPage?.type).toBe("summary");
+      expect(body.data.filedPage?.wikiPageId).toBeDefined();
+      expect(body.data.filedPage?.filedAt).toBeDefined();
+    });
+
+    it("should not include filedPage when no citations", async () => {
+      const response = await fastify.inject({
+        method: "POST",
+        url: "/api/synthesize",
+        payload: {
+          query: "nonexistentxyzabc unique term",
+          skipLlm: true,
+        },
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body.data.filedPage).toBeUndefined();
     });
 
     it("should handle error gracefully", async () => {

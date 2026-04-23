@@ -2,6 +2,7 @@ import { storage, SynthesisCacheStorage } from "../storage/index.js";
 import { wikiFileManager, WikiFileManager } from "../wiki/index.js";
 import { getLlmProvider, type LlmProvider } from "../llm/index.js";
 import { semanticSearch, initializeEmbedder } from "../embeddings/index.js";
+import { fileContent, type FilingResult } from "./filing.js";
 import { logger } from "@sibyl/shared";
 import type { WikiPage, WikiPageType } from "@sibyl/sdk";
 
@@ -53,6 +54,7 @@ export interface SynthesizeResult {
   citations: Citation[];
   synthesizedAt: number;
   model?: string;
+  filedPage?: FilingResult;
 }
 
 function calculateRelevanceScore(
@@ -300,17 +302,31 @@ export async function synthesizeAnswer(options: SynthesizeOptions): Promise<Synt
   
   if (cachedResult && !options.skipLlm) {
     logger.info("Using cached synthesis result", { queryHash, query: options.query });
+    const citations = cachedResult.citations.map((c) => ({
+      pageSlug: c.pageSlug,
+      pageTitle: c.pageTitle,
+      pageType: c.pageType as WikiPageType,
+      relevanceScore: c.relevanceScore,
+    }));
+    
+    const sourcePageIds = await getSourcePageIdsFromCitations(citations);
+    const filedPage = await fileContent({
+      title: `Query Result: ${cachedResult.query.slice(0, 50)}`,
+      content: cachedResult.answer,
+      type: "summary",
+      tags: ["synthesized", "query-result"],
+      sourcePageIds,
+      wikiFileManager: wikiManager,
+      summary: `Synthesized answer for query: "${cachedResult.query}"`,
+    });
+    
     return {
       query: cachedResult.query,
       answer: cachedResult.answer,
-      citations: cachedResult.citations.map((c) => ({
-        pageSlug: c.pageSlug,
-        pageTitle: c.pageTitle,
-        pageType: c.pageType as WikiPageType,
-        relevanceScore: c.relevanceScore,
-      })),
+      citations,
       synthesizedAt: cachedResult.createdAt,
       model: cachedResult.model,
+      filedPage,
     };
   }
 
@@ -332,19 +348,34 @@ export async function synthesizeAnswer(options: SynthesizeOptions): Promise<Synt
     };
   }
 
+  const sourcePageIds = queryResult.matches.map((m) => m.page.id);
+
   if (!llmProvider) {
     logger.warn("No LLM provider available, returning basic summary");
     const basicAnswer = generateBasicSummary(queryResult.matches);
+    const citations = queryResult.matches.map((m) => ({
+      pageSlug: m.page.slug,
+      pageTitle: m.page.title,
+      pageType: m.page.type,
+      relevanceScore: m.relevanceScore,
+    }));
+    
+    const filedPage = await fileContent({
+      title: `Query Result: ${options.query.slice(0, 50)}`,
+      content: basicAnswer,
+      type: "summary",
+      tags: ["synthesized", "query-result", "basic-summary"],
+      sourcePageIds,
+      wikiFileManager: wikiManager,
+      summary: `Basic summary for query: "${options.query}"`,
+    });
+    
     return {
       query: options.query,
       answer: basicAnswer,
-      citations: queryResult.matches.map((m) => ({
-        pageSlug: m.page.slug,
-        pageTitle: m.page.title,
-        pageType: m.page.type,
-        relevanceScore: m.relevanceScore,
-      })),
+      citations,
       synthesizedAt: Date.now(),
+      filedPage,
     };
   }
 
@@ -413,6 +444,16 @@ Please synthesize an answer to the question using the provided wiki pages. Remem
     citations: queryResult.matches.length,
   });
 
+  const filedPage = await fileContent({
+    title: `Query Result: ${options.query.slice(0, 50)}`,
+    content: response.content,
+    type: "summary",
+    tags: ["synthesized", "query-result"],
+    sourcePageIds,
+    wikiFileManager: wikiManager,
+    summary: `Synthesized answer for query: "${options.query}"`,
+  });
+
   return {
     query: options.query,
     answer: response.content,
@@ -424,6 +465,7 @@ Please synthesize an answer to the question using the provided wiki pages. Remem
     })),
     synthesizedAt: Date.now(),
     model: response.model,
+    filedPage,
   };
 }
 
@@ -514,6 +556,17 @@ export async function getWikiPageGraph(pageId: string): Promise<{
       relationType: l.relationType,
     })),
   };
+}
+
+async function getSourcePageIdsFromCitations(citations: Citation[]): Promise<string[]> {
+  const pageIds: string[] = [];
+  for (const citation of citations) {
+    const page = await storage.wikiPages.findBySlug(citation.pageSlug);
+    if (page) {
+      pageIds.push(page.id);
+    }
+  }
+  return pageIds;
 }
 
 export const queryProcessor = {

@@ -197,6 +197,14 @@ test.describe("Query Synthesis", () => {
             ],
             synthesizedAt: Date.now(),
             model: "mock-model",
+            filedPage: {
+              wikiPageId: "test-wiki-id",
+              slug: "query-result-what-is-react",
+              title: "Query Result: What is React?",
+              type: "summary",
+              linkedPages: ["react-overview"],
+              filedAt: Date.now(),
+            },
           },
         }),
       });
@@ -241,6 +249,14 @@ test.describe("Query Synthesis", () => {
             ],
             synthesizedAt: Date.now(),
             model: "mock-model",
+            filedPage: {
+              wikiPageId: "test-wiki-id",
+              slug: "query-result-react-hooks",
+              title: "Query Result: React hooks",
+              type: "summary",
+              linkedPages: ["hooks-guide", "react-overview"],
+              filedAt: Date.now(),
+            },
           },
         }),
       });
@@ -271,6 +287,7 @@ test.describe("Query Synthesis", () => {
             answer: "Test answer",
             citations: [],
             synthesizedAt: Date.now(),
+            filedPage: undefined,
           },
         }),
       });
@@ -317,6 +334,7 @@ test.describe("Query Synthesis", () => {
             citations: [],
             synthesizedAt: Date.now(),
             model: "glm-5",
+            filedPage: undefined,
           },
         }),
       });
