@@ -2,7 +2,6 @@ import { existsSync, readFileSync } from "fs";
 import { resolve, join } from "path";
 import { logger } from "@sibyl/shared";
 import { Cache } from "../cache/index.js";
-import { llmWorkQueue } from "./work-queue.js";
 
 export interface LlmConfig {
   baseUrl: string;
@@ -101,65 +100,64 @@ export class LlmProvider {
     }
     
     const description = userPrompt.slice(0, 50) + (userPrompt.length > 50 ? "..." : "");
-    
-    return llmWorkQueue.enqueue("llm_call", description, async () => {
-      const response = await fetch(`${this.config.baseUrl}/chat/completions`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${this.config.apiKey}`,
-        },
-        body: JSON.stringify({
-          model: this.config.model,
-          max_tokens: this.config.maxTokens || DEFAULT_MAX_TOKENS,
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt },
-          ],
-        }),
-      });
+    logger.debug("LLM call starting", { description });
 
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(`LLM API error (${response.status}): ${text}`);
-      }
-
-      const data = (await response.json()) as Record<string, unknown>;
-      const choices = data.choices as
-        | Array<{ message: { content: string } }>
-        | undefined;
-      const content = choices?.[0]?.message?.content;
-
-      if (!content) {
-        throw new Error(
-          `LLM returned unexpected response: ${JSON.stringify(data).slice(0, 200)}`,
-        );
-      }
-
-      const usage = data.usage as
-        | { prompt_tokens: number; completion_tokens: number; total_tokens: number }
-        | undefined;
-
-      logger.debug("LLM call completed", {
+    const response = await fetch(`${this.config.baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${this.config.apiKey}`,
+      },
+      body: JSON.stringify({
         model: this.config.model,
-        promptTokens: usage?.prompt_tokens,
-        completionTokens: usage?.completion_tokens,
-      });
-
-      llmRequestCache.set(cacheKey, content);
-      
-      return {
-        content,
-        model: this.config.model,
-        usage: usage
-          ? {
-              promptTokens: usage.prompt_tokens,
-              completionTokens: usage.completion_tokens,
-              totalTokens: usage.total_tokens,
-            }
-          : undefined,
-      };
+        max_tokens: this.config.maxTokens || DEFAULT_MAX_TOKENS,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+      }),
     });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`LLM API error (${response.status}): ${text}`);
+    }
+
+    const data = (await response.json()) as Record<string, unknown>;
+    const choices = data.choices as
+      | Array<{ message: { content: string } }>
+      | undefined;
+    const content = choices?.[0]?.message?.content;
+
+    if (!content) {
+      throw new Error(
+        `LLM returned unexpected response: ${JSON.stringify(data).slice(0, 200)}`,
+      );
+    }
+
+    const usage = data.usage as
+      | { prompt_tokens: number; completion_tokens: number; total_tokens: number }
+      | undefined;
+
+    logger.debug("LLM call completed", {
+      model: this.config.model,
+      promptTokens: usage?.prompt_tokens,
+      completionTokens: usage?.completion_tokens,
+    });
+
+    llmRequestCache.set(cacheKey, content);
+    
+    return {
+      content,
+      model: this.config.model,
+      usage: usage
+        ? {
+            promptTokens: usage.prompt_tokens,
+            completionTokens: usage.completion_tokens,
+            totalTokens: usage.total_tokens,
+          }
+        : undefined,
+    };
   }
 
   async synthesize(prompt: string): Promise<string> {
