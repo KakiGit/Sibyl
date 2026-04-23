@@ -15,9 +15,15 @@ interface WikiPage {
   tags: string[];
 }
 
+interface MarpSlide {
+  title: string;
+  content: string;
+  notes?: string;
+}
+
 interface MarpResult {
   marpContent: string;
-  slides: string[];
+  slides: MarpSlide[];
   theme: string;
   sourcePages: Array<{
     id: string;
@@ -70,7 +76,7 @@ const PAGE_TYPE_CONFIG = {
   summary: { label: "Summary", color: "bg-orange-100 text-orange-800" },
 } as const;
 
-function SlidePreview({ slides }: { slides: string[] }) {
+function SlidePreview({ slides }: { slides: MarpSlide[] }) {
   return (
     <div className="space-y-4">
       {slides.map((slide, index) => (
@@ -78,10 +84,16 @@ function SlidePreview({ slides }: { slides: string[] }) {
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-2">
               <Badge variant="outline">Slide {index + 1}</Badge>
+              {slide.title && <Badge className="bg-blue-100 text-blue-800">{slide.title}</Badge>}
             </div>
             <div className="bg-muted rounded-lg p-4 whitespace-pre-wrap font-mono text-sm overflow-auto max-h-64">
-              {slide}
+              {slide.content}
             </div>
+            {slide.notes && (
+              <div className="mt-2 text-sm text-muted-foreground italic">
+                Notes: {slide.notes}
+              </div>
+            )}
           </CardContent>
         </Card>
       ))}
