@@ -1,5 +1,6 @@
 import { drizzle } from "drizzle-orm/bun-sqlite";
 import { Database } from "bun:sqlite";
+import { load as loadVecExtension } from "sqlite-vec";
 import * as schema from "./schema.js";
 import { DB_FILE } from "@sibyl/shared";
 import { resolve } from "path";
@@ -25,6 +26,13 @@ export function createDatabase(dbPath?: string): ReturnType<typeof drizzle<typeo
   }
   
   const sqlite = new Database(path);
+  
+  try {
+    loadVecExtension(sqlite);
+  } catch (error) {
+    console.warn("Failed to load sqlite-vec extension:", error);
+  }
+  
   const drizzleDb = drizzle({ client: sqlite, schema });
   
   if (!dbPath) {
@@ -109,6 +117,13 @@ export function migrateDatabase(database: ReturnType<typeof drizzle<typeof schem
       summary,
       content,
       tokenize = 'porter unicode61'
+    )
+  `);
+
+  sqlite.run(`
+    CREATE VIRTUAL TABLE IF NOT EXISTS wiki_embeddings USING vec0(
+      page_id TEXT PRIMARY KEY,
+      embedding FLOAT[384]
     )
   `);
 

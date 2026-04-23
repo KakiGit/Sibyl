@@ -1,4 +1,5 @@
 import { storage } from "../storage/index.js";
+import { vectorStorage } from "../vector/index.js";
 import { 
   generateEmbedding, 
   generateEmbeddingsBatch, 
@@ -184,3 +185,49 @@ export const embeddingsService = {
   searchBySimilarity,
   semanticSearch,
 };
+
+export async function storeWikiPageEmbedding(
+  pageId: string,
+  content: string,
+  options?: EmbeddingOptions
+): Promise<CachedEmbedding | null> {
+  const cached = await getOrGenerateEmbedding(content, options);
+  
+  if (!cached) {
+    return null;
+  }
+  
+  await vectorStorage.insert(pageId, cached.embedding);
+  
+  logger.debug("Stored wiki page embedding", { pageId, contentHash: cached.contentHash });
+  
+  return cached;
+}
+
+export async function deleteWikiPageEmbedding(pageId: string): Promise<void> {
+  await vectorStorage.delete(pageId);
+  logger.debug("Deleted wiki page embedding", { pageId });
+}
+
+export async function vectorSearch(
+  query: string,
+  options?: {
+    limit?: number;
+    model?: string;
+  }
+): Promise<Array<{ pageId: string; distance: number }>> {
+  const queryEmbedding = await generateEmbedding(query, { model: options?.model });
+  
+  if (!queryEmbedding) {
+    logger.warn("Failed to generate query embedding for vector search");
+    return [];
+  }
+  
+  const results = await vectorStorage.search(queryEmbedding.embedding, options?.limit ?? 10);
+  
+  return results;
+}
+
+export async function getWikiPageEmbedding(pageId: string): Promise<number[] | null> {
+  return vectorStorage.get(pageId);
+}

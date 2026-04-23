@@ -1,6 +1,6 @@
 import { getDatabase } from "../database.js";
 import { wikiFileManager } from "../wiki/index.js";
-import { semanticSearch } from "../embeddings/index.js";
+import { vectorSearch, storeWikiPageEmbedding, deleteWikiPageEmbedding } from "../embeddings/index.js";
 import type { WikiPage, HybridSearchOptions, SearchResult } from "@sibyl/sdk";
 import { logger } from "@sibyl/shared";
 
@@ -16,7 +16,12 @@ export class WikiSearchStorage {
       [page.id, page.title, page.summary ?? "", content?.content ?? ""]
     );
     
-    logger.debug("Indexed page in FTS5", { id: page.id, slug: page.slug });
+    if (content?.content) {
+      const fullContent = `${page.title}\n${page.summary ?? ""}\n${content.content}`;
+      await storeWikiPageEmbedding(page.id, fullContent);
+    }
+    
+    logger.debug("Indexed page in FTS5 and vec0", { id: page.id, slug: page.slug });
   }
 
   async updatePageIndex(page: WikiPage): Promise<void> {
@@ -30,7 +35,12 @@ export class WikiSearchStorage {
       [page.title, page.summary ?? "", content?.content ?? "", page.id]
     );
     
-    logger.debug("Updated FTS5 index for page", { id: page.id, slug: page.slug });
+    if (content?.content) {
+      const fullContent = `${page.title}\n${page.summary ?? ""}\n${content.content}`;
+      await storeWikiPageEmbedding(page.id, fullContent);
+    }
+    
+    logger.debug("Updated FTS5 and vec0 index for page", { id: page.id, slug: page.slug });
   }
 
   async deletePageIndex(pageId: string): Promise<void> {
@@ -39,7 +49,9 @@ export class WikiSearchStorage {
     
     sqlite.run(`DELETE FROM wiki_pages_fts WHERE id = ?`, [pageId]);
     
-    logger.debug("Deleted page from FTS5 index", { id: pageId });
+    await deleteWikiPageEmbedding(pageId);
+    
+    logger.debug("Deleted page from FTS5 and vec0 index", { id: pageId });
   }
 
   async ftsSearch(query: string, limit: number = 20): Promise<Array<{ id: string; score: number }>> {
@@ -76,22 +88,15 @@ export class WikiSearchStorage {
     
     const semanticResults: Array<{ id: string; similarity: number }> = [];
     
-    if (options.useSemantic !== false && pages.length > 0) {
-      const candidates = pages.map((p) => {
-        const content = wikiFileManager.readPage(p.type, p.slug);
-        return {
-          id: p.id,
-          content: `${p.title}\n${p.summary ?? ""}\n${content?.content ?? ""}`,
-          metadata: { type: p.type, slug: p.slug },
-        };
-      });
+    if (options.useSemantic !== false) {
+      const vectorResults = await vectorSearch(options.query, { limit: limit * 2 });
       
-      const semantic = await semanticSearch(options.query, candidates, {
-        threshold: options.semanticThreshold ?? 0.3,
-        limit: limit * 2,
-      });
-      
-      semanticResults.push(...semantic);
+      for (const result of vectorResults) {
+        semanticResults.push({
+          id: result.pageId,
+          similarity: 1 / (1 + result.distance),
+        });
+      }
     }
     
     const semanticMap = new Map<string, number>();
