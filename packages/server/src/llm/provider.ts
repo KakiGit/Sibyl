@@ -191,3 +191,7 @@ export function getLlmProvider(): LlmProvider | null {
 export function resetLlmProvider(): void {
   cachedProvider = null;
 }
+
+export function setLlmProviderForTest(provider: LlmProvider | null): void {
+  cachedProvider = provider;
+}

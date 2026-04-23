@@ -3,6 +3,7 @@ export {
   getLlmProvider,
   loadLlmConfig,
   resetLlmProvider,
+  setLlmProviderForTest,
 } from "./provider.js";
 export type { LlmConfig, LlmResponse } from "./provider.js";
 export { llmWorkQueue } from "./work-queue.js";

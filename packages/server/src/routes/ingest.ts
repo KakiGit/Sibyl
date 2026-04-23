@@ -253,11 +253,6 @@ export async function registerIngestRoutes(fastify: FastifyInstance) {
         return { error: "Raw resource not found" };
       }
 
-      if (rawResource.processed) {
-        reply.code(400);
-        return { error: "Raw resource already processed" };
-      }
-
       const ingestResult = await ingestWithLlm({
         rawResourceId: params.id,
         wikiFileManager,

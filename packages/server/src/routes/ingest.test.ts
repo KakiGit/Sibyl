@@ -4,7 +4,7 @@ import { join } from "path";
 import { tmpdir } from "os";
 import { createDatabase, migrateDatabase, closeDatabase, setDatabase, WikiFileManager } from "../index.js";
 import { storage } from "../storage/index.js";
-import { resetLlmProvider } from "../llm/index.js";
+import { resetLlmProvider, setLlmProviderForTest, LlmProvider } from "../llm/index.js";
 import Fastify from "fastify";
 import { registerIngestRoutes } from "./ingest.js";
 
@@ -284,6 +284,57 @@ describe("Ingest Routes", () => {
       expect(body.data.total).toBe(0);
       expect(body.data.processed).toBe(0);
       expect(body.data.unprocessed).toBe(0);
+    });
+  });
+
+  describe("POST /api/ingest/llm/:id", () => {
+    it("should allow re-processing an already processed raw resource", async () => {
+      const mockLlmProvider = {
+        name: "mock-provider",
+        call: async () => ({
+          content: JSON.stringify({
+            title: "Reprocess Test",
+            summary: "A test for re-processing.",
+            content: "# Reprocess Test\n\nTest content for re-processing.",
+            tags: ["test", "reprocess"],
+            type: "concept",
+            crossReferences: [],
+          }),
+          model: "mock-model",
+          usage: { promptTokens: 100, completionTokens: 50, totalTokens: 150 },
+        }),
+        synthesize: async () => "Mock response",
+        getConfig: () => ({ baseUrl: "https://mock.api", apiKey: "mock-key", model: "mock-model", maxTokens: 4096 }),
+      } as unknown as LlmProvider;
+
+      setLlmProviderForTest(mockLlmProvider);
+
+      const rawResource = await storage.rawResources.create({
+        type: "text",
+        filename: "reprocess-test.txt",
+        contentPath: join(testRawDir, "documents", "reprocess-test.txt"),
+        metadata: {},
+      });
+      writeFileSync(join(testRawDir, "documents", "reprocess-test.txt"), "Original content for testing re-processing.");
+
+      await storage.rawResources.update(rawResource.id, { processed: true });
+
+      await storage.processingLog.create({
+        operation: "ingest",
+        rawResourceId: rawResource.id,
+        wikiPageId: "test-wiki-page-id",
+        details: { action: "created" },
+      });
+
+      const response = await fastify.inject({
+        method: "POST",
+        url: `/api/ingest/llm/${rawResource.id}`,
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body.data.rawResourceId).toBe(rawResource.id);
+      expect(body.data.processed).toBe(true);
     });
   });
 });

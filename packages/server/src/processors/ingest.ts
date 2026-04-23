@@ -396,7 +396,15 @@ export async function ingestWithLlm(options: IngestOptions): Promise<IngestResul
 
   const now = Date.now();
 
-  const existingPage = await storage.wikiPages.findBySlug(slug);
+  let existingPage: WikiPage | null = null;
+  const processingLogs = await storage.processingLog.findByRawResourceId(rawResource.id);
+  const lastIngestLog = processingLogs.find(log => log.operation === "ingest" && log.wikiPageId);
+  if (lastIngestLog?.wikiPageId) {
+    existingPage = await storage.wikiPages.findById(lastIngestLog.wikiPageId);
+  }
+  if (!existingPage) {
+    existingPage = await storage.wikiPages.findBySlug(slug);
+  }
 
   if (existingPage) {
     const updatedPageContent = {
