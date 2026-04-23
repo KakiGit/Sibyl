@@ -5,6 +5,8 @@ import { storage } from "./storage/index.js";
 import { wikiFileManager } from "./wiki/index.js";
 import { rawResourceFileManager } from "./raw/index.js";
 import { syncWikiLinks } from "./wiki/link-extractor.js";
+import { wikiSearchStorage } from "./search/index.js";
+import { deleteWikiPageEmbedding } from "./embeddings/index.js";
 import { DATA_DIR, WIKI_PAGE_TYPES } from "@sibyl/shared";
 import { logger } from "@sibyl/shared";
 import type { WikiPageType } from "@sibyl/sdk";
@@ -22,6 +24,8 @@ export interface SyncResult {
     addedToDb: number;
     linksRemoved: number;
     versionsRemoved: number;
+    embeddingsRemoved: number;
+    embeddingsAdded: number;
   };
   rawResources: {
     removedFromDb: number;
@@ -40,7 +44,7 @@ export async function syncDatabaseWithFiles(dbPath?: string): Promise<SyncResult
   if (isTestDb) {
     logger.debug("Skipping sync for test database", { dbPath: resolvedDbPath });
     return {
-      wikiPages: { removedFromDb: 0, addedToDb: 0, linksRemoved: 0, versionsRemoved: 0 },
+      wikiPages: { removedFromDb: 0, addedToDb: 0, linksRemoved: 0, versionsRemoved: 0, embeddingsRemoved: 0, embeddingsAdded: 0 },
       rawResources: { removedFromDb: 0, addedToDb: 0 },
     };
   }
@@ -49,7 +53,7 @@ export async function syncDatabaseWithFiles(dbPath?: string): Promise<SyncResult
   logger.info("Starting database-to-files sync...", { dataDir });
   
   const result: SyncResult = {
-    wikiPages: { removedFromDb: 0, addedToDb: 0, linksRemoved: 0, versionsRemoved: 0 },
+    wikiPages: { removedFromDb: 0, addedToDb: 0, linksRemoved: 0, versionsRemoved: 0, embeddingsRemoved: 0, embeddingsAdded: 0 },
     rawResources: { removedFromDb: 0, addedToDb: 0 },
   };
   
@@ -59,6 +63,8 @@ export async function syncDatabaseWithFiles(dbPath?: string): Promise<SyncResult
   logger.info("Sync completed", {
     wikiPagesRemoved: result.wikiPages.removedFromDb,
     wikiPagesAdded: result.wikiPages.addedToDb,
+    embeddingsRemoved: result.wikiPages.embeddingsRemoved,
+    embeddingsAdded: result.wikiPages.embeddingsAdded,
     rawResourcesRemoved: result.rawResources.removedFromDb,
     rawResourcesAdded: result.rawResources.addedToDb,
   });
@@ -67,7 +73,7 @@ export async function syncDatabaseWithFiles(dbPath?: string): Promise<SyncResult
 }
 
 async function syncWikiPages(dataDir: string): Promise<SyncResult["wikiPages"]> {
-  const stats = { removedFromDb: 0, addedToDb: 0, linksRemoved: 0, versionsRemoved: 0 };
+  const stats = { removedFromDb: 0, addedToDb: 0, linksRemoved: 0, versionsRemoved: 0, embeddingsRemoved: 0, embeddingsAdded: 0 };
   
   const dbPages = await storage.wikiPages.findAll({ limit: 1000 });
   const wikiDir = join(dataDir, "wiki");
@@ -80,7 +86,9 @@ async function syncWikiPages(dataDir: string): Promise<SyncResult["wikiPages"]> 
     if (!existsSync(filePath)) {
       deletedPageIds.push(page.id);
       await storage.wikiPages.delete(page.id);
+      await deleteWikiPageEmbedding(page.id);
       stats.removedFromDb++;
+      stats.embeddingsRemoved++;
       logger.debug("Removed wiki page from DB (file missing)", { 
         id: page.id, 
         slug: page.slug, 
@@ -157,8 +165,10 @@ async function syncWikiPages(dataDir: string): Promise<SyncResult["wikiPages"]> 
     });
     
     await syncWikiLinks(createdPage.id, content.trim());
+    await wikiSearchStorage.indexPage(createdPage);
     
     stats.addedToDb++;
+    stats.embeddingsAdded++;
     logger.debug("Added wiki page to DB from file", { 
       id: createdPage.id, 
       slug: createdPage.slug, 

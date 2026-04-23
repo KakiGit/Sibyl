@@ -3,7 +3,6 @@ import { Database } from "bun:sqlite";
 import { wikiFileManager } from "./wiki/index.js";
 import { storage } from "./storage/index.js";
 import { storeWikiPageEmbedding } from "./embeddings/index.js";
-import { logger } from "@sibyl/shared";
 
 async function migrateEmbeddings() {
   console.log("=== Migrating embeddings to sqlite-vec ===\n");
@@ -44,7 +43,7 @@ async function migrateEmbeddings() {
   console.log(`  Skipped:  ${skipped}`);
   console.log(`  Failed:   ${failed}`);
   
-  const count = sqlite.query<{ count: number }>("SELECT COUNT(*) as count FROM wiki_embeddings").get();
+  const count = sqlite.query<{ count: number }, []>("SELECT COUNT(*) as count FROM wiki_embeddings").get();
   console.log(`\nTotal vectors in wiki_embeddings: ${count?.count ?? 0}`);
   
   closeDatabase();
