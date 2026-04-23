@@ -159,11 +159,9 @@ export default async function(input: unknown, options?: SibylPluginOptions) {
         description: "Search Wiki Pages and synthesize an answer using LLM.",
         args: {
           query: tool.schema.string().describe("Search query"),
-          type: tool.schema.enum(["entity", "concept", "source", "summary"]).optional(),
         },
-        async execute(args: { query: string; type?: string }) {
+        async execute(args: { query: string }) {
           const body: Record<string, unknown> = { query: args.query, maxPages: 5 };
-          if (args.type) body.types = [args.type];
           const result = await fetchSibylApi(serverUrl, "/api/synthesize", {
             method: "POST",
             body,

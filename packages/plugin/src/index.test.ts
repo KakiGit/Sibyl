@@ -87,23 +87,6 @@ describe("SibylPlugin", () => {
     expect(result).toContain("synthesized answer");
   });
 
-  it("memory_recall filters by type", async () => {
-    mockResponses["/api/synthesize"] = {
-      data: {
-        answer: "Synthesized answer for entity type.",
-        citations: [],
-      },
-    };
-
-    const hooks = await SibylPlugin({} as any, { serverUrl: "http://localhost:3000" });
-
-    const result = await hooks.tool?.memory_recall?.execute({ query: "test", type: "entity" }, {} as any);
-
-    expect(fetchCalls.length).toBe(1);
-    expect(fetchCalls[0].options.body).toEqual({ query: "test", maxPages: 5, types: ["entity"] });
-    expect(result).toContain("Synthesized answer");
-  });
-
   it("memory_recall returns error message when synthesis fails", async () => {
     mockResponses["/api/synthesize"] = { error: "Failed to synthesize" };
 
