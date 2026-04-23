@@ -301,4 +301,126 @@ describe("RawResourceDetail", () => {
       expect(screen.getByText("Delete Raw Resource")).toBeTruthy();
     });
   });
+
+  it("shows Process button for unprocessed resources", async () => {
+    (global as Record<string, unknown>).fetch = async (url: string | URL | Request) => {
+      const urlString = typeof url === "string" ? url : url instanceof URL ? url.href : url.url;
+      if (urlString.includes("/content")) {
+        return {
+          ok: true,
+          json: async () => ({ data: { content: mockContent, contentPath: mockResource.contentPath } }),
+        } as Response;
+      }
+      return {
+        ok: true,
+        json: async () => ({ data: mockResource }),
+      } as Response;
+    };
+
+    render(<RawResourceDetail resourceId="raw-1" />, { wrapper: createWrapper() });
+
+    await waitFor(() => {
+      expect(screen.getByText("Process")).toBeTruthy();
+    });
+  });
+
+  it("does not show Process button for processed resources", async () => {
+    (global as Record<string, unknown>).fetch = async (url: string | URL | Request) => {
+      const urlString = typeof url === "string" ? url : url instanceof URL ? url.href : url.url;
+      if (urlString.includes("/content")) {
+        return {
+          ok: true,
+          json: async () => ({ data: { content: mockContent, contentPath: mockResource.contentPath } }),
+        } as Response;
+      }
+      return {
+        ok: true,
+        json: async () => ({ data: { ...mockResource, processed: true } }),
+      } as Response;
+    };
+
+    render(<RawResourceDetail resourceId="raw-1" />, { wrapper: createWrapper() });
+
+    await waitFor(() => {
+      expect(screen.queryByText("Process")).toBeNull();
+    });
+  });
+
+  it("processes resource when Process button is clicked", async () => {
+    let processCalled = false;
+    (global as Record<string, unknown>).fetch = async (url: string | URL | Request, options?: RequestInit) => {
+      const urlString = typeof url === "string" ? url : url instanceof URL ? url.href : url.url;
+      if (options?.method === "POST" && urlString.includes("/api/ingest/llm/")) {
+        processCalled = true;
+        return {
+          ok: true,
+          json: async () => ({
+            data: {
+              wikiPageId: "wiki-1",
+              slug: "test-wiki",
+              title: "Test Wiki",
+            },
+          }),
+        } as Response;
+      }
+      if (urlString.includes("/content")) {
+        return {
+          ok: true,
+          json: async () => ({ data: { content: mockContent, contentPath: mockResource.contentPath } }),
+        } as Response;
+      }
+      return {
+        ok: true,
+        json: async () => ({ data: mockResource }),
+      } as Response;
+    };
+
+    render(<RawResourceDetail resourceId="raw-1" />, { wrapper: createWrapper() });
+
+    await waitFor(() => {
+      expect(screen.getByText("Process")).toBeTruthy();
+    });
+
+    const processButton = screen.getByRole("button", { name: /Process/i });
+    fireEvent.click(processButton);
+
+    await waitFor(() => {
+      expect(processCalled).toBe(true);
+    });
+  });
+
+  it("shows error toast when processing fails", async () => {
+    (global as Record<string, unknown>).fetch = async (url: string | URL | Request, options?: RequestInit) => {
+      const urlString = typeof url === "string" ? url : url instanceof URL ? url.href : url.url;
+      if (options?.method === "POST" && urlString.includes("/api/ingest/llm/")) {
+        return {
+          ok: false,
+          json: async () => ({ error: "LLM provider not configured" }),
+        } as Response;
+      }
+      if (urlString.includes("/content")) {
+        return {
+          ok: true,
+          json: async () => ({ data: { content: mockContent, contentPath: mockResource.contentPath } }),
+        } as Response;
+      }
+      return {
+        ok: true,
+        json: async () => ({ data: mockResource }),
+      } as Response;
+    };
+
+    render(<RawResourceDetail resourceId="raw-1" />, { wrapper: createWrapper() });
+
+    await waitFor(() => {
+      expect(screen.getByText("Process")).toBeTruthy();
+    });
+
+    const processButton = screen.getByRole("button", { name: /Process/i });
+    fireEvent.click(processButton);
+
+    await waitFor(() => {
+      expect(screen.getByText("Processing failed")).toBeTruthy();
+    });
+  });
 });

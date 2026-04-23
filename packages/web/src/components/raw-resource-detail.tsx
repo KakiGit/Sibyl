@@ -16,6 +16,7 @@ import {
   Image,
   Globe,
   TextIcon,
+  Play,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -93,6 +94,17 @@ async function deleteRawResource(id: string): Promise<void> {
   }
 }
 
+async function processRawResource(id: string): Promise<{ data: { wikiPageId: string; slug: string; title: string } }> {
+  const response = await fetch(`/api/ingest/llm/${id}`, {
+    method: "POST",
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || error.message || "Failed to process raw resource");
+  }
+  return response.json();
+}
+
 export function RawResourceDetail({ resourceId, onBack }: RawResourceDetailProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState("");
@@ -135,6 +147,19 @@ export function RawResourceDetail({ resourceId, onBack }: RawResourceDetailProps
     onError: (error) => {
       setShowDeleteDialog(false);
       toast.error("Delete failed", (error as Error).message);
+    },
+  });
+
+  const processMutation = useMutation({
+    mutationFn: () => processRawResource(resourceId),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["rawResource", resourceId] });
+      queryClient.invalidateQueries({ queryKey: ["rawResources"] });
+      queryClient.invalidateQueries({ queryKey: ["rawResourceStats"] });
+      toast.success("Resource processed", `Created wiki page: ${data.data.title}`);
+    },
+    onError: (error) => {
+      toast.error("Processing failed", (error as Error).message);
     },
   });
 
@@ -235,6 +260,19 @@ export function RawResourceDetail({ resourceId, onBack }: RawResourceDetailProps
         </div>
         {!isEditing && (
           <div className="flex gap-2">
+            {!resource.processed && (
+              <Button
+                onClick={() => processMutation.mutate()}
+                disabled={processMutation.isPending}
+              >
+                {processMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Play className="h-4 w-4" />
+                )}
+                <span className="ml-2">Process</span>
+              </Button>
+            )}
             <Button variant="outline" onClick={handleStartEdit}>
               <Edit className="h-4 w-4 mr-2" />
               Edit
