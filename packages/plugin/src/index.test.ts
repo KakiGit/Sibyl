@@ -69,35 +69,49 @@ describe("SibylPlugin", () => {
     expect(hooks.tool?.memory_query).toBeDefined();
     });
 
-  it("memory_recall tool fetches wiki pages and synthesizes", async () => {
-    mockResponses["/api/wiki-pages?search=test&limit=5&includeContent=true"] = {
-      data: [
-        { slug: "test-page", title: "Test Page", type: "concept", summary: "A test summary", content: "Test content here", tags: ["test"] },
-      ],
-    };
+  it("memory_recall tool synthesizes answer", async () => {
     mockResponses["/api/synthesize"] = {
-      synthesis: "Based on the Wiki Pages, here is a synthesized answer about test.",
-      sourcesUsed: 1,
+      data: {
+        answer: "Based on the Wiki Pages, here is a synthesized answer about test.",
+        citations: [],
+      },
     };
 
     const hooks = await SibylPlugin({} as any, { serverUrl: "http://localhost:3000" });
 
-    const result = await hooks.tool?.memory_recall?.execute({ query: "test", limit: 5 }, {} as any);
+    const result = await hooks.tool?.memory_recall?.execute({ query: "test" }, {} as any);
 
-    expect(fetchCalls.length).toBe(2);
-    expect(fetchCalls[0].url).toContain("search=test");
-    expect(fetchCalls[1].url).toContain("/api/synthesize");
+    expect(fetchCalls.length).toBe(1);
+    expect(fetchCalls[0].url).toContain("/api/synthesize");
+    expect(fetchCalls[0].options.body).toEqual({ query: "test", maxPages: 5 });
     expect(result).toContain("synthesized answer");
   });
 
-  it("memory_recall returns no Wiki Pages message when empty", async () => {
-    mockResponses["/api/wiki-pages?search=empty&limit=5&includeContent=true"] = { data: [] };
+  it("memory_recall filters by type", async () => {
+    mockResponses["/api/synthesize"] = {
+      data: {
+        answer: "Synthesized answer for entity type.",
+        citations: [],
+      },
+    };
 
     const hooks = await SibylPlugin({} as any, { serverUrl: "http://localhost:3000" });
 
-    const result = await hooks.tool?.memory_recall?.execute({ query: "empty", limit: 5 }, {} as any);
+    const result = await hooks.tool?.memory_recall?.execute({ query: "test", type: "entity" }, {} as any);
 
-    expect(result).toBe("No relevant Wiki Pages found matching the query.");
+    expect(fetchCalls.length).toBe(1);
+    expect(fetchCalls[0].options.body).toEqual({ query: "test", maxPages: 5, types: ["entity"] });
+    expect(result).toContain("Synthesized answer");
+  });
+
+  it("memory_recall returns error message when synthesis fails", async () => {
+    mockResponses["/api/synthesize"] = { error: "Failed to synthesize" };
+
+    const hooks = await SibylPlugin({} as any, { serverUrl: "http://localhost:3000" });
+
+    const result = await hooks.tool?.memory_recall?.execute({ query: "test" }, {} as any);
+
+    expect(result).toBe("Unable to synthesize answer.");
   });
 
   it("memory_list tool fetches all Wiki Pages", async () => {
@@ -180,34 +194,34 @@ describe("SibylPlugin", () => {
   });
 
   it("uses custom server URL from options", async () => {
-    mockResponses["/api/wiki-pages?search=test&limit=5"] = { data: [] };
+    mockResponses["/api/synthesize"] = { data: { answer: "test answer" } };
 
     const hooks = await SibylPlugin({} as any, { serverUrl: "http://custom-server:4000" });
 
-    await hooks.tool?.memory_recall?.execute({ query: "test", limit: 5 }, {} as any);
+    await hooks.tool?.memory_recall?.execute({ query: "test" }, {} as any);
 
     expect(fetchCalls[0].url).toContain("http://custom-server:4000");
   });
 
   it("uses default server URL when not provided", async () => {
-    mockResponses["/api/wiki-pages?search=test&limit=5"] = { data: [] };
+    mockResponses["/api/synthesize"] = { data: { answer: "test answer" } };
 
     const hooks = await SibylPlugin({} as any);
 
-    await hooks.tool?.memory_recall?.execute({ query: "test", limit: 5 }, {} as any);
+    await hooks.tool?.memory_recall?.execute({ query: "test" }, {} as any);
 
     expect(fetchCalls[0].url).toContain("http://localhost:3000");
   });
 
   it("includes apiKey in request headers", async () => {
-    mockResponses["/api/wiki-pages?search=test&limit=5&includeContent=true"] = { data: [] };
+    mockResponses["/api/synthesize"] = { data: { answer: "test answer" } };
 
     const hooks = await SibylPlugin({} as any, { 
       serverUrl: "http://localhost:3000",
       apiKey: "test-api-key"
     });
 
-    await hooks.tool?.memory_recall?.execute({ query: "test", limit: 5 }, {} as any);
+    await hooks.tool?.memory_recall?.execute({ query: "test" }, {} as any);
 
     expect(fetchCalls[0].options?.headers?.["x-api-key"]).toBe("test-api-key");
   });

@@ -160,25 +160,17 @@ export default async function(input: unknown, options?: SibylPluginOptions) {
         args: {
           query: tool.schema.string().describe("Search query"),
           type: tool.schema.enum(["entity", "concept", "source", "summary"]).optional(),
-          limit: tool.schema.number().int().positive().max(20).default(5),
         },
-        async execute(args: { query: string; type?: string; limit?: number }) {
-          const params = new URLSearchParams();
-          params.set("search", args.query);
-          if (args.type) params.set("type", args.type);
-          params.set("limit", String(args.limit || 5));
-          params.set("includeContent", "true");
-          const result = await fetchSibylApi(serverUrl, `/api/wiki-pages?${params.toString()}`, { apiKey });
-          const data = (result as { data?: unknown[] }).data || [];
-          if (data.length === 0) return "No relevant Wiki Pages found matching the query.";
-          const pages = data as Array<{ title: string; type: string; summary?: string; content?: string }>;
-          const pagesContent = pages.map(p => ({ title: p.title, type: p.type, summary: p.summary || "", content: p.content || "" }));
-          const synthesizeResult = await fetchSibylApi(serverUrl, "/api/synthesize", {
+        async execute(args: { query: string; type?: string }) {
+          const body: Record<string, unknown> = { query: args.query, maxPages: 5 };
+          if (args.type) body.types = [args.type];
+          const result = await fetchSibylApi(serverUrl, "/api/synthesize", {
             method: "POST",
-            body: { query: args.query, sources: pagesContent },
+            body,
             apiKey,
           });
-          return (synthesizeResult as { synthesis?: string }).synthesis || "Unable to synthesize answer.";
+          const data = result as { data?: { answer?: string } };
+          return data.data?.answer || "Unable to synthesize answer.";
         },
       }),
       memory_list: tool({

@@ -364,7 +364,7 @@ ${content.slice(0, 2000)}
 Available wiki pages:
 ${contextSections.join("\n---\n")}
 
-Please synthesize an answer to the question using the provided wiki pages. Remember to cite sources using [[slug]] format.`;
+Please synthesize an answer to the question using the provided wiki pages. Remember to cite sources using [[slug]] format. Your answer should be within 2000 characters.`;
 
   const response = await llmProvider.call(SYNTHESIS_SYSTEM_PROMPT, userPrompt);
 
