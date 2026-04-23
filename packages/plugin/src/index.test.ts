@@ -734,8 +734,8 @@ describe("auto-save functionality", () => {
   });
 
   it("accumulates messages from session IDs with different timestamps into same file", async () => {
-    mockResponses["/api/raw-resources/session/ses-249c"] = { error: "Raw resource not found for session" };
-    mockResponses["/api/raw-resources"] = { id: "raw-accumulated-id", filename: "session-ses-249c.txt" };
+    mockResponses["/api/raw-resources/session/ses-accum"] = { error: "Raw resource not found for session" };
+    mockResponses["/api/raw-resources"] = { id: "raw-accumulated-id", filename: "session-ses-accum.txt" };
 
     const hooks = await SibylPlugin({} as any, { 
       serverUrl: "http://localhost:3000",
@@ -746,33 +746,33 @@ describe("auto-save functionality", () => {
     await hooks.event?.({ event: { 
       type: "message.updated", 
       properties: { 
-        info: { sessionID: "ses-249c-2026-04-22t17-30-31-649z", id: "msg-1", role: "user", time: { created: 1000 } } 
+        info: { sessionID: "ses-accum-2026-04-22t17-30-31-649z", id: "msg-accum-1", role: "user", time: { created: 1000 } } 
       } 
     } as any });
     await hooks.event?.({ event: { 
       type: "message.part.updated", 
       properties: { 
-        part: { sessionID: "ses-249c-2026-04-22t17-30-31-649z", messageID: "msg-1", type: "text", text: "First" } 
+        part: { sessionID: "ses-accum-2026-04-22t17-30-31-649z", messageID: "msg-accum-1", type: "text", text: "First" } 
       } 
     } as any });
     await hooks.event?.({ event: { 
       type: "message.updated", 
       properties: { 
-        info: { sessionID: "ses-249c-2026-04-22t17-35-00-123z", id: "msg-2", role: "assistant", time: { created: 2000 } } 
+        info: { sessionID: "ses-accum-2026-04-22t17-35-00-123z", id: "msg-accum-2", role: "assistant", time: { created: 2000 } } 
       } 
     } as any });
     await hooks.event?.({ event: { 
       type: "message.part.updated", 
       properties: { 
-        part: { sessionID: "ses-249c-2026-04-22t17-35-00-123z", messageID: "msg-2", type: "text", text: "Second" } 
+        part: { sessionID: "ses-accum-2026-04-22t17-35-00-123z", messageID: "msg-accum-2", type: "text", text: "Second" } 
       } 
     } as any });
 
     expect(fetchCalls.length).toBe(2);
-    expect(fetchCalls[0].url).toBe("http://localhost:3000/api/raw-resources/session/ses-249c");
+    expect(fetchCalls[0].url).toBe("http://localhost:3000/api/raw-resources/session/ses-accum");
     expect(fetchCalls[1].url).toBe("http://localhost:3000/api/raw-resources");
     const body = fetchCalls[1].options?.body as any;
-    expect(body?.filename).toBe("session-ses-249c.txt");
+    expect(body?.filename).toBe("session-ses-accum.txt");
     expect(body?.content).toContain("First");
     expect(body?.content).toContain("Second");
   });

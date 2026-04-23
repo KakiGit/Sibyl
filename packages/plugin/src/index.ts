@@ -126,11 +126,25 @@ async function syncSessionToRawResource(
 async function triggerLlmIngestion(
   serverUrl: string,
   rawResourceId: string,
-  apiKey?: string
-): Promise<void> {
-  try {
-    await fetchSibylApi(serverUrl, `/api/ingest/llm/${rawResourceId}`, { method: "POST", apiKey });
-  } catch {}
+  apiKey?: string,
+  maxRetries: number = 3
+): Promise<boolean> {
+  const baseDelay = 1000;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      await fetchSibylApi(serverUrl, `/api/ingest/llm/${rawResourceId}`, { method: "POST", apiKey });
+      return true;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(`[Sibyl] Ingestion attempt ${attempt}/${maxRetries} failed for raw resource ${rawResourceId}: ${errorMessage}`);
+      if (attempt < maxRetries) {
+        const delay = baseDelay * Math.pow(2, attempt - 1);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+  console.error(`[Sibyl] All ${maxRetries} ingestion attempts failed for raw resource ${rawResourceId}`);
+  return false;
 }
 
 export default async function(input: unknown, options?: SibylPluginOptions) {
@@ -225,7 +239,10 @@ export default async function(input: unknown, options?: SibylPluginOptions) {
         const messagesWithParts = [...session.messageMetadata.values()].filter(
           m => (session.messageParts.get(m.messageId)?.length || 0) > 0
         );
-        if (messagesWithParts.length < autoSaveThreshold) return;
+        if (messagesWithParts.length < autoSaveThreshold) {
+          sessions.delete(sessionId);
+          return;
+        }
         let rawResourceId = session.rawResourceId;
         if (!rawResourceId) rawResourceId = await syncSessionToRawResource(serverUrl, session, apiKey);
         if (rawResourceId) await triggerLlmIngestion(serverUrl, rawResourceId, apiKey);
@@ -233,8 +250,20 @@ export default async function(input: unknown, options?: SibylPluginOptions) {
         return;
       }
       if (event.type === "session.deleted") {
-        const sessionId = extractStableSessionName((event.properties?.sessionID as string) || "default");
-        sessions.delete(sessionId);
+        const rawSessionId = (event.properties?.sessionID as string) || "default";
+        const sessionId = extractStableSessionName(rawSessionId);
+        const session = sessions.get(sessionId) as SessionData | undefined;
+        if (session) {
+          const messagesWithParts = [...session.messageMetadata.values()].filter(
+            m => (session.messageParts.get(m.messageId)?.length || 0) > 0
+          );
+          if (messagesWithParts.length >= autoSaveThreshold) {
+            let rawResourceId = session.rawResourceId;
+            if (!rawResourceId) rawResourceId = await syncSessionToRawResource(serverUrl, session, apiKey);
+            if (rawResourceId) await triggerLlmIngestion(serverUrl, rawResourceId, apiKey);
+          }
+          sessions.delete(sessionId);
+        }
         return;
       }
       if (event.type === "message.updated") {

@@ -7,6 +7,10 @@ import { syncDatabaseWithFiles } from "./sync.js";
 import { DB_FILE } from "@sibyl/shared";
 import { resolve, dirname } from "path";
 import { existsSync } from "fs";
+import { storage } from "./storage/index.js";
+import { ingestWithLlm } from "./processors/ingest.js";
+import { llmWorkQueue } from "./llm/work-queue.js";
+import { logger } from "@sibyl/shared";
 
 function findProjectRoot(): string {
   let currentDir = resolve(dirname(new URL(import.meta.url).pathname));
@@ -77,7 +81,53 @@ export async function startServer(options: ServerOptions = {}) {
   
   server.log.info(`Sibyl Server running at http://${host}:${port}`);
   
+  await recoverUnprocessedResources();
+  
   return server;
+}
+
+async function recoverUnprocessedResources(): Promise<void> {
+  try {
+    const unprocessedResources = await storage.rawResources.findAll({
+      processed: false,
+      limit: 50,
+    });
+
+    if (unprocessedResources.length === 0) {
+      logger.info("No unprocessed raw resources to recover");
+      return;
+    }
+
+    logger.info(`Recovering ${unprocessedResources.length} unprocessed raw resources`);
+
+    for (const resource of unprocessedResources) {
+      llmWorkQueue.enqueue(
+        "llm_ingest_recovery",
+        `Recovering raw resource: ${resource.filename}`,
+        async () => {
+          try {
+            const result = await ingestWithLlm({ rawResourceId: resource.id });
+            logger.info("Recovered raw resource", {
+              rawResourceId: resource.id,
+              wikiPageId: result.wikiPageId,
+              slug: result.slug,
+            });
+            return result;
+          } catch (error) {
+            logger.error("Failed to recover raw resource", {
+              rawResourceId: resource.id,
+              error: (error as Error).message,
+            });
+            throw error;
+          }
+        }
+      );
+    }
+  } catch (error) {
+    logger.error("Failed to recover unprocessed resources", {
+      error: (error as Error).message,
+    });
+  }
 }
 
 export async function stopServer(server: ReturnType<typeof Fastify>) {
