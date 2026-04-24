@@ -1,6 +1,7 @@
 import type { CommandModule } from "yargs";
 import ora from "ora";
 import chalk from "chalk";
+import { getServerUrl } from "@sibyl/shared";
 
 interface IngestArgs {
   content: string;
@@ -12,7 +13,7 @@ interface IngestArgs {
 
 export async function runIngest(args: IngestArgs): Promise<void> {
   const spinner = ora("Ingesting content...").start();
-  const serverUrl = args.server || process.env.SIBYL_SERVER || "http://localhost:3000";
+  const serverUrl = args.server || getServerUrl();
 
   try {
     const response = await fetch(`${serverUrl}/api/ingest/text`, {

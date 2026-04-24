@@ -23,7 +23,8 @@ export function useWorkQueue(wsUrl?: string) {
   const getWebSocketUrl = useCallback(() => {
     if (wsUrl) return wsUrl;
     if (import.meta.env.DEV) {
-      return "ws://localhost:3000/ws";
+      const serverUrl = import.meta.env.SIBYL_SERVER_URL || "http://localhost:3000";
+      return serverUrl.replace(/^http/, "ws") + "/ws";
     }
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const host = window.location.host;

@@ -1,6 +1,7 @@
 import type { CommandModule } from "yargs";
 import ora from "ora";
 import chalk from "chalk";
+import { getServerUrl } from "@sibyl/shared";
 
 interface DeleteArgs {
   page?: string;
@@ -11,7 +12,7 @@ interface DeleteArgs {
 
 export async function runDelete(args: DeleteArgs): Promise<void> {
   const spinner = ora("Deleting...").start();
-  const serverUrl = args.server || process.env.SIBYL_SERVER || "http://localhost:3000";
+  const serverUrl = args.server || getServerUrl();
 
   try {
     if (args.page) {

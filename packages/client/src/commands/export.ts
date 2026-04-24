@@ -3,6 +3,7 @@ import ora from "ora";
 import chalk from "chalk";
 import { writeFileSync, existsSync, mkdirSync } from "fs";
 import { resolve, dirname } from "path";
+import { getServerUrl } from "@sibyl/shared";
 
 interface ExportArgs {
   format?: string;
@@ -15,7 +16,7 @@ interface ExportArgs {
 
 export async function runExport(args: ExportArgs): Promise<void> {
   const spinner = ora("Exporting wiki pages...").start();
-  const serverUrl = args.server || process.env.SIBYL_SERVER || "http://localhost:3000";
+  const serverUrl = args.server || getServerUrl();
 
   try {
     const params = new URLSearchParams();

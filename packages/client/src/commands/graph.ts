@@ -1,6 +1,7 @@
 import type { CommandModule } from "yargs";
 import ora from "ora";
 import chalk from "chalk";
+import { getServerUrl } from "@sibyl/shared";
 
 interface GraphArgs {
   page?: string;
@@ -10,7 +11,7 @@ interface GraphArgs {
 
 export async function runGraph(args: GraphArgs): Promise<void> {
   const spinner = ora("Fetching wiki graph...").start();
-  const serverUrl = args.server || process.env.SIBYL_SERVER || "http://localhost:3000";
+  const serverUrl = args.server || getServerUrl();
 
   try {
     const response = await fetch(`${serverUrl}/api/wiki-links/graph`, {

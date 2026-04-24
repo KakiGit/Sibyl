@@ -149,11 +149,40 @@ bun run typecheck
 ## Start the Server
 
 ```bash
-# Start the HTTP server (default port 3000)
+# Start the HTTP server (default: localhost:3000)
 bun run --filter @sibyl/server dev
 
-# Or with custom port/host
-PORT=8080 HOST=0.0.0.0 bun run --filter @sibyl/server dev
+# Or with custom bind address/port
+SIBYL_SERVER_BIND_ADDR=0.0.0.0 SIBYL_SERVER_BIND_PORT=8080 bun run --filter @sibyl/server dev
+```
+
+## Configuration
+
+Sibyl uses environment variables for configuration:
+
+| Env Var | Default | Description |
+|---------|---------|-------------|
+| `SIBYL_SERVER_URL` | `http://localhost:3000` | URL to connect to Sibyl Server (used by Plugin, Client, WebUI) |
+| `SIBYL_SERVER_BIND_ADDR` | `localhost` | Network interface for Sibyl Server to bind/listen on |
+| `SIBYL_SERVER_BIND_PORT` | `3000` | Port for Sibyl Server to bind/listen on |
+| `SIBYL_WEBUI_BIND_ADDR` | `localhost` | Network interface for WebUI dev server to bind on |
+| `SIBYL_WEBUI_BIND_PORT` | `5173` | Port for WebUI dev server to bind on |
+| `SIBYL_DATA_PATH` | `data` | Path to data directory |
+| `SIBYL_API_KEY` | - | API key for authentication |
+| `SIBYL_AUTH_ENABLED` | `false` | Enable authentication |
+
+### Example Configuration
+
+```bash
+# Server listens on all interfaces at port 8080
+SIBYL_SERVER_BIND_ADDR=0.0.0.0
+SIBYL_SERVER_BIND_PORT=8080
+
+# Plugin/Client connects to remote server
+SIBYL_SERVER_URL=http://sibyl.example.com:8080
+
+# WebUI dev server on different port
+SIBYL_WEBUI_BIND_PORT=3000
 ```
 
 ### Document Ingestion API

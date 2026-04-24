@@ -11,6 +11,16 @@ import {
   AUTH_ENABLED_ENV,
   JWT_EXPIRY_SECONDS,
   JWT_REFRESH_EXPIRY_SECONDS,
+  SERVER_URL_ENV,
+  SERVER_BIND_ADDR_ENV,
+  SERVER_BIND_PORT_ENV,
+  WEBUI_BIND_ADDR_ENV,
+  WEBUI_BIND_PORT_ENV,
+  DEFAULT_SERVER_URL,
+  DEFAULT_SERVER_BIND_ADDR,
+  DEFAULT_SERVER_BIND_PORT,
+  DEFAULT_WEBUI_BIND_ADDR,
+  DEFAULT_WEBUI_BIND_PORT,
 } from "./constants.js";
 
 export interface SibylConfig {
@@ -98,4 +108,32 @@ export function generateDefaultApiKey(): string {
   return `sibyl-${Array.from(randomBytes)
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("")}`;
+}
+
+export function getServerUrl(): string {
+  return process.env[SERVER_URL_ENV] || DEFAULT_SERVER_URL;
+}
+
+export interface ServerBindConfig {
+  addr: string;
+  port: number;
+}
+
+export function getServerBindConfig(): ServerBindConfig {
+  const addr = process.env[SERVER_BIND_ADDR_ENV] || DEFAULT_SERVER_BIND_ADDR;
+  const portEnv = process.env[SERVER_BIND_PORT_ENV];
+  const port = portEnv ? parseInt(portEnv, 10) : DEFAULT_SERVER_BIND_PORT;
+  return { addr, port };
+}
+
+export interface WebuiBindConfig {
+  addr: string;
+  port: number;
+}
+
+export function getWebuiBindConfig(): WebuiBindConfig {
+  const addr = process.env[WEBUI_BIND_ADDR_ENV] || DEFAULT_WEBUI_BIND_ADDR;
+  const portEnv = process.env[WEBUI_BIND_PORT_ENV];
+  const port = portEnv ? parseInt(portEnv, 10) : DEFAULT_WEBUI_BIND_PORT;
+  return { addr, port };
 }

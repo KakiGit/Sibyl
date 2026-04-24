@@ -1,6 +1,7 @@
 import type { CommandModule } from "yargs";
 import ora from "ora";
 import chalk from "chalk";
+import { getServerUrl } from "@sibyl/shared";
 
 interface ListArgs {
   type?: string;
@@ -11,7 +12,7 @@ interface ListArgs {
 
 export async function runList(args: ListArgs): Promise<void> {
   const spinner = ora("Fetching wiki pages...").start();
-  const serverUrl = args.server || process.env.SIBYL_SERVER || "http://localhost:3000";
+  const serverUrl = args.server || getServerUrl();
 
   try {
     const params = new URLSearchParams();

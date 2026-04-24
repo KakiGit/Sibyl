@@ -1,3 +1,5 @@
+import { getServerUrl } from "@sibyl/shared";
+
 const API_KEY_HEADER = "x-api-key";
 
 export interface RequestOptions {
@@ -11,15 +13,15 @@ export function getApiKey(options?: RequestOptions): string | undefined {
   return options?.apiKey || process.env.SIBYL_API_KEY;
 }
 
-export function getServerUrl(options?: RequestOptions): string {
-  return options?.server || process.env.SIBYL_SERVER || "http://localhost:3000";
+export function getApiClientUrl(options?: RequestOptions): string {
+  return options?.server || getServerUrl();
 }
 
 export async function apiFetch(
   endpoint: string,
   options?: RequestOptions
 ): Promise<Response> {
-  const serverUrl = getServerUrl(options);
+  const serverUrl = getApiClientUrl(options);
   const apiKey = getApiKey(options);
   
   const headers: Record<string, string> = {

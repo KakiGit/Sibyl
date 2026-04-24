@@ -11,6 +11,18 @@ export const AUTH_ENABLED_ENV = "SIBYL_AUTH_ENABLED";
 export const JWT_EXPIRY_SECONDS = 3600;
 export const JWT_REFRESH_EXPIRY_SECONDS = 86400;
 
+export const SERVER_URL_ENV = "SIBYL_SERVER_URL";
+export const SERVER_BIND_ADDR_ENV = "SIBYL_SERVER_BIND_ADDR";
+export const SERVER_BIND_PORT_ENV = "SIBYL_SERVER_BIND_PORT";
+export const WEBUI_BIND_ADDR_ENV = "SIBYL_WEBUI_BIND_ADDR";
+export const WEBUI_BIND_PORT_ENV = "SIBYL_WEBUI_BIND_PORT";
+
+export const DEFAULT_SERVER_URL = "http://localhost:3000";
+export const DEFAULT_SERVER_BIND_ADDR = "localhost";
+export const DEFAULT_SERVER_BIND_PORT = 3000;
+export const DEFAULT_WEBUI_BIND_ADDR = "localhost";
+export const DEFAULT_WEBUI_BIND_PORT = 5173;
+
 export const DATA_DIR = "data";
 export const RAW_DIR = `${DATA_DIR}/raw`;
 export const WIKI_DIR = `${DATA_DIR}/wiki`;

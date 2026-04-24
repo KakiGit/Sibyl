@@ -1,6 +1,7 @@
 import type { CommandModule } from "yargs";
 import ora from "ora";
 import chalk from "chalk";
+import { getServerUrl } from "@sibyl/shared";
 
 interface LintArgs {
   fix?: boolean;
@@ -9,7 +10,7 @@ interface LintArgs {
 
 export async function runLint(args: LintArgs): Promise<void> {
   const spinner = ora("Running wiki lint...").start();
-  const serverUrl = args.server || process.env.SIBYL_SERVER || "http://localhost:3000";
+  const serverUrl = args.server || getServerUrl();
 
   try {
     const response = await fetch(`${serverUrl}/api/lint`, {

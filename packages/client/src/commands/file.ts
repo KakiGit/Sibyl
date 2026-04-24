@@ -1,6 +1,7 @@
 import type { CommandModule } from "yargs";
 import ora from "ora";
 import chalk from "chalk";
+import { getServerUrl } from "@sibyl/shared";
 
 interface FileArgs {
   title: string;
@@ -13,7 +14,7 @@ interface FileArgs {
 
 export async function runFile(args: FileArgs): Promise<void> {
   const spinner = ora("Filing content...").start();
-  const serverUrl = args.server || process.env.SIBYL_SERVER || "http://localhost:3000";
+  const serverUrl = args.server || getServerUrl();
 
   try {
     let endpoint = "/api/filing";

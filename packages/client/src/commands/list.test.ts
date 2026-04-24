@@ -107,7 +107,7 @@ describe("List Command", () => {
   });
 
   test("should use default server URL when not provided", async () => {
-    delete process.env.SIBYL_SERVER;
+    delete process.env.SIBYL_SERVER_URL;
 
     await runList({});
 

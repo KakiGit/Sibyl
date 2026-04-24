@@ -1,8 +1,11 @@
 import { startServer } from "../server.js";
+import { getServerBindConfig } from "@sibyl/shared";
+
+const bindConfig = getServerBindConfig();
 
 startServer({
-  port: parseInt(process.env.PORT || "3000"),
-  host: process.env.HOST || "localhost",
+  port: bindConfig.port,
+  host: bindConfig.addr,
 }).catch((error) => {
   console.error("Failed to start server:", error);
   process.exit(1);

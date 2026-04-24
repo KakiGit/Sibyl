@@ -24,6 +24,7 @@
       "dependencies": {
         "@clack/prompts": "^1.2.0",
         "@sibyl/sdk": "workspace:*",
+        "@sibyl/shared": "workspace:*",
         "chalk": "^5.4.1",
         "ora": "^8.2.0",
         "yargs": "^18.0.0",

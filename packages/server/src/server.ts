@@ -4,7 +4,7 @@ import { registerRoutes } from "./routes/index.js";
 import { registerWebSocketRoutes } from "./websocket/index.js";
 import { closeDatabase, migrateDatabase, createDatabase } from "./database.js";
 import { syncDatabaseWithFiles } from "./sync.js";
-import { DB_FILE } from "@sibyl/shared";
+import { DB_FILE, DEFAULT_SERVER_BIND_ADDR, DEFAULT_SERVER_BIND_PORT } from "@sibyl/shared";
 import { resolve, dirname } from "path";
 import { existsSync } from "fs";
 import { storage } from "./storage/index.js";
@@ -74,8 +74,8 @@ export async function createServer(options: ServerOptions = {}) {
 
 export async function startServer(options: ServerOptions = {}) {
   const server = await createServer(options);
-  const port = options.port || 3000;
-  const host = options.host || "localhost";
+  const port = options.port || DEFAULT_SERVER_BIND_PORT;
+  const host = options.host || DEFAULT_SERVER_BIND_ADDR;
 
   await server.listen({ port, host });
   

@@ -1,4 +1,5 @@
 import { tool } from "@opencode-ai/plugin/tool";
+import { getServerUrl } from "@sibyl/shared";
 
 export interface SibylPluginOptions {
   serverUrl?: string;
@@ -7,7 +8,6 @@ export interface SibylPluginOptions {
   autoSaveThreshold?: number;
 }
 
-const DEFAULT_SERVER_URL = "http://localhost:3000";
 const sessions = new Map();
 
 function extractStableSessionName(sessionId: string): string {
@@ -148,7 +148,7 @@ async function triggerLlmIngestion(
 }
 
 export default async function(input: unknown, options?: SibylPluginOptions) {
-  const serverUrl = options?.serverUrl || process.env.SIBYL_SERVER_URL || DEFAULT_SERVER_URL;
+  const serverUrl = options?.serverUrl || getServerUrl();
   const apiKey = options?.apiKey || process.env.SIBYL_API_KEY;
   const autoSave = options?.autoSave ?? process.env.SIBYL_AUTO_SAVE !== "false";
   const autoSaveThreshold = options?.autoSaveThreshold ?? parseInt(process.env.SIBYL_AUTO_SAVE_THRESHOLD || "1", 10);

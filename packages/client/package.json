@@ -32,7 +32,8 @@
     "yargs": "^18.0.0",
     "chalk": "^5.4.1",
     "ora": "^8.2.0",
-    "@sibyl/sdk": "workspace:*"
+    "@sibyl/sdk": "workspace:*",
+    "@sibyl/shared": "workspace:*"
   },
   "devDependencies": {
     "@types/yargs": "^17.0.32"

@@ -1,6 +1,7 @@
 import type { CommandModule } from "yargs";
 import ora from "ora";
 import chalk from "chalk";
+import { getServerUrl } from "@sibyl/shared";
 
 interface QueryArgs {
   query: string;
@@ -13,7 +14,7 @@ interface QueryArgs {
 
 export async function runQuery(args: QueryArgs): Promise<void> {
   const spinner = ora("Searching wiki...").start();
-  const serverUrl = args.server || process.env.SIBYL_SERVER || "http://localhost:3000";
+  const serverUrl = args.server || getServerUrl();
 
   try {
     const endpoint = args.synthesize ? "/api/synthesize" : "/api/wiki-pages";

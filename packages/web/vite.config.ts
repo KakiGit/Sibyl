@@ -3,6 +3,12 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { resolve } from "path";
 
+const serverUrl = process.env.SIBYL_SERVER_URL || "http://localhost:3000";
+const webuiBindAddr = process.env.SIBYL_WEBUI_BIND_ADDR || "localhost";
+const webuiBindPort = parseInt(process.env.SIBYL_WEBUI_BIND_PORT || "5173", 10);
+
+const wsUrl = serverUrl.replace(/^http/, "ws") + "/ws";
+
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: {
@@ -10,16 +16,20 @@ export default defineConfig({
       "@": resolve(__dirname, "./src"),
     },
   },
+  define: {
+    "import.meta.env.SIBYL_SERVER_URL": JSON.stringify(serverUrl),
+  },
   server: {
-    port: 5173,
+    host: webuiBindAddr,
+    port: webuiBindPort,
     proxy: {
       "/api": {
-        target: "http://localhost:3000",
+        target: serverUrl,
         changeOrigin: true,
         rewrite: (path) => path,
       },
       "/ws": {
-        target: "ws://localhost:3000",
+        target: wsUrl,
         ws: true,
         rewrite: (path) => path,
       },

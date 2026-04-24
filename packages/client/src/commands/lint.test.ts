@@ -114,13 +114,13 @@ describe("Lint Command", () => {
   });
 
   test("should use environment variable for server URL", async () => {
-    process.env.SIBYL_SERVER = "http://custom-server:8080";
+    process.env.SIBYL_SERVER_URL = "http://custom-server:8080";
 
     await runLint({});
 
     const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("http://custom-server:8080/api/lint");
 
-    delete process.env.SIBYL_SERVER;
+    delete process.env.SIBYL_SERVER_URL;
   });
 });

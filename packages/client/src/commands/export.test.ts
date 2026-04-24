@@ -238,7 +238,7 @@ describe("Export Command", () => {
   });
 
   test("should use default server URL when not provided", async () => {
-    delete process.env.SIBYL_SERVER;
+    delete process.env.SIBYL_SERVER_URL;
 
     await runExport({});
 
@@ -247,13 +247,13 @@ describe("Export Command", () => {
   });
 
   test("should use environment variable for server URL", async () => {
-    process.env.SIBYL_SERVER = "http://custom-server:8080";
+    process.env.SIBYL_SERVER_URL = "http://custom-server:8080";
 
     await runExport({});
 
     const [url] = mockFetch.mock.calls[0];
     expect(url).toContain("http://custom-server:8080");
 
-    delete process.env.SIBYL_SERVER;
+    delete process.env.SIBYL_SERVER_URL;
   });
 });
