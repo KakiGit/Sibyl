@@ -275,6 +275,18 @@ export class WikiPageStorage {
     return this.mapToWikiPage(results[0]);
   }
 
+  async findByIds(ids: string[]): Promise<WikiPage[]> {
+    if (ids.length === 0) return [];
+    
+    const db = getDatabase();
+    const results = await db
+      .select()
+      .from(wikiPages)
+      .where(inArray(wikiPages.id, ids));
+    
+    return results.map((r) => this.mapToWikiPage(r));
+  }
+
   async findAll(options: QueryWikiPagesOptions = {}): Promise<WikiPage[]> {
     const db = getDatabase();
     const conditions: any[] = [];
@@ -513,6 +525,55 @@ export class WikiLinkStorage {
     const db = getDatabase();
     const results = await db.select().from(wikiLinks);
     return results.map((r) => this.mapToWikiLink(r));
+  }
+
+  async findNeighborsBatch(pageIds: string[], limit: number = 3): Promise<Map<string, string[]>> {
+    const db = getDatabase();
+    const result = new Map<string, string[]>();
+    
+    for (const pageId of pageIds) {
+      result.set(pageId, []);
+    }
+    
+    if (pageIds.length === 0) return result;
+    
+    const outgoingLinks = await db
+      .select()
+      .from(wikiLinks)
+      .where(inArray(wikiLinks.fromPageId, pageIds));
+    
+    const outgoingMap = new Map<string, string[]>();
+    for (const link of outgoingLinks) {
+      const neighbors = outgoingMap.get(link.fromPageId) || [];
+      neighbors.push(link.toPageId);
+      outgoingMap.set(link.fromPageId, neighbors);
+    }
+    
+    const incomingLinks = await db
+      .select()
+      .from(wikiLinks)
+      .where(inArray(wikiLinks.toPageId, pageIds));
+    
+    const incomingMap = new Map<string, string[]>();
+    for (const link of incomingLinks) {
+      const neighbors = incomingMap.get(link.toPageId) || [];
+      neighbors.push(link.fromPageId);
+      incomingMap.set(link.toPageId, neighbors);
+    }
+    
+    for (const pageId of pageIds) {
+      const outgoing = (outgoingMap.get(pageId) || []).slice(0, limit);
+      const remaining = limit - outgoing.length;
+      const incoming = remaining > 0 
+        ? (incomingMap.get(pageId) || []).slice(0, remaining) 
+        : [];
+      
+      const allNeighbors = [...outgoing, ...incoming];
+      const uniqueNeighbors = [...new Set(allNeighbors)].filter(id => id !== pageId);
+      result.set(pageId, uniqueNeighbors.slice(0, limit));
+    }
+    
+    return result;
   }
 
   private mapToWikiLink(row: {

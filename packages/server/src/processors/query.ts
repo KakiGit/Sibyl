@@ -3,6 +3,7 @@ import { wikiFileManager, WikiFileManager } from "../wiki/index.js";
 import { getLlmProvider, type LlmProvider } from "../llm/index.js";
 import { semanticSearch, initializeEmbedder } from "../embeddings/index.js";
 import { fileContent, type FilingResult } from "./filing.js";
+import { enrichMatchesWithGraph, getNeighborSummaries } from "../wiki/graph-traversal.js";
 import { logger } from "@sibyl/shared";
 import type { WikiPage, WikiPageType } from "@sibyl/sdk";
 
@@ -15,13 +16,18 @@ export interface QueryOptions {
   wikiFileManager?: WikiFileManager;
   useSemanticSearch?: boolean;
   semanticThreshold?: number;
+  useGraphExpansion?: boolean;
+  neighborLimit?: number;
+  hubBoostWeight?: number;
 }
 
 export interface QueryMatch {
   page: WikiPage;
   content?: string;
   relevanceScore: number;
-  matchType: "title" | "summary" | "tags" | "content";
+  matchType: "title" | "summary" | "tags" | "content" | "expanded";
+  isExpanded?: boolean;
+  expandedFrom?: string;
 }
 
 export interface QueryResult {
@@ -213,7 +219,50 @@ export async function queryWiki(options: QueryOptions): Promise<QueryResult> {
 
   matches.sort((a, b) => b.relevanceScore - a.relevanceScore);
 
-  const limitedMatches = matches.slice(0, limit);
+  const useGraph = options.useGraphExpansion ?? true;
+  const neighborLimit = options.neighborLimit ?? 3;
+  const hubBoostWeight = options.hubBoostWeight ?? 0.3;
+
+  let finalMatches: QueryMatch[] = matches;
+  
+  if (useGraph && matches.length > 0) {
+    try {
+      const inputMatches = matches.map((m) => ({
+        page: m.page,
+        content: m.content,
+        relevanceScore: m.relevanceScore,
+        matchType: m.matchType as "title" | "summary" | "tags" | "content",
+      }));
+      
+      const enrichedMatches = await enrichMatchesWithGraph(inputMatches, {
+        neighborLimit,
+        hubBoostWeight,
+      });
+      
+      finalMatches = enrichedMatches.map((em) => ({
+        page: em.page,
+        relevanceScore: em.relevanceScore,
+        matchType: em.matchType,
+        isExpanded: em.isExpanded,
+        expandedFrom: em.expandedFrom,
+      }));
+      
+      if (includeContent) {
+        for (const match of finalMatches) {
+          if (!match.content) {
+            const pageContent = wikiManager.readPage(match.page.type, match.page.slug);
+            match.content = pageContent?.content;
+          }
+        }
+      }
+    } catch (error) {
+      logger.warn("Graph expansion failed, using original matches", {
+        error: (error as Error).message,
+      });
+    }
+  }
+
+  const limitedMatches = finalMatches.slice(0, limit);
 
   const now = Date.now();
 
@@ -224,8 +273,10 @@ export async function queryWiki(options: QueryOptions): Promise<QueryResult> {
       types: options.types,
       tags: options.tags,
       useSemanticSearch: useSemantic,
+      useGraphExpansion: useGraph,
       resultCount: limitedMatches.length,
-      totalMatches: matches.length,
+      totalMatches: finalMatches.length,
+      expandedCount: finalMatches.filter((m) => m.isExpanded).length,
     },
   });
 
@@ -388,6 +439,26 @@ Summary: ${match.page.summary || "No summary"}
 Content:
 ${content.slice(0, 2000)}
 `);
+  }
+
+  try {
+    const primaryPageIds = queryResult.matches
+      .filter((m) => !m.isExpanded)
+      .slice(0, 5)
+      .map((m) => m.page.id);
+    
+    const neighborSummaries = await getNeighborSummaries(primaryPageIds, 3);
+    
+    if (neighborSummaries.length > 0) {
+      contextSections.push(`## Related Concepts (from linked pages)
+These pages are linked to the primary sources and may provide additional context:
+${neighborSummaries.slice(0, 9).map((n) => `- [[${n.page.slug}]] (${n.page.type}): ${n.summary}`).join("\n")}
+`);
+    }
+  } catch (error) {
+    logger.warn("Failed to get neighbor summaries for synthesis", {
+      error: (error as Error).message,
+    });
   }
 
   const userPrompt = `Question: ${options.query}
