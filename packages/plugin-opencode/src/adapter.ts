@@ -11,7 +11,7 @@ import {
 
 export interface OpenCodePluginResult {
   tool: Record<string, unknown>;
-  event: (event: { type: string; properties?: Record<string, unknown> }) => Promise<void>;
+  event: (ctx: { event: { type: string; properties?: Record<string, unknown> } }) => Promise<void>;
   getToolDescriptions: () => string;
 }
 
@@ -58,7 +58,8 @@ export function createOpenCodePlugin(input: unknown, options?: SibylPluginOption
     }),
   };
 
-  async function handleEvent(event: { type: string; properties?: Record<string, unknown> }) {
+  async function handleEvent(ctx: { event: { type: string; properties?: Record<string, unknown> } }) {
+    const event = ctx.event;
     if (!autoSave) return;
 
     if (event.type === "session.created") {
