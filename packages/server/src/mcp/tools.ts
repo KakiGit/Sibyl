@@ -2,27 +2,70 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { storage } from "../storage/index.js";
 import { wikiFileManager } from "../wiki/index.js";
+import { wikiSearchStorage } from "../search/index.js";
 import { getLlmProvider } from "../llm/index.js";
 import { enrichMatchesWithGraph, getNeighborSummaries, type GraphExpansionResult } from "../wiki/graph-traversal.js";
 import { logger } from "@sibyl/shared";
+import type { WikiPage } from "@sibyl/sdk";
 
 export function registerMcpTools(server: McpServer) {
   server.tool(
     "memory_recall",
-    "Search Wiki Pages and synthesize an answer using LLM. Retrieves correlated Wiki Pages and uses LLM to generate a synthesized response. Uses graph expansion to find related pages.",
+    "Search Wiki Pages and synthesize an answer using LLM. Uses hybrid search (keyword + semantic) by default for better relevance.",
     {
       query: z.string().describe("Search query to find relevant Wiki Pages"),
       type: z.enum(["entity", "concept", "source", "summary"]).optional().describe("Filter by wiki page type"),
       limit: z.number().int().positive().max(20).default(5).describe("Maximum number of Wiki Pages to retrieve"),
+      useSemantic: z.boolean().default(true).describe("Use hybrid search (FTS5 + semantic embeddings). Set false for pure keyword matching."),
     },
-    async ({ query, type, limit }) => {
-      const pages = await storage.wikiPages.findAll({
-        search: query,
-        type,
-        limit: limit * 2,
-      });
+    async ({ query, type, limit, useSemantic }) => {
+      let searchMatches: Array<{ page: WikiPage; relevanceScore: number; matchType: "title" | "summary" | "tags" | "content" }> = [];
 
-      if (pages.length === 0) {
+      if (useSemantic) {
+        try {
+          const allPages = await storage.wikiPages.findAll({ limit: 200 });
+          const searchResults = await wikiSearchStorage.hybridSearch(
+            {
+              query,
+              type,
+              limit: limit * 2,
+              useSemantic: true,
+              semanticThreshold: 0.3,
+            },
+            allPages
+          );
+          searchMatches = searchResults.map((r) => ({
+            page: r.page,
+            relevanceScore: Math.round(r.combinedScore * 100),
+            matchType: "content" as const,
+          }));
+        } catch (error) {
+          logger.warn("Hybrid search failed, falling back to keyword search", { error: (error as Error).message });
+          const pages = await storage.wikiPages.findAll({
+            search: query,
+            type,
+            limit: limit * 2,
+          });
+          searchMatches = pages.map((page) => ({
+            page,
+            relevanceScore: 50,
+            matchType: "content" as const,
+          }));
+        }
+      } else {
+        const pages = await storage.wikiPages.findAll({
+          search: query,
+          type,
+          limit: limit * 2,
+        });
+        searchMatches = pages.map((page) => ({
+          page,
+          relevanceScore: 50,
+          matchType: "content" as const,
+        }));
+      }
+
+      if (searchMatches.length === 0) {
         return {
           content: [
             {
@@ -33,19 +76,13 @@ export function registerMcpTools(server: McpServer) {
         };
       }
 
-      const matches = pages.map((page) => ({
-        page,
-        relevanceScore: 50,
-        matchType: "content" as const,
-      }));
-
-      let enrichedMatches: GraphExpansionResult[] = matches.map((m) => ({
+      let enrichedMatches: GraphExpansionResult[] = searchMatches.map((m) => ({
         ...m,
         isExpanded: false,
         matchType: m.matchType as "title" | "summary" | "tags" | "content" | "expanded",
       }));
       try {
-        enrichedMatches = await enrichMatchesWithGraph(matches, {
+        enrichedMatches = await enrichMatchesWithGraph(searchMatches, {
           neighborLimit: 3,
           hubBoostWeight: 0.3,
         });
@@ -74,7 +111,7 @@ export function registerMcpTools(server: McpServer) {
           content: [
             {
               type: "text",
-              text: `Found ${pages.length} Wiki Pages (${enrichedMatches.filter((e) => e.isExpanded).length} via graph expansion):\n\n${summaries.join("\n\n")}`,
+              text: `Found ${searchMatches.length} Wiki Pages (${enrichedMatches.filter((e) => e.isExpanded).length} via graph expansion):\n\n${summaries.join("\n\n")}`,
             },
           ],
         };
@@ -120,7 +157,7 @@ Provide a synthesized answer that combines information from these Wiki Pages. Be
           content: [
             {
               type: "text",
-              text: `Found ${pages.length} Wiki Pages:\n\n${summaries.join("\n\n")}`,
+              text: `Found ${searchMatches.length} Wiki Pages:\n\n${summaries.join("\n\n")}`,
             },
           ],
         };
@@ -151,33 +188,68 @@ Provide a synthesized answer that combines information from these Wiki Pages. Be
 
   server.tool(
     "memory_query",
-    "Query Wiki Pages with a question. Retrieves from Wiki Pages only and returns relevant pages metadata. Uses graph expansion to find related pages.",
+    "Query Wiki Pages with a question. Uses hybrid search (keyword + semantic) by default for better relevance.",
     {
       question: z.string().describe("Question to ask the knowledge base"),
       type: z.enum(["entity", "concept", "source", "summary"]).optional().describe("Filter by wiki page type"),
       limit: z.number().int().positive().max(20).default(10).describe("Maximum number of pages to return"),
       includeContent: z.boolean().optional().default(false).describe("Whether to include full page content in results"),
+      useSemantic: z.boolean().default(true).describe("Use hybrid search (FTS5 + semantic embeddings). Set false for pure keyword matching."),
     },
-    async ({ question, type, limit, includeContent }) => {
-      const pages = await storage.wikiPages.findAll({
-        search: question,
-        type,
-        limit: limit * 2,
-      });
+    async ({ question, type, limit, includeContent, useSemantic }) => {
+      let searchMatches: Array<{ page: WikiPage; relevanceScore: number; matchType: "title" | "summary" | "tags" | "content" }> = [];
 
-      const matches = pages.map((page) => ({
-        page,
-        relevanceScore: 50,
-        matchType: "content" as const,
-      }));
+      if (useSemantic) {
+        try {
+          const allPages = await storage.wikiPages.findAll({ limit: 200 });
+          const searchResults = await wikiSearchStorage.hybridSearch(
+            {
+              query: question,
+              type,
+              limit: limit * 2,
+              useSemantic: true,
+              semanticThreshold: 0.3,
+            },
+            allPages
+          );
+          searchMatches = searchResults.map((r) => ({
+            page: r.page,
+            relevanceScore: Math.round(r.combinedScore * 100),
+            matchType: "content" as const,
+          }));
+        } catch (error) {
+          logger.warn("Hybrid search failed, falling back to keyword search", { error: (error as Error).message });
+          const pages = await storage.wikiPages.findAll({
+            search: question,
+            type,
+            limit: limit * 2,
+          });
+          searchMatches = pages.map((page) => ({
+            page,
+            relevanceScore: 50,
+            matchType: "content" as const,
+          }));
+        }
+      } else {
+        const pages = await storage.wikiPages.findAll({
+          search: question,
+          type,
+          limit: limit * 2,
+        });
+        searchMatches = pages.map((page) => ({
+          page,
+          relevanceScore: 50,
+          matchType: "content" as const,
+        }));
+      }
 
-      let enrichedMatches: GraphExpansionResult[] = matches.map((m) => ({
+      let enrichedMatches: GraphExpansionResult[] = searchMatches.map((m) => ({
         ...m,
         isExpanded: false,
         matchType: m.matchType as "title" | "summary" | "tags" | "content" | "expanded",
       }));
       try {
-        enrichedMatches = await enrichMatchesWithGraph(matches, {
+        enrichedMatches = await enrichMatchesWithGraph(searchMatches, {
           neighborLimit: 3,
           hubBoostWeight: 0.3,
         });
@@ -193,6 +265,7 @@ Provide a synthesized answer that combines information from these Wiki Pages. Be
           question, 
           type, 
           limit, 
+          useSemantic,
           resultCount: finalPages.length, 
           expandedCount: finalPages.filter((m) => m.isExpanded).length,
         },
@@ -240,6 +313,7 @@ Provide a synthesized answer that combines information from these Wiki Pages. Be
               question,
               resultCount: finalPages.length,
               expandedCount: finalPages.filter((r) => r.isExpanded).length,
+              useSemantic,
               message: `Found ${finalPages.length} relevant Wiki Pages (${finalPages.filter((r) => r.isExpanded).length} via graph expansion).`,
               pages: results,
             }),

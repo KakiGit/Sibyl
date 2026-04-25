@@ -118,11 +118,12 @@ export async function triggerLlmIngestion(
 export async function synthesizeAnswer(
   options: ApiOptions,
   query: string,
-  maxPages: number = 5
+  maxPages: number = 5,
+  useSemantic: boolean = true
 ): Promise<string> {
   const result = await fetchSibylApi(options, "/api/synthesize", {
     method: "POST",
-    body: { query, maxPages },
+    body: { query, maxPages, useSemanticSearch: useSemantic },
   });
   const data = result as { data?: { answer?: string } };
   return data.data?.answer || "Unable to synthesize answer.";
@@ -145,8 +146,20 @@ export async function queryWikiPages(
   options: ApiOptions,
   question: string,
   type?: string,
-  limit: number = 10
+  limit: number = 10,
+  useSemantic: boolean = true
 ): Promise<string> {
+  if (useSemantic) {
+    const result = await fetchSibylApi(options, "/api/wiki-pages/search", {
+      method: "POST",
+      body: { query: question, type, limit, useSemantic: true },
+    });
+    const data = (result as { data?: unknown[] }).data || [];
+    if (data.length === 0) return "No relevant Wiki Pages found in the knowledge base.";
+    const results = data as Array<{ page: { title: string; type: string; summary?: string; slug: string; tags?: string[] }; combinedScore: number; matchType: string }>;
+    return `Found ${results.length} relevant Wiki Pages:\n\n${results.map(r => `${r.page.title} (${r.page.type}): ${r.page.summary || "No summary"}${r.page.tags?.length ? ` [tags: ${r.page.tags.join(", ")}]` : ""} [score: ${r.combinedScore.toFixed(2)}, ${r.matchType}]`).join("\n\n")}`;
+  }
+  
   const params = new URLSearchParams();
   params.set("search", question);
   params.set("limit", String(limit));

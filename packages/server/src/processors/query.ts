@@ -45,6 +45,7 @@ export interface SynthesizeOptions {
   wikiFileManager?: WikiFileManager;
   llmProvider?: LlmProvider | null;
   skipLlm?: boolean;
+  useSemanticSearch?: boolean;
 }
 
 export interface Citation {
@@ -388,6 +389,7 @@ export async function synthesizeAnswer(options: SynthesizeOptions): Promise<Synt
     limit: maxPages,
     includeContent: true,
     wikiFileManager: wikiManager,
+    useSemanticSearch: options.useSemanticSearch ?? true,
   });
 
   if (queryResult.matches.length === 0) {
