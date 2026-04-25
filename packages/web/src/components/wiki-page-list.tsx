@@ -5,6 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/dialog";
+import { EmptyState } from "@/components/ui/empty-state";
+import { CopyToClipboard } from "@/components/ui/copy-to-clipboard";
 import { WikiPageDetail } from "./wiki-page-detail";
 import { WikiLinkProvider } from "./wiki-link-renderer";
 import { useToast } from "@/components/toast";
@@ -93,21 +96,33 @@ function WikiPageCard({
   const config = PAGE_TYPE_CONFIG[page.type];
   const Icon = config.icon;
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      selectionMode ? onSelect() : onClick();
+    }
+  };
+
   return (
     <Card
-      className={`hover:shadow-md transition-shadow cursor-pointer hover:border-primary/50 ${isSelected ? "border-primary ring-2 ring-primary/20" : ""}`}
+      className={`hover:shadow-md hover:bg-muted/30 transition-all cursor-pointer hover:border-primary/50 ${isSelected ? "border-primary ring-2 ring-primary/20" : ""}`}
       onClick={selectionMode ? onSelect : onClick}
       onMouseEnter={onHover}
+      onKeyDown={handleKeyDown}
+      tabIndex={0}
+      role="article"
+      aria-label={`Wiki page: ${page.title}`}
     >
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 min-w-0">
             {selectionMode && (
               <button
                 type="button"
                 role="checkbox"
                 aria-checked={isSelected}
-                className={`h-4 w-4 shrink-0 rounded-sm border border-primary ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 mr-2 ${isSelected ? "bg-primary text-primary-foreground" : ""}`}
+                aria-label={`Select ${page.title}`}
+                className={`h-4 w-4 shrink-0 rounded-sm border border-primary ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${isSelected ? "bg-primary text-primary-foreground" : ""}`}
                 onClick={(e: React.MouseEvent) => {
                   e.stopPropagation();
                   onSelect();
@@ -116,8 +131,8 @@ function WikiPageCard({
                 {isSelected && <Check className="h-3 w-3" />}
               </button>
             )}
-            <Icon className="h-4 w-4 text-muted-foreground" />
-            <CardTitle className="text-base">{page.title}</CardTitle>
+            <Icon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+            <CardTitle className="text-base truncate">{page.title}</CardTitle>
           </div>
           <Badge className={config.color}>{config.label}</Badge>
         </div>
@@ -128,10 +143,13 @@ function WikiPageCard({
             {page.summary}
           </p>
         )}
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <span>{page.slug}</span>
+        <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
+          <span className="flex items-center gap-1">
+            {page.slug}
+            <CopyToClipboard text={page.slug} />
+          </span>
           {page.tags.length > 0 && (
-            <div className="flex gap-1">
+            <div className="flex gap-1 flex-wrap">
               {page.tags.slice(0, 3).map((tag) => (
                 <Badge key={tag} variant="outline" className="text-xs">
                   {tag}
@@ -168,6 +186,7 @@ export function WikiPageList({ type }: { type?: string }) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [selectionMode, setSelectionMode] = useState(false);
   const [isBatchDeleting, setIsBatchDeleting] = useState(false);
+  const [showBatchDeleteConfirm, setShowBatchDeleteConfirm] = useState(false);
   const toast = useToast();
   const observerRef = useRef<IntersectionObserver | null>(null);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
@@ -246,6 +265,10 @@ export function WikiPageList({ type }: { type?: string }) {
     }
   };
 
+  const handleBatchDeleteClick = () => {
+    setShowBatchDeleteConfirm(true);
+  };
+
   const handleSelectAll = () => {
     if (selectedIds.size === allPages.length) {
       setSelectedIds(new Set());
@@ -303,9 +326,12 @@ export function WikiPageList({ type }: { type?: string }) {
     return (
       <Card>
         <CardContent className="p-6">
-          <p className="text-muted-foreground">
-            Failed to load wiki pages. Please check if the server is running.
-          </p>
+          <EmptyState
+            title="Failed to load wiki pages"
+            description="Please check if the server is running and try again."
+            actionLabel="Retry"
+            onAction={() => refetch()}
+          />
         </CardContent>
       </Card>
     );
@@ -314,11 +340,11 @@ export function WikiPageList({ type }: { type?: string }) {
   if (allPages.length === 0) {
     return (
       <Card>
-        <CardContent className="p-6 text-center">
-          <p className="text-muted-foreground">No wiki pages found.</p>
-          <p className="text-sm text-muted-foreground mt-1">
-            Use the MCP tools or API to create new pages.
-          </p>
+        <CardContent className="p-6">
+          <EmptyState
+            title="No wiki pages found"
+            description="Use the MCP tools or API to create new pages."
+          />
         </CardContent>
       </Card>
     );
@@ -352,7 +378,7 @@ export function WikiPageList({ type }: { type?: string }) {
                 <Button
                   variant="destructive"
                   size="sm"
-                  onClick={handleBatchDelete}
+                  onClick={handleBatchDeleteClick}
                   disabled={selectedIds.size === 0 || isBatchDeleting}
                 >
                   {isBatchDeleting ? (
@@ -400,7 +426,10 @@ export function WikiPageList({ type }: { type?: string }) {
         </div>
         
         {!selectionMode && hasNextPage && (
-          <div ref={loadMoreRef} className="flex justify-center py-4">
+          <div ref={loadMoreRef} className="flex flex-col items-center gap-2 py-4">
+            <p className="text-sm text-muted-foreground">
+              Loaded {allPages.length} of {totalCount || allPages.length} pages
+            </p>
             {isFetchingNextPage ? (
               <WikiPageListSkeleton count={3} />
             ) : (
@@ -411,6 +440,17 @@ export function WikiPageList({ type }: { type?: string }) {
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        open={showBatchDeleteConfirm}
+        onOpenChange={setShowBatchDeleteConfirm}
+        title="Delete selected pages"
+        description={`Are you sure you want to delete ${selectedIds.size} wiki page(s)? This action cannot be undone.`}
+        confirmLabel="Delete"
+        onConfirm={handleBatchDelete}
+        variant="destructive"
+        loading={isBatchDeleting}
+      />
     </WikiLinkProvider>
   );
 }

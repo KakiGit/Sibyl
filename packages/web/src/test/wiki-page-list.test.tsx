@@ -171,7 +171,7 @@ describe("WikiPageList", () => {
     render(<WikiPageList />, { wrapper: createWrapper() });
 
     await waitFor(() => {
-      expect(screen.getByText(/Failed to load wiki pages/i)).toBeTruthy();
+      expect(screen.getByText(/Failed to load wiki pages/)).toBeTruthy();
     });
   });
 
@@ -309,6 +309,13 @@ describe("WikiPageList", () => {
 
     const deleteBtn = screen.getByText("Delete (2)");
     fireEvent.click(deleteBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Are you sure you want to delete 2 wiki page/)).toBeTruthy();
+    });
+
+    const confirmBtn = screen.getByText("Delete");
+    fireEvent.click(confirmBtn);
 
     await waitFor(() => {
       expect(batchDeleteCalled).toBe(true);

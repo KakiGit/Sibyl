@@ -4,6 +4,7 @@ import { Search, Loader2, BookOpen, CheckCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 interface Citation {
   pageSlug: string;
@@ -72,12 +73,24 @@ function CitationCard({ citation }: { citation: Citation }) {
   );
 }
 
+function sanitizeHtml(html: string): string {
+  return html
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+    .replace(/<iframe[^>]*>[\s\S]*?<\/iframe>/gi, "")
+    .replace(/<object[^>]*>[\s\S]*?<\/object>/gi, "")
+    .replace(/<embed[^>]*>[\s\S]*?<\/embed>/gi, "")
+    .replace(/on\w+\s*=\s*["'][^"']*["']/gi, "")
+    .replace(/on\w+\s*=\s*\S+/gi, "")
+    .replace(/javascript\s*:/gi, "");
+}
+
 function AnswerDisplay({ result }: { result: SynthesizeResult }) {
   const [activeTab, setActiveTab] = useState<"answer" | "citations">("answer");
   const processedAnswer = result.answer.replace(
     /\[\[([^\]]+)\]\]/g,
     '<a href="#" class="text-blue-600 hover:underline font-medium">[[<span class="underline">$1</span>]]</a>'
   );
+  const sanitizedAnswer = sanitizeHtml(processedAnswer);
 
   return (
     <div className="space-y-6">
@@ -102,9 +115,12 @@ function AnswerDisplay({ result }: { result: SynthesizeResult }) {
         </div>
       )}
 
-      <div className="inline-flex h-9 items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground">
+      <div className="inline-flex h-9 items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground" role="tablist">
         <button
           type="button"
+          role="tab"
+          aria-selected={activeTab === "answer"}
+          aria-controls="answer-panel"
           onClick={() => setActiveTab("answer")}
           className={`inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-sm font-medium transition-all ${activeTab === "answer" ? "bg-background text-foreground shadow" : ""}`}
         >
@@ -112,6 +128,9 @@ function AnswerDisplay({ result }: { result: SynthesizeResult }) {
         </button>
         <button
           type="button"
+          role="tab"
+          aria-selected={activeTab === "citations"}
+          aria-controls="citations-panel"
           onClick={() => setActiveTab("citations")}
           className={`inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-sm font-medium transition-all ${activeTab === "citations" ? "bg-background text-foreground shadow" : ""}`}
         >
@@ -120,11 +139,11 @@ function AnswerDisplay({ result }: { result: SynthesizeResult }) {
       </div>
 
       {activeTab === "answer" && (
-        <Card>
+        <Card id="answer-panel" role="tabpanel">
           <CardContent className="p-6">
             <div
               className="prose prose-sm max-w-none"
-              dangerouslySetInnerHTML={{ __html: processedAnswer }}
+              dangerouslySetInnerHTML={{ __html: sanitizedAnswer }}
             />
           </CardContent>
         </Card>
@@ -179,12 +198,12 @@ export function QuerySynthesis() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="flex gap-3">
-            <input
+            <Input
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Ask a question about your wiki..."
-              className="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+              className="flex-1"
               disabled={mutation.isPending}
             />
             <Button type="submit" disabled={mutation.isPending || !query.trim()}>

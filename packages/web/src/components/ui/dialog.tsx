@@ -33,16 +33,61 @@ interface DialogFooterProps {
 }
 
 export function Dialog({ open, onOpenChange, children }: DialogProps) {
+  const contentRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (!open) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onOpenChange(false);
+        return;
+      }
+
+      if (e.key === "Tab" && contentRef.current) {
+        const focusableElements = contentRef.current.querySelectorAll(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        if (focusableElements.length === 0) return;
+
+        const firstElement = focusableElements[0] as HTMLElement;
+        const lastElement = focusableElements[focusableElements.length - 1] as HTMLElement;
+
+        if (e.shiftKey && document.activeElement === firstElement) {
+          e.preventDefault();
+          lastElement.focus();
+        } else if (!e.shiftKey && document.activeElement === lastElement) {
+          e.preventDefault();
+          firstElement.focus();
+        }
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [open, onOpenChange]);
+
+  React.useEffect(() => {
+    if (open && contentRef.current) {
+      const focusableElements = contentRef.current.querySelectorAll(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusableElements.length > 0) {
+        (focusableElements[0] as HTMLElement).focus();
+      }
+    }
+  }, [open]);
+
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50">
+    <div className="fixed inset-0 z-50" role="dialog" aria-modal="true">
       <div 
         className="fixed inset-0 bg-black/50" 
         onClick={() => onOpenChange(false)}
         aria-hidden="true"
       />
-      <div className="fixed left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%]">
+      <div className="fixed left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%] z-50" ref={contentRef}>
         {children}
       </div>
     </div>
@@ -57,8 +102,6 @@ export function DialogContent({ children, className }: DialogContentProps) {
         "border border-border",
         className
       )}
-      role="dialog"
-      aria-modal="true"
     >
       {children}
     </div>

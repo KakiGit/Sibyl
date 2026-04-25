@@ -84,12 +84,17 @@ function ToastItem({ toast, onClose }: { toast: Toast; onClose: () => void }) {
   );
 }
 
+const MAX_VISIBLE_TOASTS = 5;
+
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
   const addToast = useCallback((toast: Omit<Toast, "id">) => {
     const id = `toast-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    setToasts((prev) => [...prev, { ...toast, id }]);
+    setToasts((prev) => {
+      const newToasts = [...prev, { ...toast, id }];
+      return newToasts.slice(-MAX_VISIBLE_TOASTS);
+    });
   }, []);
 
   const removeToast = useCallback((id: string) => {

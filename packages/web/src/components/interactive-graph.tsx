@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Brain, Layers, FileText, BookOpen, X, ExternalLink, ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
+import { Brain, Layers, FileText, BookOpen, X, ExternalLink, ArrowLeft, ArrowRight, Loader2, ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import * as d3 from "d3";
 
 interface GraphNode {
@@ -118,6 +119,7 @@ interface InteractiveGraphProps {
 export function InteractiveGraph({ graph }: InteractiveGraphProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
+  const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [selectedNode, setSelectedNode] = useState<SimulatedNode | null>(null);
   const [isLayoutReady, setIsLayoutReady] = useState(false);
@@ -177,7 +179,18 @@ export function InteractiveGraph({ graph }: InteractiveGraphProps) {
     
     svg.selectAll("*").remove();
     
-    const link = svg.append("g")
+    const g = svg.append("g");
+    
+    const zoom = d3.zoom<SVGSVGElement, unknown>()
+      .scaleExtent([0.1, 4])
+      .on("zoom", (event) => {
+        g.attr("transform", event.transform);
+      });
+    
+    svg.call(zoom);
+    zoomRef.current = zoom;
+    
+    const link = g.append("g")
       .attr("stroke", "#999")
       .attr("stroke-opacity", 0.6)
       .selectAll("line")
@@ -185,7 +198,7 @@ export function InteractiveGraph({ graph }: InteractiveGraphProps) {
       .join("line")
       .attr("stroke-width", 1);
     
-    const node = svg.append("g")
+    const node = g.append("g")
       .attr("stroke", "#fff")
       .attr("stroke-width", 1.5)
       .selectAll("g")
@@ -330,8 +343,53 @@ export function InteractiveGraph({ graph }: InteractiveGraphProps) {
         <span>Summary</span>
       </div>
       
+      <div className="absolute top-4 right-4 flex flex-col gap-2">
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-8 w-8 bg-background shadow-md"
+          onClick={() => {
+            if (svgRef.current && zoomRef.current) {
+              d3.select(svgRef.current).transition().duration(300).call(zoomRef.current.scaleBy, 1.5);
+            }
+          }}
+          aria-label="Zoom in"
+          title="Zoom in"
+        >
+          <ZoomIn className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-8 w-8 bg-background shadow-md"
+          onClick={() => {
+            if (svgRef.current && zoomRef.current) {
+              d3.select(svgRef.current).transition().duration(300).call(zoomRef.current.scaleBy, 0.67);
+            }
+          }}
+          aria-label="Zoom out"
+          title="Zoom out"
+        >
+          <ZoomOut className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-8 w-8 bg-background shadow-md"
+          onClick={() => {
+            if (svgRef.current && zoomRef.current) {
+              d3.select(svgRef.current).transition().duration(300).call(zoomRef.current.transform, d3.zoomIdentity);
+            }
+          }}
+          aria-label="Reset zoom"
+          title="Reset zoom"
+        >
+          <Maximize2 className="h-4 w-4" />
+        </Button>
+      </div>
+      
       <div className="absolute bottom-4 right-4 text-xs text-muted-foreground">
-        Drag to rearrange • Click for details
+        Drag to rearrange • Click for details • Scroll to zoom
       </div>
     </div>
   );

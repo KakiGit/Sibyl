@@ -4,6 +4,8 @@ import { Search, Loader2, RefreshCw, BookOpen, XCircle, CheckCircle, Sparkles } 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useToast } from "@/components/toast";
 
@@ -80,12 +82,13 @@ const MATCH_TYPE_CONFIG = {
 
 function ScoreBar({ score, label }: { score: number; label: string }) {
   const percentage = Math.min(Math.max(score * 100, 0), 100);
+  const color = score >= 0.7 ? "bg-green-500" : score >= 0.4 ? "bg-yellow-500" : "bg-red-500";
   return (
     <div className="flex items-center gap-2">
-      <span className="text-xs text-muted-foreground w-20">{label}</span>
+      <span className="text-xs text-muted-foreground w-20" title={`${label} relevance score (0-1)`}>{label}</span>
       <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
         <div
-          className="h-full bg-primary transition-all"
+          className={`h-full ${color} transition-all`}
           style={{ width: `${percentage}%` }}
         />
       </div>
@@ -261,23 +264,21 @@ export function WikiSearch() {
             <div className="grid gap-4 md:grid-cols-2">
               <div>
                 <label className="text-sm font-medium mb-2 block" htmlFor="search-query">Search Query</label>
-                <input
+                <Input
                   id="search-query"
                   type="text"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Enter search query..."
-                  className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                   disabled={isPending}
                 />
               </div>
               <div>
                 <label className="text-sm font-medium mb-2 block" htmlFor="search-type">Filter by Type</label>
-                <select
+                <Select
                   id="search-type"
                   value={type}
                   onChange={(e) => setType(e.target.value as typeof type)}
-                  className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                   disabled={isPending}
                 >
                   <option value="">All Types</option>
@@ -285,33 +286,31 @@ export function WikiSearch() {
                   <option value="entity">Entity</option>
                   <option value="source">Source</option>
                   <option value="summary">Summary</option>
-                </select>
+                </Select>
               </div>
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
               <div>
                 <label className="text-sm font-medium mb-2 block" htmlFor="search-tags">Tags (comma-separated)</label>
-                <input
+                <Input
                   id="search-tags"
                   type="text"
                   value={tags}
                   onChange={(e) => setTags(e.target.value)}
                   placeholder="ai, machine-learning..."
-                  className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                   disabled={isPending}
                 />
               </div>
               <div>
                 <label className="text-sm font-medium mb-2 block" htmlFor="search-limit">Result Limit</label>
-                <input
+                <Input
                   id="search-limit"
                   type="number"
                   value={limit}
                   onChange={(e) => setLimit(parseInt(e.target.value) || 10)}
                   min={1}
                   max={50}
-                  className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                   disabled={isPending}
                 />
               </div>
@@ -380,9 +379,24 @@ export function WikiSearch() {
             {searchError && !autoSearch && (
               <div className="flex items-center gap-2 p-3 bg-red-50 rounded-lg">
                 <XCircle className="h-4 w-4 text-red-600" />
-                <p className="text-sm text-red-600">
+                <p className="text-sm text-red-600 flex-1">
                   {(searchError as Error).message}
                 </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => manualSearchMutation.mutate({
+                    query: query.trim(),
+                    type: type || undefined,
+                    tags: tags.trim() ? tags.split(",").map((t) => t.trim()).filter(Boolean) : undefined,
+                    useSemantic,
+                    limit,
+                  })}
+                  disabled={isPending || !query.trim()}
+                >
+                  <RefreshCw className="h-3 w-3 mr-1" />
+                  Retry
+                </Button>
               </div>
             )}
           </form>
