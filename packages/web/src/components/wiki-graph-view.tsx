@@ -1,12 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
-import { Network, Link2Off, GitBranch, Brain, Layers, FileText, BookOpen, ArrowRight, ArrowLeft, LayoutGrid, List, RefreshCw } from "lucide-react";
+import { useState, useCallback } from "react";
+import { Network, Link2Off, GitBranch, Brain, Layers, FileText, BookOpen, ArrowRight, ArrowLeft, LayoutGrid, List } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { InteractiveGraph } from "@/components/interactive-graph";
+import { WikiPageDetail } from "@/components/wiki-page-detail";
 
 interface GraphNode {
   id: string;
@@ -131,10 +131,26 @@ function GraphViewSkeleton() {
 
 export function WikiGraphView() {
   const [viewMode, setViewMode] = useState<"interactive" | "list">("interactive");
+  const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["wikiGraph"],
     queryFn: fetchWikiGraph,
   });
+
+  const handleViewFullPage = useCallback((pageId: string) => {
+    setSelectedPageId(pageId);
+  }, []);
+
+  const graph = data?.data;
+
+  if (selectedPageId && graph) {
+    return (
+      <WikiPageDetail
+        pageId={selectedPageId}
+        onBack={() => setSelectedPageId(null)}
+      />
+    );
+  }
 
   if (isLoading) {
     return (
@@ -172,8 +188,6 @@ export function WikiGraphView() {
       </Card>
     );
   }
-
-  const graph = data?.data;
 
   if (!graph || graph.nodes.length === 0) {
     return (
@@ -249,9 +263,9 @@ export function WikiGraphView() {
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
                 Interactive visualization of {graph.nodes.length} pages with {graph.stats.totalLinks} connections.
-                Click nodes to see details. Hubs (3+ connections) shown larger, orphans shown with red dashed border.
+                Hover for preview, click for details. ESC to close. Hubs shown larger, orphans with red border.
               </p>
-              <InteractiveGraph graph={graph} />
+              <InteractiveGraph graph={graph} onViewFullPage={handleViewFullPage} />
             </div>
           )}
           
