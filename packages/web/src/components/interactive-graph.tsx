@@ -221,28 +221,25 @@ export function InteractiveGraph({ graph, onViewFullPage }: InteractiveGraphProp
         .attr("stroke-width", 1.5);
     });
 
-    (node as any).call((selection: any) => {
-      selection.each((thisElement: SVGGElement) => {
-        const element = d3.select(thisElement);
-        element.call(
-          d3.drag<any, any>()
-            .on("start", (event: any) => {
-              if (!event.active) simulation.alphaTarget(0.3).restart();
-              event.subject.fx = event.subject.x;
-              event.subject.fy = event.subject.y;
-            })
-            .on("drag", (event: any) => {
-              event.subject.fx = event.x;
-              event.subject.fy = event.y;
-            })
-            .on("end", (event: any) => {
-              if (!event.active) simulation.alphaTarget(0);
-              event.subject.fx = null;
-              event.subject.fy = null;
-            })
-        );
-      });
-    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (node as any).call(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      d3.drag<any, any>()
+        .on("start", (event: any) => {
+          if (!event.active) simulation.alphaTarget(0.3).restart();
+          event.subject.fx = event.subject.x;
+          event.subject.fy = event.subject.y;
+        })
+        .on("drag", (event: any) => {
+          event.subject.fx = event.x;
+          event.subject.fy = event.y;
+        })
+        .on("end", (event: any) => {
+          if (!event.active) simulation.alphaTarget(0);
+          event.subject.fx = null;
+          event.subject.fy = null;
+        })
+    );
 
     node.on("mouseenter", function(event: MouseEvent, d: SimulatedNode) {
       setHoveredNode(d);
