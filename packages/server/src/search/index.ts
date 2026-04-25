@@ -154,6 +154,12 @@ export class WikiSearchStorage {
     
     results.sort((a, b) => b.combinedScore - a.combinedScore);
     
+    if (options.semanticThreshold !== undefined && options.useSemantic !== false) {
+      const threshold = options.semanticThreshold;
+      const filtered = results.filter(r => r.semanticScore !== undefined && r.combinedScore >= threshold);
+      return filtered.slice(0, limit);
+    }
+    
     return results.slice(0, limit);
   }
 

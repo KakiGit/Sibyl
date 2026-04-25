@@ -409,7 +409,7 @@ export async function ingestWithLlm(options: IngestOptions): Promise<IngestResul
   );
 
   let existingPage: WikiPage | null = null;
-  if (searchResults.length > 0 && searchResults[0].combinedScore >= 0.3) {
+  if (searchResults.length > 0) {
     existingPage = searchResults[0].page;
   }
 
