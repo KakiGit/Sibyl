@@ -344,6 +344,31 @@ describe("Raw Resources API", () => {
 
     expect(response.statusCode).toBe(404);
   });
+
+  it("should find raw resource by stable session name when sessionId has date suffix", async () => {
+    const createResponse = await server.inject({
+      method: "POST",
+      url: "/api/raw-resources",
+      body: {
+        type: "text",
+        filename: "session-ses-239c2a7f-2026-04-25.txt",
+        contentPath: "/data/raw/documents/session-ses-239c2a7f-2026-04-25.txt",
+        metadata: { sessionId: "ses-239c2a7f9ffezktynfenwqwxsa-2026-04-25", sourceType: "opencode-session" },
+      },
+    });
+
+    expect(createResponse.statusCode).toBe(200);
+
+    const response = await server.inject({
+      method: "GET",
+      url: "/api/raw-resources/session/ses-239c2a7f9ffezktynfenwqwxsa",
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = JSON.parse(response.body);
+    expect(body.data.id).toBeDefined();
+    expect(body.data.metadata.sessionId).toBe("ses-239c2a7f9ffezktynfenwqwxsa-2026-04-25");
+  });
 });
 
 describe("Wiki Pages API", () => {

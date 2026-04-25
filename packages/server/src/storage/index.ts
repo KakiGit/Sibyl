@@ -149,7 +149,7 @@ export class RawResourceStorage {
     const results = await db
       .select()
       .from(rawResources)
-      .where(like(rawResources.metadata, `%"sessionId":"${sessionId}"%`))
+      .where(like(rawResources.metadata, `%"sessionId":"${sessionId}%`))
       .limit(1);
 
     if (results.length === 0) {
