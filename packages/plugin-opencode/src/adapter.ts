@@ -64,7 +64,7 @@ export function createOpenCodePlugin(input: unknown, options?: SibylPluginOption
 
     if (event.type === "session.created") {
       const rawSessionId = (event.properties?.sessionID as string) || "default";
-      sessionManager.createSession(rawSessionId);
+      await sessionManager.createSessionWithHistory(rawSessionId);
       return;
     }
 

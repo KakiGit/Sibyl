@@ -170,11 +170,12 @@ describe("createOpenCodePlugin", () => {
       properties: { sessionID: "session-idle-test" } 
     } as any });
 
-    expect(fetchCalls.length).toBe(3);
+    expect(fetchCalls.length).toBe(4);
     expect(fetchCalls[0].url).toBe("http://localhost:3000/api/raw-resources/session/session-idle-test");
-    expect(fetchCalls[1].url).toBe("http://localhost:3000/api/raw-resources");
-    expect(fetchCalls[2].url).toBe("http://localhost:3000/api/ingest/llm/raw-id-123");
-    expect(fetchCalls[2].options?.method).toBe("POST");
+    expect(fetchCalls[1].url).toBe("http://localhost:3000/api/raw-resources/session/session-idle-test");
+    expect(fetchCalls[2].url).toBe("http://localhost:3000/api/raw-resources");
+    expect(fetchCalls[3].url).toBe("http://localhost:3000/api/ingest/llm/raw-id-123");
+    expect(fetchCalls[3].options?.method).toBe("POST");
   });
 
   test("handles delta arriving before full text part", async () => {

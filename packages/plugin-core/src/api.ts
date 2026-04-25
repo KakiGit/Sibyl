@@ -92,6 +92,19 @@ export async function getRawResourceBySession(
   }
 }
 
+export async function getRawResourceContent(
+  options: ApiOptions,
+  id: string
+): Promise<string | null> {
+  try {
+    const result = await fetchSibylApi(options, `/api/raw-resources/${id}/content`);
+    const data = result as { data?: { content?: string } };
+    return data.data?.content || null;
+  } catch {
+    return null;
+  }
+}
+
 export async function triggerLlmIngestion(
   options: ApiOptions,
   rawResourceId: string,

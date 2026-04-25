@@ -1,6 +1,7 @@
 import type { ApiOptions, SessionData } from "./types.js";
 import {
   getRawResourceBySession,
+  getRawResourceContent,
   createRawResource,
   updateRawResourceContent,
   updateRawResourceMetadata,
@@ -45,6 +46,61 @@ export function formatTranscript(session: SessionData): string {
     lines.push("");
   }
   return lines.join("\n");
+}
+
+export function parseTranscript(content: string): { messageMetadata: Map<string, { messageId: string; role: string; timestamp: number }>; messageParts: Map<string, { text: string; timestamp: number }[]> } {
+  const messageMetadata = new Map<string, { messageId: string; role: string; timestamp: number }>();
+  const messageParts = new Map<string, { text: string; timestamp: number }[]>();
+  
+  const lines = content.split("\n");
+  let currentRole: string | null = null;
+  let currentTimestamp: number | null = null;
+  let currentText: string[] = [];
+  let messageIndex = 0;
+  
+  for (const line of lines) {
+    const headerMatch = line.match(/### \*\*(User|Assistant)\*\* \((\d{4}-\d{2}-\d{2}T[\d:.]+Z)\)/);
+    if (headerMatch) {
+      if (currentRole !== null && currentTimestamp !== null && currentText.length > 0) {
+        const messageId = `parsed-${messageIndex}-${currentTimestamp}`;
+        const textContent = currentText.join("\n").trim();
+        if (textContent.length > 0) {
+          messageMetadata.set(messageId, { messageId, role: currentRole, timestamp: currentTimestamp });
+          messageParts.set(messageId, [{ text: textContent, timestamp: currentTimestamp }]);
+          messageIndex++;
+        }
+      }
+      currentRole = headerMatch[1].toLowerCase();
+      currentTimestamp = new Date(headerMatch[2]).getTime();
+      currentText = [];
+    } else if (line === "---") {
+      if (currentRole !== null && currentTimestamp !== null && currentText.length > 0) {
+        const messageId = `parsed-${messageIndex}-${currentTimestamp}`;
+        const textContent = currentText.join("\n").trim();
+        if (textContent.length > 0) {
+          messageMetadata.set(messageId, { messageId, role: currentRole, timestamp: currentTimestamp });
+          messageParts.set(messageId, [{ text: textContent, timestamp: currentTimestamp }]);
+          messageIndex++;
+        }
+      }
+      currentRole = null;
+      currentTimestamp = null;
+      currentText = [];
+    } else if (currentRole !== null) {
+      currentText.push(line);
+    }
+  }
+  
+  if (currentRole !== null && currentTimestamp !== null && currentText.length > 0) {
+    const messageId = `parsed-${messageIndex}-${currentTimestamp}`;
+    const textContent = currentText.join("\n").trim();
+    if (textContent.length > 0) {
+      messageMetadata.set(messageId, { messageId, role: currentRole, timestamp: currentTimestamp });
+      messageParts.set(messageId, [{ text: textContent, timestamp: currentTimestamp }]);
+    }
+  }
+  
+  return { messageMetadata, messageParts };
 }
 
 export function countMessagesWithParts(session: SessionData): number {
@@ -144,6 +200,29 @@ export class SessionManager {
   createSession(sessionId: string): SessionData {
     const stableName = extractStableSessionName(sessionId);
     const session = createSession(sessionId);
+    this.sessions.set(stableName, session);
+    return session;
+  }
+
+  async createSessionWithHistory(sessionId: string): Promise<SessionData> {
+    const stableName = extractStableSessionName(sessionId);
+    const existing = this.sessions.get(stableName);
+    if (existing) return existing;
+    
+    const session = createSession(sessionId);
+    
+    const existingResource = await getRawResourceBySession(this.options, stableName);
+    if (existingResource?.id) {
+      const content = await getRawResourceContent(this.options, existingResource.id);
+      if (content) {
+        const parsed = parseTranscript(content);
+        session.messageMetadata = parsed.messageMetadata;
+        session.messageParts = parsed.messageParts;
+        session.rawResourceId = existingResource.id;
+        session.lastSyncVersion = countMessagesWithParts(session);
+      }
+    }
+    
     this.sessions.set(stableName, session);
     return session;
   }
