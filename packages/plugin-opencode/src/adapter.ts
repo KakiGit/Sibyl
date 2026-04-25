@@ -121,9 +121,9 @@ export function createOpenCodePlugin(input: unknown, options?: SibylPluginOption
         sessionManager.appendMessagePartDelta(session, messageId, delta);
       } else if (text) {
         sessionManager.addMessagePart(session, messageId, text, Date.now());
+        await sessionManager.autoSyncIfNeeded(rawSessionId);
       }
 
-      await sessionManager.autoSyncIfNeeded(rawSessionId);
       return;
     }
   }

@@ -128,9 +128,7 @@ export function addMessagePart(
   text: string,
   timestamp: number
 ): void {
-  const messageParts = session.messageParts.get(messageId) || [];
-  messageParts.push({ text, timestamp });
-  session.messageParts.set(messageId, messageParts);
+  session.messageParts.set(messageId, [{ text, timestamp }]);
 }
 
 export function appendMessagePartDelta(
