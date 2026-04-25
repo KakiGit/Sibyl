@@ -12,6 +12,9 @@ const WikiLinkContext = createContext<WikiLinkContextType | null>(null);
 export function useWikiLink() {
   const context = useContext(WikiLinkContext);
   if (!context) {
+    if (process.env.NODE_ENV === "development") {
+      console.warn("useWikiLink must be used within a WikiLinkProvider");
+    }
     return { navigateToSlug: () => {}, currentPageSlug: null, existingSlugs: new Set() };
   }
   return context;

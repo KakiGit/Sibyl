@@ -16,6 +16,16 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return "0 B";
+  const k = 1024;
+  const sizes = ["B", "KB", "MB", "GB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
+}
 
 interface WikiStats {
   totalPages: number;
@@ -242,7 +252,7 @@ function ContentMetricsCard({ stats }: { stats: WikiStats }) {
         </div>
         <div className="flex items-center gap-3">
           <span className="text-sm flex-1">Total content size</span>
-          <Badge variant="outline">{Math.round(stats.totalContentLength / 1024)} KB</Badge>
+          <Badge variant="outline">{formatBytes(stats.totalContentLength)}</Badge>
         </div>
         <div className="flex items-center gap-3">
           <Link2 className="h-4 w-4 text-muted-foreground" />
@@ -371,9 +381,12 @@ export function WikiStatsView() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-muted-foreground">
-            Failed to load wiki statistics. Please check if the server is running.
-          </p>
+          <EmptyState
+            title="Failed to load statistics"
+            description="Please check if the server is running."
+            actionLabel="Retry"
+            onAction={() => refetch()}
+          />
         </CardContent>
       </Card>
     );

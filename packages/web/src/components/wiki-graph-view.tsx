@@ -1,9 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Network, Link2Off, GitBranch, Brain, Layers, FileText, BookOpen, ArrowRight, ArrowLeft, LayoutGrid, List } from "lucide-react";
+import { Network, Link2Off, GitBranch, Brain, Layers, FileText, BookOpen, ArrowRight, ArrowLeft, LayoutGrid, List, RefreshCw } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { InteractiveGraph } from "@/components/interactive-graph";
 
 interface GraphNode {
@@ -129,7 +131,7 @@ function GraphViewSkeleton() {
 
 export function WikiGraphView() {
   const [viewMode, setViewMode] = useState<"interactive" | "list">("interactive");
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["wikiGraph"],
     queryFn: fetchWikiGraph,
   });
@@ -160,9 +162,12 @@ export function WikiGraphView() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-muted-foreground">
-            Failed to load wiki graph. Please check if the server is running.
-          </p>
+          <EmptyState
+            title="Failed to load wiki graph"
+            description="Please check if the server is running."
+            actionLabel="Retry"
+            onAction={() => refetch()}
+          />
         </CardContent>
       </Card>
     );

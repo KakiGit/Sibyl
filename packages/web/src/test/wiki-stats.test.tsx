@@ -111,6 +111,6 @@ describe("WikiStatsView", () => {
   it("displays error message when fetch fails", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false }));
     renderWithClient(<WikiStatsView />);
-    await waitFor(() => expect(screen.getByText(/Failed to load wiki statistics/)).toBeTruthy(), { timeout: 5000 });
+    await waitFor(() => expect(screen.getByText(/Failed to load statistics/)).toBeTruthy(), { timeout: 5000 });
   }, 10000);
 });

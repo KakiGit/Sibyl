@@ -1,8 +1,8 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { 
   FileText, Brain, BookOpen, Layers, Search, Upload, Network, 
-  Settings, Home, ChevronRight, Keyboard, Database
+  Settings, Home, ChevronRight, Keyboard, Database, Sun, Moon, PanelLeftClose, PanelLeft
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { WikiPageList } from "@/components/wiki-page-list";
@@ -19,6 +19,7 @@ import { WikiStatsView } from "@/components/wiki-stats";
 import { MarpSlides } from "@/components/marp-slides";
 import { ToastProvider } from "@/components/toast";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { ScrollToTop } from "@/components/ui/scroll-to-top";
 import { useKeyboardShortcuts, KeyboardShortcut } from "@/hooks/use-keyboard-shortcuts";
 
 async function fetchStats() {
@@ -143,15 +144,17 @@ function SidebarTab({
   return (
     <button
       onClick={onClick}
-      className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
+      className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors justify-center ${
         active
           ? "bg-primary text-primary-foreground"
           : "hover:bg-muted text-muted-foreground hover:text-foreground"
       }`}
+      aria-label={label}
+      title={label}
     >
-      <Icon className="h-4 w-4" />
-      <span>{label}</span>
-      {active && <ChevronRight className="h-3 w-3 ml-auto" />}
+      <Icon className="h-4 w-4 flex-shrink-0" />
+      {label && <span className="truncate">{label}</span>}
+      {active && label && <ChevronRight className="h-3 w-3 ml-auto flex-shrink-0" />}
     </button>
   );
 }
@@ -159,6 +162,23 @@ function SidebarTab({
 export default function App() {
   const [activeTab, setActiveTab] = useState("overview");
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    const saved = localStorage.getItem("sidebarCollapsed");
+    return saved ? JSON.parse(saved) : false;
+  });
+  const [isDark, setIsDark] = useState(() => {
+    const saved = localStorage.getItem("theme");
+    return saved === "dark";
+  });
+
+  useEffect(() => {
+    localStorage.setItem("sidebarCollapsed", JSON.stringify(sidebarCollapsed));
+  }, [sidebarCollapsed]);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", isDark);
+    localStorage.setItem("theme", isDark ? "dark" : "light");
+  }, [isDark]);
 
   const shortcuts: KeyboardShortcut[] = useMemo(() => [
     { key: "1", ctrl: true, action: () => setActiveTab("overview"), description: "Overview" },
@@ -168,8 +188,9 @@ export default function App() {
     { key: "5", ctrl: true, action: () => setActiveTab("raw"), description: "Raw Resources" },
     { key: "6", ctrl: true, action: () => setActiveTab("graph"), description: "Graph" },
     { key: "7", ctrl: true, action: () => setActiveTab("tools"), description: "Tools" },
-    { key: "/", ctrl: true, action: () => setActiveTab("search"), description: "Quick search" },
+    { key: "k", ctrl: true, action: () => setActiveTab("search"), description: "Quick search" },
     { key: "?", shift: true, action: () => setShowShortcuts((prev) => !prev), description: "Show shortcuts" },
+    { key: "b", ctrl: true, action: () => setSidebarCollapsed((prev: boolean) => !prev), description: "Toggle sidebar" },
   ], []);
 
   useKeyboardShortcuts(shortcuts);
@@ -178,19 +199,31 @@ export default function App() {
     <ToastProvider>
       <ErrorBoundary>
         <div className="min-h-screen bg-background flex">
-          <aside className="w-64 border-r bg-card/50 p-4 flex flex-col">
-          <div className="mb-6">
-            <h1 className="text-xl font-bold tracking-tight">Sibyl</h1>
-            <p className="text-muted-foreground text-xs">
-              Memory System for Knowledge Management
-            </p>
+          <aside className={`${sidebarCollapsed ? "w-16" : "w-64"} border-r bg-card/50 p-4 flex flex-col transition-all duration-300`}>
+          <div className="mb-6 flex items-center justify-between">
+            {!sidebarCollapsed && (
+              <div>
+                <h1 className="text-xl font-bold tracking-tight">Sibyl</h1>
+                <p className="text-muted-foreground text-xs">
+                  Memory System for Knowledge Management
+                </p>
+              </div>
+            )}
+            <button
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
+              aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            >
+              {sidebarCollapsed ? <PanelLeft className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+            </button>
           </div>
           
           <nav className="flex-1 space-y-1">
             {TABS_CONFIG.map((tab) => (
               <SidebarTab
                 key={tab.id}
-                label={tab.label}
+                label={sidebarCollapsed ? "" : tab.label}
                 icon={tab.icon}
                 active={activeTab === tab.id}
                 onClick={() => setActiveTab(tab.id)}
@@ -203,9 +236,18 @@ export default function App() {
             <button
               onClick={() => setShowShortcuts(!showShortcuts)}
               className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm hover:bg-muted text-muted-foreground hover:text-foreground mt-2"
+              aria-label="Keyboard shortcuts"
             >
               <Keyboard className="h-4 w-4" />
-              <span>Shortcuts</span>
+              {!sidebarCollapsed && <span>Shortcuts</span>}
+            </button>
+            <button
+              onClick={() => setIsDark(!isDark)}
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm hover:bg-muted text-muted-foreground hover:text-foreground mt-2"
+              aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+            >
+              {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+              {!sidebarCollapsed && <span>{isDark ? "Light Mode" : "Dark Mode"}</span>}
             </button>
           </div>
           
@@ -286,6 +328,7 @@ export default function App() {
               </div>
             )}
           </div>
+          <ScrollToTop />
         </main>
       </div>
       </ErrorBoundary>

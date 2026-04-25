@@ -5,6 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ConfirmDialog } from "@/components/ui/dialog";
+import { CopyToClipboard } from "@/components/ui/copy-to-clipboard";
 import { RawResourceDetail } from "./raw-resource-detail";
 import { useToast } from "@/components/toast";
 
@@ -397,9 +400,12 @@ export function RawResourceList({ type, processed }: { type?: string; processed?
     return (
       <Card>
         <CardContent className="p-6">
-          <p className="text-muted-foreground">
-            Failed to load raw resources. Please check if the server is running.
-          </p>
+          <EmptyState
+            title="Failed to load raw resources"
+            description="Please check if the server is running."
+            actionLabel="Retry"
+            onAction={() => refetch()}
+          />
         </CardContent>
       </Card>
     );
@@ -487,11 +493,11 @@ export function RawResourceList({ type, processed }: { type?: string; processed?
 
       {resources.length === 0 ? (
         <Card>
-          <CardContent className="p-6 text-center">
-            <p className="text-muted-foreground">No raw resources found.</p>
-            <p className="text-sm text-muted-foreground mt-1">
-              Use the Content Ingestion section or MCP tools to add new resources.
-            </p>
+          <CardContent className="p-6">
+            <EmptyState
+              title="No raw resources found"
+              description="Use the Content Ingestion section or MCP tools to add new resources."
+            />
           </CardContent>
         </Card>
       ) : (
