@@ -5,6 +5,7 @@ import { tmpdir } from "os";
 import { createDatabase, migrateDatabase, closeDatabase, setDatabase, WikiFileManager } from "../index.js";
 import { storage } from "../storage/index.js";
 import { resetLlmProvider, setLlmProviderForTest, LlmProvider } from "../llm/index.js";
+import { wikiSearchStorage } from "../search/index.js";
 import Fastify from "fastify";
 import { registerIngestRoutes } from "./ingest.js";
 
@@ -23,6 +24,7 @@ beforeEach(async () => {
   testRawDir = join(testDbDir, "raw");
 
   mkdirSync(join(testRawDir, "documents"), { recursive: true });
+  mkdirSync(join(testWikiDir, "concept"), { recursive: true });
 
   const db = createDatabase(testDbPath);
   migrateDatabase(db);
@@ -288,7 +290,7 @@ describe("Ingest Routes", () => {
   });
 
   describe("POST /api/ingest/llm/:id", () => {
-    it("should allow re-processing an already processed raw resource", async () => {
+    it("should find and update existing wiki page via semantic search", async () => {
       const mockLlmProvider = {
         name: "mock-provider",
         call: async () => ({
@@ -309,6 +311,29 @@ describe("Ingest Routes", () => {
 
       setLlmProviderForTest(mockLlmProvider);
 
+      const existingPage = await storage.wikiPages.create({
+        slug: "reprocess-test-existing",
+        title: "Reprocess Test",
+        type: "concept",
+        contentPath: join(testWikiDir, "concept", "reprocess-test-existing.md"),
+        summary: "A test for re-processing.",
+        tags: ["existing"],
+      });
+
+      wikiManager.createPage({
+        title: "Reprocess Test",
+        type: "concept",
+        slug: "reprocess-test-existing",
+        content: "# Reprocess Test\n\nOriginal existing content.",
+        summary: "A test for re-processing.",
+        tags: ["existing"],
+        sourceIds: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      await wikiSearchStorage.indexPage(existingPage, wikiManager);
+
       const rawResource = await storage.rawResources.create({
         type: "text",
         filename: "reprocess-test.txt",
@@ -319,12 +344,72 @@ describe("Ingest Routes", () => {
 
       await storage.rawResources.update(rawResource.id, { processed: true });
 
-      await storage.processingLog.create({
-        operation: "ingest",
-        rawResourceId: rawResource.id,
-        wikiPageId: "test-wiki-page-id",
-        details: { action: "created" },
+      const response = await fastify.inject({
+        method: "POST",
+        url: `/api/ingest/llm/${rawResource.id}`,
       });
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body.data.rawResourceId).toBe(rawResource.id);
+      expect(body.data.wikiPageId).toBe(existingPage.id);
+      expect(body.data.processed).toBe(true);
+
+      const updatedPage = await storage.wikiPages.findById(existingPage.id);
+      expect(updatedPage?.sourceIds).toContain(rawResource.id);
+    });
+
+    it("should create new wiki page when no relevant page found", async () => {
+      const mockLlmProvider = {
+        name: "mock-provider",
+        call: async () => ({
+          content: JSON.stringify({
+            title: "New Unique Topic",
+            summary: "A completely different topic with no existing match.",
+            content: "# New Unique Topic\n\nBrand new content.",
+            tags: ["new", "unique"],
+            type: "concept",
+            crossReferences: [],
+          }),
+          model: "mock-model",
+          usage: { promptTokens: 100, completionTokens: 50, totalTokens: 150 },
+        }),
+        synthesize: async () => "Mock response",
+        getConfig: () => ({ baseUrl: "https://mock.api", apiKey: "mock-key", model: "mock-model", maxTokens: 4096 }),
+      } as unknown as LlmProvider;
+
+      setLlmProviderForTest(mockLlmProvider);
+
+      const unrelatedPage = await storage.wikiPages.create({
+        slug: "unrelated-topic",
+        title: "Gardening Tips for Spring",
+        type: "concept",
+        contentPath: join(testWikiDir, "concept", "unrelated-topic.md"),
+        summary: "Best practices for planting flowers and vegetables in your garden.",
+        tags: ["gardening", "plants"],
+      });
+
+      wikiManager.createPage({
+        title: "Gardening Tips for Spring",
+        type: "concept",
+        slug: "unrelated-topic",
+        content: "# Gardening Tips for Spring\n\nHow to grow plants successfully.",
+        summary: "Best practices for planting flowers and vegetables in your garden.",
+        tags: ["gardening", "plants"],
+        sourceIds: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      await wikiSearchStorage.indexPage(unrelatedPage, wikiManager);
+
+      const rawResource = await storage.rawResources.create({
+        type: "text",
+        filename: "new-topic.txt",
+        contentPath: join(testRawDir, "documents", "new-topic.txt"),
+        metadata: {},
+      });
+      writeFileSync(join(testRawDir, "documents", "new-topic.txt"), "Content about a new unique topic.");
 
       const response = await fastify.inject({
         method: "POST",
@@ -334,6 +419,8 @@ describe("Ingest Routes", () => {
       expect(response.statusCode).toBe(200);
       const body = JSON.parse(response.body);
       expect(body.data.rawResourceId).toBe(rawResource.id);
+      expect(body.data.wikiPageId).not.toBe(unrelatedPage.id);
+      expect(body.data.title).toBe("New Unique Topic");
       expect(body.data.processed).toBe(true);
     });
   });

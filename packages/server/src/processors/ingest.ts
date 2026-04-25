@@ -1,6 +1,7 @@
 import { readFileSync, existsSync } from "fs";
 import { storage } from "../storage/index.js";
 import { wikiFileManager, WikiFileManager, syncWikiLinks } from "../wiki/index.js";
+import { wikiSearchStorage } from "../search/index.js";
 import { logger } from "@sibyl/shared";
 import { generateWikiContent, type LlmGeneratedContent } from "./llm-content.js";
 import type { LlmProvider } from "../llm/index.js";
@@ -396,14 +397,20 @@ export async function ingestWithLlm(options: IngestOptions): Promise<IngestResul
 
   const now = Date.now();
 
+  const searchQuery = `${title} ${summary}`;
+  const searchResults = await wikiSearchStorage.hybridSearch(
+    {
+      query: searchQuery,
+      limit: 5,
+      useSemantic: true,
+      semanticThreshold: 0.3,
+    },
+    existingPages
+  );
+
   let existingPage: WikiPage | null = null;
-  const processingLogs = await storage.processingLog.findByRawResourceId(rawResource.id);
-  const lastIngestLog = processingLogs.find(log => log.operation === "ingest" && log.wikiPageId);
-  if (lastIngestLog?.wikiPageId) {
-    existingPage = await storage.wikiPages.findById(lastIngestLog.wikiPageId);
-  }
-  if (!existingPage) {
-    existingPage = await storage.wikiPages.findBySlug(slug);
+  if (searchResults.length > 0 && searchResults[0].combinedScore >= 0.3) {
+    existingPage = searchResults[0].page;
   }
 
   if (existingPage) {

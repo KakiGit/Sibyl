@@ -1,15 +1,16 @@
 import { getDatabase } from "../database.js";
-import { wikiFileManager } from "../wiki/index.js";
+import { wikiFileManager, WikiFileManager } from "../wiki/index.js";
 import { vectorSearch, storeWikiPageEmbedding, deleteWikiPageEmbedding } from "../embeddings/index.js";
 import type { WikiPage, HybridSearchOptions, SearchResult } from "@sibyl/sdk";
 import { logger } from "@sibyl/shared";
 
 export class WikiSearchStorage {
-  async indexPage(page: WikiPage): Promise<void> {
+  async indexPage(page: WikiPage, wikiFileManagerOverride?: WikiFileManager): Promise<void> {
     const db = getDatabase();
     const sqlite = (db as unknown as { $client: import("bun:sqlite").Database }).$client;
     
-    const content = wikiFileManager.readPage(page.type, page.slug);
+    const wikiManager = wikiFileManagerOverride || wikiFileManager;
+    const content = wikiManager.readPage(page.type, page.slug);
     
     sqlite.run(
       `INSERT INTO wiki_pages_fts (id, title, summary, content) VALUES (?, ?, ?, ?)`,
@@ -24,11 +25,12 @@ export class WikiSearchStorage {
     logger.debug("Indexed page in FTS5 and vec0", { id: page.id, slug: page.slug });
   }
 
-  async updatePageIndex(page: WikiPage): Promise<void> {
+  async updatePageIndex(page: WikiPage, wikiFileManagerOverride?: WikiFileManager): Promise<void> {
     const db = getDatabase();
     const sqlite = (db as unknown as { $client: import("bun:sqlite").Database }).$client;
     
-    const content = wikiFileManager.readPage(page.type, page.slug);
+    const wikiManager = wikiFileManagerOverride || wikiFileManager;
+    const content = wikiManager.readPage(page.type, page.slug);
     
     sqlite.run(
       `UPDATE wiki_pages_fts SET title = ?, summary = ?, content = ? WHERE id = ?`,
@@ -58,7 +60,14 @@ export class WikiSearchStorage {
     const db = getDatabase();
     const sqlite = (db as unknown as { $client: import("bun:sqlite").Database }).$client;
     
-    const sanitizedQuery = query.replace(/['"]/g, "").trim();
+    const sanitizedQuery = query
+      .replace(/[^\w\s]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    
+    if (!sanitizedQuery) {
+      return [];
+    }
     
     const results = sqlite.query<{
       id: string;
