@@ -89,7 +89,7 @@ export function createOpenCodePlugin(input: unknown, options?: SibylPluginOption
       const role = message.role || "";
       if (!role) return;
 
-      const session = sessionManager.getOrCreateSession(rawSessionId);
+      const session = await sessionManager.getOrCreateSessionWithHistory(rawSessionId);
       sessionManager.addMessageMetadata(session, messageId, role, message.time?.created || Date.now());
       return;
     }
@@ -115,7 +115,7 @@ export function createOpenCodePlugin(input: unknown, options?: SibylPluginOption
 
       if (!text && !delta) return;
 
-      const session = sessionManager.getOrCreateSession(rawSessionId);
+      const session = await sessionManager.getOrCreateSessionWithHistory(rawSessionId);
 
       if (delta) {
         sessionManager.appendMessagePartDelta(session, messageId, delta);

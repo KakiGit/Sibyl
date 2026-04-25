@@ -29,6 +29,8 @@ describe("createSession", () => {
     expect(session.messageParts.size).toBe(0);
     expect(session.lastSyncVersion).toBe(0);
     expect(session.createdAt).toBeGreaterThan(0);
+    expect(session.historyLoaded).toBe(false);
+    expect(session.historyChecked).toBe(false);
   });
 });
 

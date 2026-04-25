@@ -17,6 +17,8 @@ export interface SessionData {
   messageParts: Map<string, { text: string; timestamp: number }[]>;
   lastSyncVersion: number;
   createdAt: number;
+  historyLoaded: boolean;
+  historyChecked: boolean;
 }
 
 export interface MessageInfo {
