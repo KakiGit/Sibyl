@@ -205,22 +205,42 @@ export class SessionManager {
   async createSessionWithHistory(sessionId: string): Promise<SessionData> {
     const stableName = extractStableSessionName(sessionId);
     const existing = this.sessions.get(stableName);
-    if (existing) return existing;
     
-    const session = createSession(sessionId);
+    if (existing && existing.rawResourceId !== null) {
+      return existing;
+    }
     
     const existingResource = await getRawResourceBySession(this.options, stableName);
     if (existingResource?.id) {
       const content = await getRawResourceContent(this.options, existingResource.id);
       if (content) {
         const parsed = parseTranscript(content);
+        
+        if (existing) {
+          for (const [messageId, meta] of parsed.messageMetadata) {
+            existing.messageMetadata.set(messageId, meta);
+          }
+          for (const [messageId, parts] of parsed.messageParts) {
+            existing.messageParts.set(messageId, parts);
+          }
+          existing.rawResourceId = existingResource.id;
+          existing.lastSyncVersion = countMessagesWithParts(existing);
+          return existing;
+        }
+        
+        const session = createSession(sessionId);
         session.messageMetadata = parsed.messageMetadata;
         session.messageParts = parsed.messageParts;
         session.rawResourceId = existingResource.id;
         session.lastSyncVersion = countMessagesWithParts(session);
+        this.sessions.set(stableName, session);
+        return session;
       }
     }
     
+    if (existing) return existing;
+    
+    const session = createSession(sessionId);
     this.sessions.set(stableName, session);
     return session;
   }
