@@ -4,7 +4,7 @@ import { RAW_RESOURCE_TYPES, WIKI_PAGE_TYPES, OPERATIONS } from "@sibyl/shared";
 export const rawResources = sqliteTable("raw_resources", {
   id: text().primaryKey(),
   type: text({ enum: RAW_RESOURCE_TYPES }).notNull(),
-  filename: text().notNull(),
+  filename: text().unique().notNull(),
   sourceUrl: text("source_url"),
   contentPath: text("content_path").notNull(),
   metadata: text(),

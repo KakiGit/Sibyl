@@ -45,21 +45,47 @@ export class RawResourceStorage {
       processed: false,
     };
 
-    await db.insert(rawResources).values({
-      id: resource.id,
-      type: resource.type,
-      filename: resource.filename,
-      sourceUrl: resource.sourceUrl,
-      contentPath: resource.contentPath,
-      metadata: resource.metadata ? JSON.stringify(resource.metadata) : null,
-      createdAt: resource.createdAt,
-      processed: resource.processed ? 1 : 0,
-    });
+    try {
+      await db.insert(rawResources).values({
+        id: resource.id,
+        type: resource.type,
+        filename: resource.filename,
+        sourceUrl: resource.sourceUrl,
+        contentPath: resource.contentPath,
+        metadata: resource.metadata ? JSON.stringify(resource.metadata) : null,
+        createdAt: resource.createdAt,
+        processed: resource.processed ? 1 : 0,
+      });
 
-    broadcastRawResourceCreated({ id: resource.id, type: resource.type, filename: resource.filename });
-    rawResourceFileManager.addToIndex(resource);
-    logger.debug("Created raw resource", { id: resource.id, type: resource.type });
-    return resource;
+      broadcastRawResourceCreated({ id: resource.id, type: resource.type, filename: resource.filename });
+      rawResourceFileManager.addToIndex(resource);
+      logger.debug("Created raw resource", { id: resource.id, type: resource.type });
+      return resource;
+    } catch (error) {
+      if (input.filename.startsWith("session-")) {
+        const existing = await this.findByFilename(input.filename);
+        if (existing) {
+          logger.debug("Found existing raw resource with same filename", { filename: input.filename, existingId: existing.id });
+          return existing;
+        }
+      }
+      throw error;
+    }
+  }
+
+  async findByFilename(filename: string): Promise<RawResource | null> {
+    const db = getDatabase();
+    const results = await db
+      .select()
+      .from(rawResources)
+      .where(eq(rawResources.filename, filename))
+      .limit(1);
+
+    if (results.length === 0) {
+      return null;
+    }
+
+    return this.mapToRawResource(results[0]);
   }
 
   async findById(id: string): Promise<RawResource | null> {

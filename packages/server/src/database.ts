@@ -163,6 +163,10 @@ export function migrateDatabase(database: ReturnType<typeof drizzle<typeof schem
       expires_at INTEGER NOT NULL
     )
   `);
+
+  sqlite.run(`
+    CREATE UNIQUE INDEX IF NOT EXISTS raw_resources_filename_idx ON raw_resources(filename)
+  `);
 }
 
 export function getDatabase(): ReturnType<typeof drizzle<typeof schema>> {
