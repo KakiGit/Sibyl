@@ -97,6 +97,11 @@ export function InteractiveGraph({ graph, onViewFullPage }: InteractiveGraphProp
   
   const simulationRef = useRef<d3.Simulation<SimulatedNode, D3Link> | null>(null);
   const nodeDataRef = useRef<SimulatedNode[]>([]);
+  const selectedNodeRef = useRef<SimulatedNode | null>(null);
+
+  useEffect(() => {
+    selectedNodeRef.current = selectedNode;
+  }, [selectedNode]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -250,7 +255,7 @@ export function InteractiveGraph({ graph, onViewFullPage }: InteractiveGraphProp
         .duration(150)
         .attr("r", d.isHub ? 12 : d.isOrphan ? 8 : 9)
         .attr("stroke-width", 3)
-        .attr("stroke", d.id === selectedNode?.id ? "#6366F1" : nodeConfig.color);
+        .attr("stroke", d.id === selectedNodeRef.current?.id ? "#6366F1" : nodeConfig.color);
 
       link
         .transition()
@@ -276,17 +281,17 @@ export function InteractiveGraph({ graph, onViewFullPage }: InteractiveGraphProp
         .transition()
         .duration(150)
         .attr("r", d.isHub ? 8 : d.isOrphan ? 5 : 6)
-        .attr("stroke-width", d.id === selectedNode?.id ? 3 : 1.5)
-        .attr("stroke", d.id === selectedNode?.id ? "#6366F1" : nodeConfig.color);
+        .attr("stroke-width", d.id === selectedNodeRef.current?.id ? 3 : 1.5)
+        .attr("stroke", d.id === selectedNodeRef.current?.id ? "#6366F1" : nodeConfig.color);
 
       link
         .transition()
         .duration(150)
         .attr("stroke", (l: D3Link) => 
-          ((l.source as SimulatedNode).id === selectedNode?.id || (l.target as SimulatedNode).id === selectedNode?.id) ? "#6366F1" : "#999"
+          ((l.source as SimulatedNode).id === selectedNodeRef.current?.id || (l.target as SimulatedNode).id === selectedNodeRef.current?.id) ? "#6366F1" : "#999"
         )
         .attr("stroke-width", (l: D3Link) => 
-          ((l.source as SimulatedNode).id === selectedNode?.id || (l.target as SimulatedNode).id === selectedNode?.id) ? 2 : 1
+          ((l.source as SimulatedNode).id === selectedNodeRef.current?.id || (l.target as SimulatedNode).id === selectedNodeRef.current?.id) ? 2 : 1
         )
         .attr("stroke-opacity", 0.6);
     });
@@ -319,7 +324,7 @@ export function InteractiveGraph({ graph, onViewFullPage }: InteractiveGraphProp
       simulation.stop();
       simulationRef.current = null;
     };
-  }, [graph, dimensions.width, dimensions.height, selectedNode?.id]);
+  }, [graph, dimensions.width, dimensions.height]);
 
   useEffect(() => {
     if (!svgRef.current || !selectedNode) return;
