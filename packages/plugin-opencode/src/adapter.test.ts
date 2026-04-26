@@ -116,10 +116,11 @@ describe("createOpenCodePlugin", () => {
       } 
     } as any });
 
-    expect(fetchCalls.length).toBe(2);
+    expect(fetchCalls.length).toBe(3);
     expect(fetchCalls[0].url).toBe("http://localhost:3000/api/raw-resources/session/test-session");
-    expect(fetchCalls[1].url).toBe("http://localhost:3000/api/raw-resources");
-    const body = fetchCalls[1].options?.body as any;
+    expect(fetchCalls[1].url).toBe("http://localhost:3000/api/raw-resources/session/test-session");
+    expect(fetchCalls[2].url).toBe("http://localhost:3000/api/raw-resources");
+    const body = fetchCalls[2].options?.body as any;
     expect(body?.content).toContain("Hello");
     expect(body?.content).toContain("Hi there!");
   });
@@ -170,11 +171,12 @@ describe("createOpenCodePlugin", () => {
       properties: { sessionID: "session-idle-test" } 
     } as any });
 
-    expect(fetchCalls.length).toBe(3);
+    expect(fetchCalls.length).toBe(4);
     expect(fetchCalls[0].url).toBe("http://localhost:3000/api/raw-resources/session/session-idle-test");
-    expect(fetchCalls[1].url).toBe("http://localhost:3000/api/raw-resources");
-    expect(fetchCalls[2].url).toBe("http://localhost:3000/api/ingest/llm/raw-id-123");
-    expect(fetchCalls[2].options?.method).toBe("POST");
+    expect(fetchCalls[1].url).toBe("http://localhost:3000/api/raw-resources/session/session-idle-test");
+    expect(fetchCalls[2].url).toBe("http://localhost:3000/api/raw-resources");
+    expect(fetchCalls[3].url).toBe("http://localhost:3000/api/ingest/llm/raw-id-123");
+    expect(fetchCalls[3].options?.method).toBe("POST");
   });
 
   test("handles delta arriving before full text part", async () => {
@@ -222,8 +224,8 @@ describe("createOpenCodePlugin", () => {
       } 
     } as any });
 
-    expect(fetchCalls.length).toBe(2);
-    const body = fetchCalls[1].options?.body as any;
+    expect(fetchCalls.length).toBe(3);
+    const body = fetchCalls[2].options?.body as any;
     expect(body?.content).toContain("Hello world");
     expect(body?.content).toContain("Hi there!");
   });
@@ -263,10 +265,11 @@ describe("createOpenCodePlugin", () => {
       } 
     } as any });
 
-    expect(fetchCalls.length).toBe(2);
+    expect(fetchCalls.length).toBe(3);
     expect(fetchCalls[0].url).toBe("http://localhost:3000/api/raw-resources/session/ses-249c");
-    expect(fetchCalls[1].url).toBe("http://localhost:3000/api/raw-resources");
-    const body = fetchCalls[1].options?.body as any;
+    expect(fetchCalls[1].url).toBe("http://localhost:3000/api/raw-resources/session/ses-249c");
+    expect(fetchCalls[2].url).toBe("http://localhost:3000/api/raw-resources");
+    const body = fetchCalls[2].options?.body as any;
     expect(body?.filename).toBe("session-ses-249c.txt");
     expect(body?.content).toContain("First message");
     expect(body?.content).toContain("Second message");

@@ -150,8 +150,7 @@ export function appendMessagePartDelta(
 export async function syncSessionToRawResource(
   options: ApiOptions,
   session: SessionData,
-  existingRawResourceId?: string | null,
-  alreadyChecked?: boolean
+  existingRawResourceId?: string | null
 ): Promise<string | null> {
   const messagesWithParts = countMessagesWithParts(session);
   if (messagesWithParts === 0) return null;
@@ -174,13 +173,11 @@ export async function syncSessionToRawResource(
     return existingRawResourceId;
   }
 
-  if (!alreadyChecked) {
-    const existing = await getRawResourceBySession(options, stableName);
-    if (existing?.id) {
-      await updateRawResourceContent(options, existing.id, transcript);
-      await updateRawResourceMetadata(options, existing.id, metadata);
-      return existing.id;
-    }
+  const existing = await getRawResourceBySession(options, stableName);
+  if (existing?.id) {
+    await updateRawResourceContent(options, existing.id, transcript);
+    await updateRawResourceMetadata(options, existing.id, metadata);
+    return existing.id;
   }
 
   const created = await createRawResource(options, {
@@ -311,7 +308,7 @@ export class SessionManager {
     const messagesWithParts = countMessagesWithParts(session);
     if (messagesWithParts < this.autoSaveThreshold) return null;
 
-    const rawResourceId = await syncSessionToRawResource(this.options, session, session.rawResourceId || undefined, session.historyChecked);
+    const rawResourceId = await syncSessionToRawResource(this.options, session, session.rawResourceId || undefined);
     if (rawResourceId) {
       session.rawResourceId = rawResourceId;
       await triggerLlmIngestion(this.options, rawResourceId);
@@ -326,7 +323,7 @@ export class SessionManager {
     const messagesWithParts = countMessagesWithParts(session);
     if (messagesWithParts < this.autoSaveThreshold) return null;
 
-    const rawResourceId = session.rawResourceId || await syncSessionToRawResource(this.options, session, undefined, session.historyChecked);
+    const rawResourceId = session.rawResourceId || await syncSessionToRawResource(this.options, session, undefined);
     if (rawResourceId) {
       await triggerLlmIngestion(this.options, rawResourceId);
     }
@@ -342,7 +339,7 @@ export class SessionManager {
     const session = this.getSession(sessionId);
     if (!session || !this.shouldAutoSync(session)) return null;
 
-    const rawResourceId = await syncSessionToRawResource(this.options, session, session.rawResourceId || undefined, session.historyChecked);
+    const rawResourceId = await syncSessionToRawResource(this.options, session, session.rawResourceId || undefined);
     if (rawResourceId) {
       session.rawResourceId = rawResourceId;
       session.lastSyncVersion = countMessagesWithParts(session);
