@@ -133,7 +133,7 @@ export async function synthesizeAnswer(
   query: string,
   maxPages: number = 5,
   useSemantic: boolean = true,
-  useQueryRewriting: boolean = false
+  useQueryRewriting: boolean = true
 ): Promise<string> {
   const result = await fetchSibylApi(options, "/api/synthesize", {
     method: "POST",

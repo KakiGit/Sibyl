@@ -21,7 +21,7 @@ export async function expandQuery(
   options: QueryExpansionOptions = {}
 ): Promise<ExpandedQueries> {
   const useTerminology = options.useTerminologyExpansion ?? true;
-  const useRewriting = options.useQueryRewriting ?? false;
+  const useRewriting = options.useQueryRewriting ?? true;
   
   let terminologyResult: TerminologyExpansionResult = {
     originalQuery: query,

@@ -247,7 +247,7 @@ export async function queryWiki(options: QueryOptions): Promise<QueryResult> {
   const useSemantic = options.useSemanticSearch ?? false;
   const semanticThreshold = options.semanticThreshold ?? 0.3;
   const useTerminology = options.useTerminologyExpansion ?? true;
-  const useRewriting = options.useQueryRewriting ?? false;
+  const useRewriting = options.useQueryRewriting ?? true;
 
   if (!options.query || options.query.trim().length === 0) {
     throw new Error("Query string is required");
@@ -541,7 +541,7 @@ export async function synthesizeAnswer(options: SynthesizeOptions): Promise<Synt
     wikiFileManager: wikiManager,
     useSemanticSearch: options.useSemanticSearch ?? true,
     useTerminologyExpansion: options.useTerminologyExpansion ?? true,
-    useQueryRewriting: options.useQueryRewriting ?? false,
+    useQueryRewriting: options.useQueryRewriting ?? true,
   });
 
   if (queryResult.matches.length === 0) {

@@ -13,7 +13,7 @@ const SynthesizeQuerySchema = z.object({
   skipLlm: z.coerce.boolean().optional(),
   useSemanticSearch: z.coerce.boolean().default(true).optional(),
   useTerminologyExpansion: z.coerce.boolean().default(true).optional(),
-  useQueryRewriting: z.coerce.boolean().default(false).optional(),
+  useQueryRewriting: z.coerce.boolean().default(true).optional(),
 });
 
 export async function registerSynthesizeRoutes(fastify: FastifyInstance) {
@@ -37,7 +37,7 @@ export async function registerSynthesizeRoutes(fastify: FastifyInstance) {
         skipLlm: body.skipLlm,
         useSemanticSearch: body.useSemanticSearch ?? true,
         useTerminologyExpansion: body.useTerminologyExpansion ?? true,
-        useQueryRewriting: body.useQueryRewriting ?? false,
+        useQueryRewriting: body.useQueryRewriting ?? true,
       });
 
       return {
@@ -85,7 +85,7 @@ export async function registerSynthesizeRoutes(fastify: FastifyInstance) {
         skipLlm: body.skipLlm,
         useSemanticSearch: body.useSemanticSearch ?? true,
         useTerminologyExpansion: body.useTerminologyExpansion ?? true,
-        useQueryRewriting: body.useQueryRewriting ?? false,
+        useQueryRewriting: body.useQueryRewriting ?? true,
       });
 
       reply.raw.write(`event: answer\ndata: ${JSON.stringify({ answer: result.answer })}\n\n`);

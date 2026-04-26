@@ -21,10 +21,10 @@ export function createTools(options: ApiOptions): Record<string, ToolDefinition>
       args: {
         query: { type: "string", description: "Search query" },
         useSemantic: { type: "boolean", optional: true, default: true, description: "Use hybrid search (FTS5 + semantic embeddings). Set false for pure keyword matching." },
-        useQueryRewriting: { type: "boolean", optional: true, default: false, description: "Use LLM to rewrite query into multiple keyword variants for broader recall." },
+        useQueryRewriting: { type: "boolean", optional: true, default: true, description: "Use LLM to rewrite query into multiple keyword variants for broader recall." },
       },
       async execute(args: { query: string; useSemantic?: boolean; useQueryRewriting?: boolean }) {
-        return synthesizeAnswer(options, args.query, 5, args.useSemantic ?? true, args.useQueryRewriting ?? false);
+        return synthesizeAnswer(options, args.query, 5, args.useSemantic ?? true, args.useQueryRewriting ?? true);
       },
     },
     memory_list: {

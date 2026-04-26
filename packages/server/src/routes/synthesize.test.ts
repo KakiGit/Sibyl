@@ -148,6 +148,7 @@ describe("Synthesize Routes", () => {
           query: "test",
           types: ["entity", "concept", "source", "summary"],
           skipLlm: true,
+          useQueryRewriting: false,
         },
       });
 
@@ -164,6 +165,7 @@ describe("Synthesize Routes", () => {
           query: "test",
           tags: ["tag1", "tag2"],
           skipLlm: true,
+          useQueryRewriting: false,
         },
       });
 
@@ -180,6 +182,7 @@ describe("Synthesize Routes", () => {
           query: "test",
           maxPages: 5,
           skipLlm: true,
+          useQueryRewriting: false,
         },
       });
 
@@ -195,6 +198,7 @@ describe("Synthesize Routes", () => {
         payload: {
           query: "test",
           skipLlm: true,
+          useQueryRewriting: false,
         },
       });
 
@@ -225,6 +229,7 @@ describe("Synthesize Routes", () => {
         payload: {
           query: "Python programming language",
           skipLlm: true,
+          useQueryRewriting: false,
         },
       });
 
@@ -238,6 +243,7 @@ describe("Synthesize Routes", () => {
         payload: {
           query: "Python programming language",
           skipLlm: true,
+          useQueryRewriting: false,
         },
       });
 
@@ -259,6 +265,7 @@ describe("Synthesize Routes", () => {
         payload: {
           query: "nonexistentxyzabc unique term",
           skipLlm: true,
+          useQueryRewriting: false,
         },
       });
 
@@ -275,6 +282,7 @@ describe("Synthesize Routes", () => {
         payload: {
           query: "Python",
           skipLlm: true,
+          useQueryRewriting: false,
         },
       });
 
@@ -296,6 +304,7 @@ describe("Synthesize Routes", () => {
         payload: {
           query: "Python",
           skipLlm: true,
+          useQueryRewriting: false,
         },
       });
 
@@ -315,6 +324,7 @@ describe("Synthesize Routes", () => {
         payload: {
           query: "Python",
           skipLlm: true,
+          useQueryRewriting: false,
         },
       });
 
@@ -331,6 +341,7 @@ describe("Synthesize Routes", () => {
         payload: {
           query: "Python",
           skipLlm: true,
+          useQueryRewriting: false,
         },
       });
 
@@ -351,6 +362,7 @@ describe("Synthesize Routes", () => {
         payload: {
           query: "nonexistentxyzabc unique term",
           skipLlm: true,
+          useQueryRewriting: false,
         },
       });
 
@@ -366,6 +378,7 @@ describe("Synthesize Routes", () => {
         payload: {
           query: "test query for error handling",
           skipLlm: true,
+          useQueryRewriting: false,
         },
       });
 
@@ -456,6 +469,7 @@ describe("Synthesize Routes", () => {
         payload: {
           query: "Stream test",
           skipLlm: true,
+          useQueryRewriting: false,
         },
       });
 
@@ -470,6 +484,7 @@ describe("Synthesize Routes", () => {
         payload: {
           query: "Stream test query",
           skipLlm: true,
+          useQueryRewriting: false,
         },
       });
 
@@ -485,6 +500,7 @@ describe("Synthesize Routes", () => {
         payload: {
           query: "Stream test",
           skipLlm: true,
+          useQueryRewriting: false,
         },
       });
 
@@ -499,6 +515,7 @@ describe("Synthesize Routes", () => {
         payload: {
           query: "Stream test",
           skipLlm: true,
+          useQueryRewriting: false,
         },
       });
 
@@ -513,6 +530,7 @@ describe("Synthesize Routes", () => {
         payload: {
           query: "Stream test",
           skipLlm: true,
+          useQueryRewriting: false,
         },
       });
 
@@ -527,6 +545,7 @@ describe("Synthesize Routes", () => {
         payload: {
           query: "Stream test",
           skipLlm: true,
+          useQueryRewriting: false,
         },
       });
 
@@ -553,6 +572,7 @@ describe("Synthesize Routes", () => {
         payload: {
           query: "Format test",
           skipLlm: true,
+          useQueryRewriting: false,
         },
       });
 
@@ -567,6 +587,7 @@ describe("Synthesize Routes", () => {
         payload: {
           query: "Format test",
           skipLlm: true,
+          useQueryRewriting: false,
         },
       });
 
@@ -583,6 +604,7 @@ describe("Synthesize Routes", () => {
         payload: {
           query: "Format test",
           skipLlm: true,
+          useQueryRewriting: false,
         },
       });
 
@@ -605,6 +627,7 @@ describe("Synthesize Routes", () => {
         payload: {
           query: "Format test",
           skipLlm: true,
+          useQueryRewriting: false,
         },
       });
 
@@ -623,6 +646,7 @@ describe("Synthesize Routes", () => {
         payload: {
           query: "Format test",
           skipLlm: true,
+          useQueryRewriting: false,
         },
       });
 
@@ -648,7 +672,7 @@ describe("Synthesize Routes", () => {
       const response = await fastify.inject({
         method: "POST",
         url: "/api/synthesize",
-        payload: { query: "test", skipLlm: true },
+        payload: { query: "test", skipLlm: true, useQueryRewriting: false },
       });
 
       expect(response.statusCode).toBe(200);
@@ -660,6 +684,7 @@ describe("Synthesize Routes", () => {
         url: "/api/synthesize",
         payload: {
           query: "a b c",
+          useQueryRewriting: false,
         },
       });
 
@@ -685,6 +710,7 @@ describe("Synthesize Routes", () => {
           query: "page",
           types: ["entity"],
           skipLlm: true,
+          useQueryRewriting: false,
         },
       });
 
@@ -704,6 +730,7 @@ describe("Synthesize Routes", () => {
           query: "page",
           tags: ["special"],
           skipLlm: true,
+          useQueryRewriting: false,
         },
       });
 
@@ -721,6 +748,7 @@ describe("Synthesize Routes", () => {
           query: "page",
           maxPages: 2,
           skipLlm: true,
+          useQueryRewriting: false,
         },
       });
 
@@ -751,6 +779,7 @@ describe("Synthesize Routes", () => {
         url: "/api/synthesize",
         payload: {
           query: "What is TypeScript?",
+          useQueryRewriting: false,
         },
       });
 
