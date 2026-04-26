@@ -94,7 +94,7 @@ export function InteractiveGraph({ graph, onViewFullPage }: InteractiveGraphProp
   const [selectedNode, setSelectedNode] = useState<SimulatedNode | null>(null);
   const [hoveredNode, setHoveredNode] = useState<SimulatedNode | null>(null);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
-  const [isLayoutReady, setIsLayoutReady] = useState(false);
+  
   const simulationRef = useRef<d3.Simulation<SimulatedNode, D3Link> | null>(null);
   const nodeDataRef = useRef<SimulatedNode[]>([]);
 
@@ -135,8 +135,6 @@ export function InteractiveGraph({ graph, onViewFullPage }: InteractiveGraphProp
     if (graph.nodes.length === 0 || dimensions.width === 0 || dimensions.height === 0) {
       return;
     }
-
-    setIsLayoutReady(false);
 
     const width = dimensions.width;
     const height = dimensions.height;
@@ -315,10 +313,7 @@ export function InteractiveGraph({ graph, onViewFullPage }: InteractiveGraphProp
 
       node.attr("transform", (d: SimulatedNode) => `translate(${d.x},${d.y})`);
 
-      if (simulation.alpha() < 0.01 && !isLayoutReady) {
-        setIsLayoutReady(true);
-      }
-    });
+      });
 
     return () => {
       simulation.stop();
@@ -372,15 +367,6 @@ export function InteractiveGraph({ graph, onViewFullPage }: InteractiveGraphProp
         height={dimensions.height}
         className="absolute inset-0"
       />
-
-      {!isLayoutReady && (
-        <div className="absolute inset-0 flex items-center justify-center bg-background/30">
-          <div className="flex items-center gap-2">
-            <Loader2 className="h-4 w-4 animate-spin text-primary" />
-            <span className="text-sm text-muted-foreground">Arranging nodes...</span>
-          </div>
-        </div>
-      )}
 
       <HoverTooltip node={hoveredNode} position={mousePosition} />
 
