@@ -81,10 +81,13 @@ export function createOpenCodePlugin(input: unknown, options?: SibylPluginOption
     }
 
     if (event.type === "message.updated") {
-      const message = event.properties?.info as { sessionID?: string; id?: string; role?: string; time?: { created?: number } } | undefined;
+      const props = event.properties as { sessionID?: string; info?: { sessionID?: string; id?: string; role?: string; time?: { created?: number } } } | undefined;
+      if (!props) return;
+      
+      const message = props.info;
       if (!message) return;
 
-      const rawSessionId = message.sessionID || "default";
+      const rawSessionId = props.sessionID || message.sessionID || "default";
       const messageId = message.id || "unknown";
       const role = message.role || "";
       if (!role) return;
@@ -95,22 +98,30 @@ export function createOpenCodePlugin(input: unknown, options?: SibylPluginOption
     }
 
     if (event.type === "message.part.updated" || event.type === "message.part.delta") {
+      const props = event.properties as { 
+        sessionID?: string;
+        messageID?: string;
+        delta?: string;
+        part?: { sessionID?: string; messageID?: string; text?: string; type?: string };
+      } | undefined;
+      
       let rawSessionId: string, messageId: string, text: string, delta: string;
 
       if (event.type === "message.part.delta") {
-        rawSessionId = (event.properties?.sessionID as string) || "default";
-        messageId = (event.properties?.messageID as string) || "unknown";
-        delta = (event.properties?.delta as string) || "";
+        if (!props) return;
+        rawSessionId = props.sessionID || "default";
+        messageId = props.messageID || "unknown";
+        delta = props.delta || "";
         text = "";
       } else {
-        const part = event.properties?.part as { sessionID?: string; messageID?: string; text?: string; type?: string } | undefined;
+        const part = props?.part;
         if (!part) return;
         if (part.type && part.type !== "text") return;
 
-        rawSessionId = part.sessionID || "default";
+        rawSessionId = props?.sessionID || part.sessionID || "default";
         messageId = part.messageID || "unknown";
         text = part.text || "";
-        delta = (event.properties?.delta as string) || "";
+        delta = props?.delta || "";
       }
 
       if (!text && !delta) return;
