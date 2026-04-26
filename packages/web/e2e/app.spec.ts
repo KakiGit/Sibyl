@@ -16,21 +16,21 @@ test.describe("Sibyl Web UI", () => {
   });
 
   test("should display sidebar navigation", async ({ page }) => {
-    await expect(page.getByRole("button", { name: "Overview" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Search" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Ingest" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Wiki Pages" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Graph" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Tools" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Overview" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Search" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Ingest" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Wiki Pages" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Graph" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Tools" })).toBeVisible();
   });
 
   test("should navigate to wiki pages section", async ({ page }) => {
-    await page.getByRole("button", { name: "Wiki Pages" }).click();
-    await expect(page.locator("text=Wiki Pages")).toBeVisible();
+    await page.getByRole("link", { name: "Wiki Pages" }).click();
+    await expect(page.getByRole("heading", { name: "Wiki Pages" })).toBeVisible();
   });
 
   test("should display tabs for filtering wiki pages", async ({ page }) => {
-    await page.getByRole("button", { name: "Wiki Pages" }).click();
+    await page.getByRole("link", { name: "Wiki Pages" }).click();
     const tabsList = page.locator("role=tablist");
     await expect(tabsList.getByRole("tab", { name: "All" })).toBeVisible();
     await expect(tabsList.getByRole("tab", { name: "Entities" })).toBeVisible();
@@ -42,14 +42,14 @@ test.describe("Sibyl Web UI", () => {
   });
 
   test("should switch tabs when clicked", async ({ page }) => {
-    await page.getByRole("button", { name: "Wiki Pages" }).click();
+    await page.getByRole("link", { name: "Wiki Pages" }).click();
     const conceptsTab = page.getByRole("tab", { name: "Concepts" });
     await conceptsTab.click();
     await expect(conceptsTab).toHaveAttribute("data-state", "active");
   });
 
   test("should show wiki pages list when pages exist", async ({ page }) => {
-    await page.getByRole("button", { name: "Wiki Pages" }).click();
+    await page.getByRole("link", { name: "Wiki Pages" }).click();
     await expect(page.locator("text=Total Pages")).toBeVisible();
   });
 
@@ -86,7 +86,7 @@ test.describe("Sibyl Web UI", () => {
       });
     });
 
-    await page.getByRole("button", { name: "Wiki Pages" }).click();
+    await page.getByRole("link", { name: "Wiki Pages" }).click();
     await expect(page.locator("text=Test Concept")).toBeVisible();
     await expect(page.locator("text=Test Entity")).toBeVisible();
     await expect(page.locator("text=A test concept page")).toBeVisible();
@@ -116,7 +116,7 @@ test.describe("Sibyl Web UI", () => {
       });
     });
 
-    await page.getByRole("button", { name: "Wiki Pages" }).click();
+    await page.getByRole("link", { name: "Wiki Pages" }).click();
     await expect(page.locator("text=Entity")).toBeVisible();
   });
 
@@ -144,13 +144,13 @@ test.describe("Sibyl Web UI", () => {
       });
     });
 
-    await page.getByRole("button", { name: "Wiki Pages" }).click();
+    await page.getByRole("link", { name: "Wiki Pages" }).click();
     await page.getByRole("tab", { name: "Entities" }).click();
     await expect(page.locator("text=Entity Test")).toBeVisible();
   });
 
   test("should display stat cards with counts", async ({ page }) => {
-    await page.getByRole("button", { name: "Overview" }).click();
+    await page.getByRole("link", { name: "Overview" }).click();
     await expect(page.locator("text=Total Pages")).toBeVisible();
     await expect(page.locator("text=Entities")).toBeVisible();
     await expect(page.locator("text=Concepts")).toBeVisible();

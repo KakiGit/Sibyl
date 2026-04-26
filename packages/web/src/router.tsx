@@ -1,0 +1,446 @@
+import {
+  createRouter,
+  createRootRoute,
+  createRoute,
+  Outlet,
+  Link,
+  useLocation,
+  useNavigate,
+} from "@tanstack/react-router";
+import {
+  FileText,
+  Brain,
+  BookOpen,
+  Layers,
+  Search,
+  Upload,
+  Network,
+  Settings,
+  Home,
+  ChevronRight,
+  Keyboard,
+  Database,
+  Sun,
+  Moon,
+  PanelLeftClose,
+  PanelLeft,
+} from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { WikiPageList } from "@/components/wiki-page-list";
+import { QuerySynthesis } from "@/components/query-synthesis";
+import { ContentIngestion } from "@/components/content-ingestion";
+import { WikiLint } from "@/components/wiki-lint";
+import { ContentFiling } from "@/components/content-filing";
+import { WikiGraphView } from "@/components/wiki-graph-view";
+import { WikiSearch } from "@/components/wiki-search";
+import { AuthStatus } from "@/components/auth-status";
+import { WebSocketStatus } from "@/components/websocket-status";
+import { RawResourceList } from "@/components/raw-resource-list";
+import { WikiStatsView } from "@/components/wiki-stats";
+import { MarpSlides } from "@/components/marp-slides";
+import { ToastProvider } from "@/components/toast";
+import { ErrorBoundary } from "@/components/error-boundary";
+import { ScrollToTop } from "@/components/ui/scroll-to-top";
+import { useKeyboardShortcuts, KeyboardShortcut } from "@/hooks/use-keyboard-shortcuts";
+
+async function fetchStats() {
+  const response = await fetch("/api/wiki-stats");
+  if (!response.ok) throw new Error("Failed to fetch stats");
+  const data = await response.json();
+  return {
+    total: data.data?.totalPages || 0,
+    entities: data.data?.pagesByType?.entity || 0,
+    concepts: data.data?.pagesByType?.concept || 0,
+    sources: data.data?.pagesByType?.source || 0,
+    summaries: data.data?.pagesByType?.summary || 0,
+  };
+}
+
+function StatCard({
+  title,
+  value,
+  icon: Icon,
+  description,
+}: {
+  title: string;
+  value: number;
+  icon: React.ElementType;
+  description?: string;
+}) {
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between pb-2">
+        <CardTitle className="text-sm font-medium">{title}</CardTitle>
+        <Icon className="h-4 w-4 text-muted-foreground" />
+      </CardHeader>
+      <CardContent>
+        <div className="text-2xl font-bold">{value}</div>
+        {description && (
+          <p className="text-xs text-muted-foreground">{description}</p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function Dashboard() {
+  const { data: statsData, isLoading: statsLoading } = useQuery({
+    queryKey: ["stats"],
+    queryFn: fetchStats,
+  });
+
+  if (statsLoading) {
+    return (
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {[1, 2, 3, 4].map((i) => (
+          <Card key={i}>
+            <CardContent className="p-6">
+              <div className="h-4 w-24 bg-muted animate-pulse rounded" />
+              <div className="h-8 w-16 bg-muted animate-pulse rounded mt-2" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    );
+  }
+
+  const stats = statsData || {
+    total: 0,
+    entities: 0,
+    concepts: 0,
+    sources: 0,
+    summaries: 0,
+  };
+
+  return (
+    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <StatCard title="Total Pages" value={stats.total} icon={BookOpen} />
+      <StatCard title="Entities" value={stats.entities} icon={Brain} />
+      <StatCard title="Concepts" value={stats.concepts} icon={Layers} />
+      <StatCard title="Sources" value={stats.sources} icon={FileText} />
+    </div>
+  );
+}
+
+const TABS_CONFIG = [
+  { id: "overview", label: "Overview", icon: Home, path: "/" },
+  { id: "search", label: "Search", icon: Search, path: "/search" },
+  { id: "ingest", label: "Ingest", icon: Upload, path: "/ingest" },
+  { id: "pages", label: "Wiki Pages", icon: BookOpen, path: "/pages" },
+  { id: "raw", label: "Raw Resources", icon: Database, path: "/raw" },
+  { id: "graph", label: "Graph", icon: Network, path: "/graph" },
+  { id: "tools", label: "Tools", icon: Settings, path: "/tools" },
+] as const;
+
+function ShortcutHelp({ shortcuts }: { shortcuts: KeyboardShortcut[] }) {
+  return (
+    <div className="p-4 bg-muted/50 rounded-lg">
+      <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
+        <Keyboard className="h-4 w-4" />
+        Keyboard Shortcuts
+      </h4>
+      <div className="grid gap-1 text-xs">
+        {shortcuts.map((shortcut, index) => (
+          <div key={index} className="flex justify-between">
+            <span className="text-muted-foreground">{shortcut.description}</span>
+            <span className="font-mono">{shortcut.key}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SidebarTab({
+  label,
+  icon: Icon,
+  active,
+  to,
+  collapsed,
+}: {
+  label: string;
+  icon: React.ElementType;
+  active: boolean;
+  to: string;
+  collapsed: boolean;
+}) {
+  return (
+    <Link
+      to={to}
+      className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors justify-center ${
+        active
+          ? "bg-primary text-primary-foreground"
+          : "hover:bg-muted text-muted-foreground hover:text-foreground"
+      }`}
+      aria-label={label}
+      title={label}
+    >
+      <Icon className="h-4 w-4 flex-shrink-0" />
+      {!collapsed && <span className="truncate">{label}</span>}
+      {active && !collapsed && <ChevronRight className="h-3 w-3 ml-auto flex-shrink-0" />}
+    </Link>
+  );
+}
+
+function RootLayout() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    const saved = localStorage.getItem("sidebarCollapsed");
+    return saved ? JSON.parse(saved) : false;
+  });
+  const [isDark, setIsDark] = useState(() => {
+    const saved = localStorage.getItem("theme");
+    return saved === "dark";
+  });
+
+  useEffect(() => {
+    localStorage.setItem("sidebarCollapsed", JSON.stringify(sidebarCollapsed));
+  }, [sidebarCollapsed]);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", isDark);
+    localStorage.setItem("theme", isDark ? "dark" : "light");
+  }, [isDark]);
+
+  const activeTab = TABS_CONFIG.find((tab) => tab.path === location.pathname)?.id || "overview";
+
+  const shortcuts: KeyboardShortcut[] = useMemo(() => [
+    { key: "1", ctrl: true, action: () => navigate({ to: "/" }), description: "Overview" },
+    { key: "2", ctrl: true, action: () => navigate({ to: "/search" }), description: "Search" },
+    { key: "3", ctrl: true, action: () => navigate({ to: "/ingest" }), description: "Ingest" },
+    { key: "4", ctrl: true, action: () => navigate({ to: "/pages" }), description: "Wiki Pages" },
+    { key: "5", ctrl: true, action: () => navigate({ to: "/raw" }), description: "Raw Resources" },
+    { key: "6", ctrl: true, action: () => navigate({ to: "/graph" }), description: "Graph" },
+    { key: "7", ctrl: true, action: () => navigate({ to: "/tools" }), description: "Tools" },
+    { key: "k", ctrl: true, action: () => navigate({ to: "/search" }), description: "Quick search" },
+    { key: "?", shift: true, action: () => setShowShortcuts((prev) => !prev), description: "Show shortcuts" },
+    { key: "b", ctrl: true, action: () => setSidebarCollapsed((prev: boolean) => !prev), description: "Toggle sidebar" },
+  ], [navigate]);
+
+  useKeyboardShortcuts(shortcuts);
+
+  return (
+    <ToastProvider>
+      <ErrorBoundary>
+        <div className="min-h-screen bg-background flex">
+      <aside className={`${sidebarCollapsed ? "w-16" : "w-64"} border-r bg-card/50 p-4 flex flex-col transition-all duration-300`}>
+        <div className="mb-6 flex items-center justify-between">
+          {!sidebarCollapsed && (
+            <div>
+              <h1 className="text-xl font-bold tracking-tight">Sibyl</h1>
+              <p className="text-muted-foreground text-xs">
+                Memory System for Knowledge Management
+              </p>
+            </div>
+          )}
+          <button
+            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+            className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
+            aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            {sidebarCollapsed ? <PanelLeft className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+          </button>
+        </div>
+
+        <nav className="flex-1 space-y-1">
+          {TABS_CONFIG.map((tab) => (
+            <SidebarTab
+              key={tab.id}
+              label={sidebarCollapsed ? "" : tab.label}
+              icon={tab.icon}
+              active={activeTab === tab.id}
+              to={tab.path}
+              collapsed={sidebarCollapsed}
+            />
+          ))}
+        </nav>
+
+        <div className="mt-4 pt-4 border-t">
+          <WebSocketStatus />
+          <button
+            onClick={() => setShowShortcuts(!showShortcuts)}
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm hover:bg-muted text-muted-foreground hover:text-foreground mt-2"
+            aria-label="Keyboard shortcuts"
+          >
+            <Keyboard className="h-4 w-4" />
+            {!sidebarCollapsed && <span>Shortcuts</span>}
+          </button>
+          <button
+            onClick={() => setIsDark(!isDark)}
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm hover:bg-muted text-muted-foreground hover:text-foreground mt-2"
+            aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+          >
+            {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            {!sidebarCollapsed && <span>{isDark ? "Light Mode" : "Dark Mode"}</span>}
+          </button>
+        </div>
+
+        {showShortcuts && (
+          <div className="mt-4">
+            <ShortcutHelp shortcuts={shortcuts} />
+          </div>
+        )}
+      </aside>
+
+      <main className="flex-1 overflow-auto">
+        <header className="border-b bg-card/30 px-6 py-3 sticky top-0 z-10">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              {TABS_CONFIG.find((t) => t.id === activeTab)?.icon && (
+                <span className="text-muted-foreground">
+                  {(() => {
+                    const Icon = TABS_CONFIG.find((t) => t.id === activeTab)?.icon;
+                    return Icon ? <Icon className="h-5 w-5" /> : null;
+                  })()}
+                </span>
+              )}
+              {TABS_CONFIG.find((t) => t.id === activeTab)?.label}
+            </h2>
+            <AuthStatus />
+          </div>
+        </header>
+
+        <div className="p-6">
+          <Outlet />
+        </div>
+        <ScrollToTop />
+      </main>
+    </div>
+      </ErrorBoundary>
+    </ToastProvider>
+  );
+}
+
+function OverviewPage() {
+  return (
+    <div className="space-y-6">
+      <section>
+        <WikiStatsView />
+      </section>
+      <section>
+        <h3 className="text-md font-semibold mb-4">Dashboard</h3>
+        <Dashboard />
+      </section>
+    </div>
+  );
+}
+
+function SearchPage() {
+  return (
+    <div className="space-y-6">
+      <WikiSearch />
+      <QuerySynthesis />
+    </div>
+  );
+}
+
+function IngestPage() {
+  return (
+    <div className="space-y-6">
+      <ContentIngestion />
+    </div>
+  );
+}
+
+function PagesPage() {
+  return (
+    <div className="space-y-6">
+      <WikiPageList />
+    </div>
+  );
+}
+
+function RawPage() {
+  return (
+    <div className="space-y-6">
+      <RawResourceList />
+    </div>
+  );
+}
+
+function GraphPage() {
+  return (
+    <div className="space-y-6">
+      <WikiGraphView />
+    </div>
+  );
+}
+
+function ToolsPage() {
+  return (
+    <div className="space-y-6">
+      <ContentFiling />
+      <WikiLint />
+      <MarpSlides />
+    </div>
+  );
+}
+
+const rootRoute = createRootRoute({
+  component: RootLayout,
+});
+
+const indexRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/",
+  component: OverviewPage,
+});
+
+const searchRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/search",
+  component: SearchPage,
+});
+
+const ingestRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/ingest",
+  component: IngestPage,
+});
+
+const pagesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/pages",
+  component: PagesPage,
+});
+
+const rawRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/raw",
+  component: RawPage,
+});
+
+const graphRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/graph",
+  component: GraphPage,
+});
+
+const toolsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/tools",
+  component: ToolsPage,
+});
+
+const routeTree = rootRoute.addChildren([
+  indexRoute,
+  searchRoute,
+  ingestRoute,
+  pagesRoute,
+  rawRoute,
+  graphRoute,
+  toolsRoute,
+]);
+
+export const router = createRouter({ routeTree });
+
+declare module "@tanstack/react-router" {
+  interface Register {
+    router: typeof router;
+  }
+}
