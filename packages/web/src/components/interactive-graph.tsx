@@ -160,10 +160,10 @@ export function InteractiveGraph({ graph, onViewFullPage }: InteractiveGraphProp
     }));
 
     const simulation = d3.forceSimulation<SimulatedNode, D3Link>(nodes)
-      .force("link", d3.forceLink<SimulatedNode, D3Link>(links).id(d => d.id).distance(30))
-      .force("charge", d3.forceManyBody().strength(-100))
-      .force("center", d3.forceCenter(width / 2, height / 2))
-      .force("collide", d3.forceCollide<SimulatedNode>().radius(8));
+      .force("link", d3.forceLink<SimulatedNode, D3Link>(links).id(d => d.id))
+      .force("charge", d3.forceManyBody())
+      .force("x", d3.forceX(width / 2))
+      .force("y", d3.forceY(height / 2));
 
     simulationRef.current = simulation;
 
