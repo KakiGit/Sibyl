@@ -25,6 +25,7 @@ export const WikiPageSchema = z.object({
   summary: z.string().optional(),
   tags: z.array(z.string()).default([]),
   sourceIds: z.array(z.string()).default([]),
+  aliases: z.array(z.string()).default([]),
   embeddingId: z.string().optional(),
   createdAt: z.number(),
   updatedAt: z.number(),

@@ -12,6 +12,8 @@ const SynthesizeQuerySchema = z.object({
   maxPages: z.coerce.number().int().positive().max(10).default(5).optional(),
   skipLlm: z.coerce.boolean().optional(),
   useSemanticSearch: z.coerce.boolean().default(true).optional(),
+  useTerminologyExpansion: z.coerce.boolean().default(true).optional(),
+  useQueryRewriting: z.coerce.boolean().default(false).optional(),
 });
 
 export async function registerSynthesizeRoutes(fastify: FastifyInstance) {
@@ -34,6 +36,8 @@ export async function registerSynthesizeRoutes(fastify: FastifyInstance) {
         wikiFileManager,
         skipLlm: body.skipLlm,
         useSemanticSearch: body.useSemanticSearch ?? true,
+        useTerminologyExpansion: body.useTerminologyExpansion ?? true,
+        useQueryRewriting: body.useQueryRewriting ?? false,
       });
 
       return {
@@ -80,6 +84,8 @@ export async function registerSynthesizeRoutes(fastify: FastifyInstance) {
         wikiFileManager,
         skipLlm: body.skipLlm,
         useSemanticSearch: body.useSemanticSearch ?? true,
+        useTerminologyExpansion: body.useTerminologyExpansion ?? true,
+        useQueryRewriting: body.useQueryRewriting ?? false,
       });
 
       reply.raw.write(`event: answer\ndata: ${JSON.stringify({ answer: result.answer })}\n\n`);

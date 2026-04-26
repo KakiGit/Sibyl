@@ -17,13 +17,14 @@ export interface ToolSchema {
 export function createTools(options: ApiOptions): Record<string, ToolDefinition> {
   return {
     memory_recall: {
-      description: "Search Wiki Pages and synthesize an answer using LLM. Uses hybrid search (keyword + semantic) by default for better relevance.",
+      description: "Search Wiki Pages and synthesize an answer using LLM. Uses hybrid search (keyword + semantic) with terminology expansion by default for better relevance.",
       args: {
         query: { type: "string", description: "Search query" },
         useSemantic: { type: "boolean", optional: true, default: true, description: "Use hybrid search (FTS5 + semantic embeddings). Set false for pure keyword matching." },
+        useQueryRewriting: { type: "boolean", optional: true, default: false, description: "Use LLM to rewrite query into multiple keyword variants for broader recall." },
       },
-      async execute(args: { query: string; useSemantic?: boolean }) {
-        return synthesizeAnswer(options, args.query, 5, args.useSemantic ?? true);
+      async execute(args: { query: string; useSemantic?: boolean; useQueryRewriting?: boolean }) {
+        return synthesizeAnswer(options, args.query, 5, args.useSemantic ?? true, args.useQueryRewriting ?? false);
       },
     },
     memory_list: {
@@ -52,11 +53,15 @@ export function createTools(options: ApiOptions): Record<string, ToolDefinition>
 
 export function getToolDescriptions(): string {
   return `The plugin provides the following tools:
-  - memory_recall: Search Wiki Pages and synthesize answers (hybrid search by default)
+  - memory_recall: Search Wiki Pages and synthesize answers (hybrid search + terminology expansion by default)
   - memory_list: List all Wiki Pages
   - memory_query: Query Wiki Pages with questions (hybrid search by default)
   
-Search modes:
+  Search modes:
   - useSemantic=true (default): Hybrid search combining FTS5 keyword matching + semantic vector embeddings
-  - useSemantic=false: Pure keyword matching via SQL LIKE`;
+  - useSemantic=false: Pure keyword matching via SQL LIKE
+  
+  Query expansion:
+  - Terminology expansion is enabled by default, using wiki entity page aliases as a glossary
+  - useQueryRewriting=true: Use LLM to generate multiple keyword query variants for broader recall`;
 }

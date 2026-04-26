@@ -132,11 +132,18 @@ export async function synthesizeAnswer(
   options: ApiOptions,
   query: string,
   maxPages: number = 5,
-  useSemantic: boolean = true
+  useSemantic: boolean = true,
+  useQueryRewriting: boolean = false
 ): Promise<string> {
   const result = await fetchSibylApi(options, "/api/synthesize", {
     method: "POST",
-    body: { query, maxPages, useSemanticSearch: useSemantic },
+    body: { 
+      query, 
+      maxPages, 
+      useSemanticSearch: useSemantic,
+      useTerminologyExpansion: true,
+      useQueryRewriting,
+    },
   });
   const data = result as { data?: { answer?: string } };
   return data.data?.answer || "Unable to synthesize answer.";

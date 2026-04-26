@@ -4,8 +4,11 @@ import { getLlmProvider, type LlmProvider } from "../llm/index.js";
 import { semanticSearch, initializeEmbedder } from "../embeddings/index.js";
 import { fileContent, type FilingResult } from "./filing.js";
 import { enrichMatchesWithGraph, getNeighborSummaries } from "../wiki/graph-traversal.js";
+import { expandQuery, type ExpandedQueries } from "../query-expansion/index.js";
+import { mergeSearchResults } from "../query-expansion/merge.js";
+import { wikiSearchStorage } from "../search/index.js";
 import { logger } from "@sibyl/shared";
-import type { WikiPage, WikiPageType } from "@sibyl/sdk";
+import type { WikiPage, WikiPageType, HybridSearchOptions, SearchResult } from "@sibyl/sdk";
 
 export interface QueryOptions {
   query: string;
@@ -19,6 +22,8 @@ export interface QueryOptions {
   useGraphExpansion?: boolean;
   neighborLimit?: number;
   hubBoostWeight?: number;
+  useTerminologyExpansion?: boolean;
+  useQueryRewriting?: boolean;
 }
 
 export interface QueryMatch {
@@ -46,6 +51,8 @@ export interface SynthesizeOptions {
   llmProvider?: LlmProvider | null;
   skipLlm?: boolean;
   useSemanticSearch?: boolean;
+  useTerminologyExpansion?: boolean;
+  useQueryRewriting?: boolean;
 }
 
 export interface Citation {
@@ -126,15 +133,141 @@ function tokenizeQuery(query: string): string[] {
     .filter((term) => term.length > 2);
 }
 
+async function multiQueryWikiSearch(
+  expandedQueries: ExpandedQueries,
+  filteredPages: WikiPage[],
+  wikiManager: WikiFileManager,
+  options: {
+    limit: number;
+    includeContent: boolean;
+    useSemantic: boolean;
+    semanticThreshold: number;
+    useGraphExpansion: boolean;
+    neighborLimit: number;
+    hubBoostWeight: number;
+  }
+): Promise<QueryResult> {
+  const resultsByVariant = new Map<string, SearchResult[]>();
+  
+  const searchStorage = wikiSearchStorage;
+  
+  for (const variant of expandedQueries.queries) {
+    const hybridOptions: HybridSearchOptions = {
+      query: variant,
+      useSemantic: options.useSemantic,
+      semanticThreshold: options.semanticThreshold,
+      limit: options.limit * 2,
+    };
+    
+    const variantResults = await searchStorage.hybridSearch(hybridOptions, filteredPages);
+    resultsByVariant.set(variant, variantResults);
+  }
+  
+  const mergedResults = mergeSearchResults(resultsByVariant, {
+    keepTopN: options.limit * 2,
+    boostMultiMatch: true,
+    multiMatchBoostWeight: 0.15,
+  });
+  
+  const matches: QueryMatch[] = mergedResults.map((r) => ({
+    page: r.page,
+    content: options.includeContent 
+      ? wikiManager.readPage(r.page.type, r.page.slug)?.content 
+      : undefined,
+    relevanceScore: Math.round(r.combinedScore * 100),
+    matchType: "content",
+    isExpanded: r.matchedBy.length > 1,
+    expandedFrom: r.bestVariant,
+  }));
+  
+  if (options.useGraphExpansion && matches.length > 0) {
+    try {
+      const inputMatches = matches.slice(0, 10).map((m) => ({
+        page: m.page,
+        content: m.content,
+        relevanceScore: m.relevanceScore,
+        matchType: m.matchType as "title" | "summary" | "tags" | "content",
+      }));
+      
+      const enrichedMatches = await enrichMatchesWithGraph(inputMatches, {
+        neighborLimit: options.neighborLimit,
+        hubBoostWeight: options.hubBoostWeight,
+      });
+      
+      const graphExpanded = enrichedMatches
+        .filter((em) => em.isExpanded)
+        .map((em) => ({
+          page: em.page,
+          content: options.includeContent 
+            ? wikiManager.readPage(em.page.type, em.page.slug)?.content 
+            : undefined,
+          relevanceScore: em.relevanceScore,
+          matchType: em.matchType,
+          isExpanded: true,
+          expandedFrom: em.expandedFrom,
+        }));
+      
+      for (const expanded of graphExpanded) {
+        if (!matches.find((m) => m.page.id === expanded.page.id)) {
+          matches.push(expanded);
+        }
+      }
+      
+      matches.sort((a, b) => b.relevanceScore - a.relevanceScore);
+    } catch (error) {
+      logger.warn("Graph expansion failed in multi-query search", {
+        error: (error as Error).message,
+      });
+    }
+  }
+  
+  const limitedMatches = matches.slice(0, options.limit);
+  
+  logger.info("Multi-query wiki search complete", {
+    originalQuery: expandedQueries.originalQuery,
+    queryCount: expandedQueries.queries.length,
+    terminologyExpanded: expandedQueries.terminologyExpanded,
+    llmRewritten: expandedQueries.llmRewritten,
+    matches: limitedMatches.length,
+    totalMatches: matches.length,
+  });
+  
+  return {
+    query: expandedQueries.originalQuery,
+    matches: limitedMatches,
+    total: matches.length,
+    executedAt: Date.now(),
+  };
+}
+
 export async function queryWiki(options: QueryOptions): Promise<QueryResult> {
   const wikiManager = options.wikiFileManager || wikiFileManager;
   const limit = options.limit || 20;
   const includeContent = options.includeContent ?? false;
   const useSemantic = options.useSemanticSearch ?? false;
   const semanticThreshold = options.semanticThreshold ?? 0.3;
+  const useTerminology = options.useTerminologyExpansion ?? true;
+  const useRewriting = options.useQueryRewriting ?? false;
 
   if (!options.query || options.query.trim().length === 0) {
     throw new Error("Query string is required");
+  }
+
+  let expandedQueries: ExpandedQueries;
+  
+  if (useTerminology || useRewriting) {
+    expandedQueries = await expandQuery(options.query, {
+      useTerminologyExpansion: useTerminology,
+      useQueryRewriting: useRewriting,
+    });
+  } else {
+    expandedQueries = {
+      queries: [options.query],
+      originalQuery: options.query,
+      terminologyExpanded: false,
+      llmRewritten: false,
+      expansions: [],
+    };
   }
 
   const allPages = await storage.wikiPages.findAll({ limit: 200 });
@@ -148,6 +281,23 @@ export async function queryWiki(options: QueryOptions): Promise<QueryResult> {
   if (options.tags && options.tags.length > 0) {
     filteredPages = filteredPages.filter((p) =>
       options.tags!.some((tag) => p.tags.includes(tag))
+    );
+  }
+
+  if (expandedQueries.queries.length > 1) {
+    return await multiQueryWikiSearch(
+      expandedQueries,
+      filteredPages,
+      wikiManager,
+      {
+        limit,
+        includeContent,
+        useSemantic,
+        semanticThreshold,
+        useGraphExpansion: options.useGraphExpansion ?? true,
+        neighborLimit: options.neighborLimit ?? 3,
+        hubBoostWeight: options.hubBoostWeight ?? 0.3,
+      }
     );
   }
 
@@ -390,6 +540,8 @@ export async function synthesizeAnswer(options: SynthesizeOptions): Promise<Synt
     includeContent: true,
     wikiFileManager: wikiManager,
     useSemanticSearch: options.useSemanticSearch ?? true,
+    useTerminologyExpansion: options.useTerminologyExpansion ?? true,
+    useQueryRewriting: options.useQueryRewriting ?? false,
   });
 
   if (queryResult.matches.length === 0) {

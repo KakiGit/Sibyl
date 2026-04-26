@@ -245,6 +245,7 @@ export class WikiPageStorage {
       summary: input.summary,
       tags: input.tags ?? [],
       sourceIds: input.sourceIds ?? [],
+      aliases: input.aliases ?? [],
       embeddingId: undefined,
       createdAt: now,
       updatedAt: now,
@@ -260,6 +261,7 @@ export class WikiPageStorage {
       summary: page.summary ?? null,
       tags: JSON.stringify(page.tags),
       sourceIds: JSON.stringify(page.sourceIds),
+      aliases: JSON.stringify(page.aliases),
       embeddingId: page.embeddingId ?? null,
       createdAt: page.createdAt,
       updatedAt: page.updatedAt,
@@ -399,6 +401,7 @@ export class WikiPageStorage {
     if (updates.summary !== undefined) updateData.summary = updates.summary;
     if (updates.tags !== undefined) updateData.tags = JSON.stringify(updates.tags);
     if (updates.sourceIds !== undefined) updateData.sourceIds = JSON.stringify(updates.sourceIds);
+    if (updates.aliases !== undefined) updateData.aliases = JSON.stringify(updates.aliases);
     if (updates.embeddingId !== undefined) updateData.embeddingId = updates.embeddingId;
 
     await db.update(wikiPages).set(updateData).where(eq(wikiPages.id, id));
@@ -460,6 +463,7 @@ export class WikiPageStorage {
     summary: string | null;
     tags: string | null;
     sourceIds: string | null;
+    aliases: string | null;
     embeddingId: string | null;
     createdAt: number;
     updatedAt: number;
@@ -474,6 +478,7 @@ export class WikiPageStorage {
       summary: row.summary ?? undefined,
       tags: row.tags ? JSON.parse(row.tags) : [],
       sourceIds: row.sourceIds ? JSON.parse(row.sourceIds) : [],
+      aliases: row.aliases ? JSON.parse(row.aliases) : [],
       embeddingId: row.embeddingId ?? undefined,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,

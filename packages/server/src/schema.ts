@@ -21,6 +21,7 @@ export const wikiPages = sqliteTable("wiki_pages", {
   summary: text(),
   tags: text(),
   sourceIds: text("source_ids"),
+  aliases: text(),
   embeddingId: text("embedding_id"),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),

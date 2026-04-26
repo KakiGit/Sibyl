@@ -72,12 +72,18 @@ export function migrateDatabase(database: ReturnType<typeof drizzle<typeof schem
       summary TEXT,
       tags TEXT,
       source_ids TEXT,
+      aliases TEXT,
       embedding_id TEXT,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL,
       version INTEGER DEFAULT 1
     )
   `);
+  
+  try {
+    sqlite.run(`ALTER TABLE wiki_pages ADD COLUMN aliases TEXT`);
+  } catch {
+  }
   
   sqlite.run(`
     CREATE TABLE IF NOT EXISTS wiki_links (

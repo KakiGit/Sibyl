@@ -16,6 +16,7 @@ export interface CreateWikiPageInput {
   summary?: string;
   tags?: string[];
   sourceIds?: string[];
+  aliases?: string[];
 }
 
 export interface CreateWikiLinkInput {
