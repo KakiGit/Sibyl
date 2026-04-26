@@ -113,6 +113,7 @@ async function syncWikiPages(dataDir: string): Promise<SyncResult["wikiPages"]> 
   
   const dbSlugs = new Set(dbPages.map((p) => p.slug));
   const pagesToAdd: Array<{ type: WikiPageType; slug: string; content: string }> = [];
+  const addedSlugs = new Set<string>();
   
   for (const type of WIKI_PAGE_TYPES) {
     const typeDir = join(wikiDir, WIKI_PAGE_DIRS[type]);
@@ -123,9 +124,9 @@ async function syncWikiPages(dataDir: string): Promise<SyncResult["wikiPages"]> 
     for (const file of files) {
       if (!file.endsWith(".md")) continue;
       
-      const slug = file.replace(".md", "");
+      const fileSlug = file.replace(".md", "");
       
-      if (dbSlugs.has(slug)) continue;
+      if (dbSlugs.has(fileSlug) || addedSlugs.has(fileSlug)) continue;
       
       const filePath = join(typeDir, file);
       try {
@@ -133,7 +134,15 @@ async function syncWikiPages(dataDir: string): Promise<SyncResult["wikiPages"]> 
         const { data, content } = grayMatter(fileContent);
         
         if (data.slug && data.title && data.type) {
-          pagesToAdd.push({ type: data.type as WikiPageType, slug: data.slug, content: content.trim() });
+          const frontmatterSlug = data.slug;
+          
+          if (dbSlugs.has(frontmatterSlug) || addedSlugs.has(frontmatterSlug)) {
+            logger.warn("Skipping wiki file with duplicate slug", { file, slug: frontmatterSlug, path: filePath });
+            continue;
+          }
+          
+          addedSlugs.add(frontmatterSlug);
+          pagesToAdd.push({ type: data.type as WikiPageType, slug: frontmatterSlug, content: content.trim() });
         } else {
           logger.warn("Skipping wiki file with incomplete frontmatter", { file, path: filePath });
         }
