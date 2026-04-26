@@ -98,7 +98,7 @@ export function DialogContent({ children, className }: DialogContentProps) {
   return (
     <div 
       className={cn(
-        "relative bg-background rounded-lg shadow-lg p-6 w-full max-w-md",
+        "relative bg-popover text-popover-foreground rounded-lg shadow-xl p-6 w-full max-w-md",
         "border border-border",
         className
       )}
@@ -183,7 +183,7 @@ export function ConfirmDialog({
           <button
             onClick={handleCancel}
             disabled={loading}
-            className="px-4 py-2 text-sm rounded-md border border-input bg-background hover:bg-accent disabled:opacity-50"
+            className="px-4 py-2 text-sm rounded-md border border-input bg-muted hover:bg-accent disabled:opacity-50"
           >
             {cancelLabel}
           </button>

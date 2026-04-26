@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState, useCallback } from "react";
-import { Network, Link2Off, GitBranch, Brain, Layers, FileText, BookOpen, ArrowRight, ArrowLeft, LayoutGrid, List } from "lucide-react";
+import { Network, Link2Off, GitBranch, Brain, Layers, FileText, BookOpen, ArrowRight, ArrowLeft, LayoutGrid, List, X } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -41,6 +41,26 @@ async function fetchWikiGraph(): Promise<{ data: WikiGraph }> {
   const response = await fetch("/api/wiki-links/graph");
   if (!response.ok) throw new Error("Failed to fetch wiki graph");
   return response.json();
+}
+
+function PageDetailPanel({ pageId, onClose }: { pageId: string; onClose: () => void }) {
+  return (
+    <div className="fixed inset-y-0 right-0 w-full max-w-2xl bg-popover border-l border-border shadow-xl z-50 animate-in slide-in-from-right duration-300 overflow-hidden flex flex-col">
+      <div className="flex items-center justify-between p-4 border-b border-border bg-muted/50">
+        <h3 className="text-sm font-medium text-muted-foreground">Page Detail</h3>
+        <button
+          onClick={onClose}
+          className="p-2 rounded-md hover:bg-muted transition-colors"
+          aria-label="Close panel"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+      <div className="flex-1 overflow-auto">
+        <WikiPageDetail pageId={pageId} onBack={onClose} />
+      </div>
+    </div>
+  );
 }
 
 const PAGE_TYPE_CONFIG = {
@@ -143,15 +163,6 @@ export function WikiGraphView() {
 
   const graph = data?.data;
 
-  if (selectedPageId && graph) {
-    return (
-      <WikiPageDetail
-        pageId={selectedPageId}
-        onBack={() => setSelectedPageId(null)}
-      />
-    );
-  }
-
   if (isLoading) {
     return (
       <Card>
@@ -223,6 +234,12 @@ export function WikiGraphView() {
 
   return (
     <div className="space-y-6">
+      {selectedPageId && (
+        <>
+          <div className="fixed inset-0 bg-black/30 z-40 animate-in fade-in duration-200" onClick={() => setSelectedPageId(null)} />
+          <PageDetailPanel pageId={selectedPageId} onClose={() => setSelectedPageId(null)} />
+        </>
+      )}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">

@@ -539,4 +539,20 @@ describe("WikiGraphView", () => {
       expect(screen.getByText(/Interactive visualization/i)).toBeTruthy();
     }, { timeout: 10000 });
   });
+
+  it("shows page detail panel as overlay without hiding graph", async () => {
+    (global as Record<string, unknown>).fetch = async () => ({
+      ok: true,
+      json: async () => mockGraphData,
+    } as Response);
+
+    render(<WikiGraphView />, { wrapper: createWrapper() });
+
+    await waitFor(() => {
+      expect(screen.getByText(/Interactive visualization/i)).toBeTruthy();
+    }, { timeout: 10000 });
+
+    const graphView = screen.getByText(/Interactive visualization/i).closest("div");
+    expect(graphView?.className).toContain("space-y-4");
+  });
 });

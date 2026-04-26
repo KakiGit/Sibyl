@@ -66,10 +66,10 @@ function HoverTooltip({ node, position }: { node: SimulatedNode | null; position
         left: position.x + 15,
         top: position.y + 15,
       }}
-      className="fixed z-50 bg-background border shadow-lg rounded-md px-3 py-2 pointer-events-none animate-in fade-in-0 zoom-in-95 duration-150"
+      className="fixed z-50 bg-popover border border-border shadow-xl rounded-md px-3 py-2 pointer-events-none animate-in fade-in-0 zoom-in-95 duration-150"
     >
       <div className="flex items-center gap-2">
-        <span className="font-medium text-sm">{node.title}</span>
+        <span className="font-medium text-sm text-popover-foreground">{node.title}</span>
         <Badge
           className="text-xs"
           style={{ backgroundColor: config.bgColor, color: config.color }}

@@ -1,6 +1,34 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { ConfirmDialog } from "@/components/ui/dialog";
+import { ConfirmDialog, Dialog, DialogContent } from "@/components/ui/dialog";
+
+describe("Dialog styling", () => {
+  it("uses opaque popover background for dialog content", () => {
+    render(
+      <Dialog open={true} onOpenChange={() => {}}>
+        <DialogContent>
+          <p>Test content</p>
+        </DialogContent>
+      </Dialog>
+    );
+    const content = screen.getByText("Test content").closest("div");
+    expect(content?.className).toContain("bg-popover");
+    expect(content?.className).toContain("text-popover-foreground");
+  });
+
+  it("has proper border and shadow for visibility", () => {
+    render(
+      <Dialog open={true} onOpenChange={() => {}}>
+        <DialogContent>
+          <p>Test content</p>
+        </DialogContent>
+      </Dialog>
+    );
+    const content = screen.getByText("Test content").closest("div");
+    expect(content?.className).toContain("border-border");
+    expect(content?.className).toContain("shadow-xl");
+  });
+});
 
 describe("ConfirmDialog", () => {
   it("renders when open is true", () => {

@@ -136,7 +136,7 @@ const TABS_CONFIG = [
 
 function ShortcutHelp({ shortcuts }: { shortcuts: KeyboardShortcut[] }) {
   return (
-    <div className="p-4 bg-muted/50 rounded-lg">
+    <div className="p-4 bg-popover border border-border rounded-lg shadow-lg">
       <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
         <Keyboard className="h-4 w-4" />
         Keyboard Shortcuts
@@ -144,8 +144,8 @@ function ShortcutHelp({ shortcuts }: { shortcuts: KeyboardShortcut[] }) {
       <div className="grid gap-1 text-xs">
         {shortcuts.map((shortcut, index) => (
           <div key={index} className="flex justify-between">
-            <span className="text-muted-foreground">{shortcut.description}</span>
-            <span className="font-mono">{shortcut.key}</span>
+            <span className="text-popover-foreground">{shortcut.description}</span>
+            <kbd className="px-1.5 py-0.5 bg-muted rounded font-mono text-xs border">{shortcut.key}</kbd>
           </div>
         ))}
       </div>
